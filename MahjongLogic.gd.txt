@@ -1,0 +1,196 @@
+extends Node
+
+# ==============================
+# 麻雀待ち判定ロジック
+# 筒子のみ（1〜9）、4枚七対子あり
+# 任意の枚数の完成形に対応（雀頭1つ＋メンツN個）
+# ==============================
+
+
+# 手牌を受け取り、待ち牌のリストを返す関数
+# 戻り値：待ち牌の配列（例：[2, 5]）、待ちなしなら空配列[]
+# 手牌の枚数は自由（7枚→8枚で完成、10枚→11枚で完成、13枚→14枚で完成、など）
+func find_waiting_tiles(hand: Array) -> Array:
+	var waiting = []  # 待ち牌を入れるリスト
+	
+	# 1〜9を一枚ずつ加えて完成形になるか試す
+	for tile in range(1, 10):
+		var test_hand = hand.duplicate()  # 手牌をコピー（元の手牌を変えないため）
+		test_hand.append(tile)            # 試す牌を1枚追加
+		test_hand.sort()                  # 並び替え（判定しやすくするため）
+		
+		# 完成形かどうか判定（is_complete_handが枚数を自動判別する）
+		if is_complete_hand(test_hand):
+			waiting.append(tile)  # 完成するならその牌を待ち牌リストに追加
+	
+	return waiting  # 待ち牌リストを返す
+
+
+# 手牌が完成形かどうか判定する関数
+# 戻り値：完成ならtrue、未完成ならfalse
+# 任意の枚数に対応（5枚, 8枚, 11枚, 14枚, ...）
+func is_complete_hand(hand: Array) -> bool:
+	var size = hand.size()  # 手牌の枚数
+	
+	# 完成形は「雀頭2枚＋メンツ3枚×N個」=「2+3N」の枚数になる
+	# つまり 5, 8, 11, 14, ... のいずれかでなければ完成形になり得ない
+	# (size - 2) が3の倍数かどうかで判定できる
+	# サイズが5未満（雀頭+メンツ1つに満たない）も無効
+	if size < 5 or (size - 2) % 3 != 0:
+		return false
+	
+	# 七対子チェック（内部で14枚以外はfalseを返す＝7枚や10枚では弾かれる）
+	if is_seven_pairs(hand):
+		return true
+	
+	# 通常手チェック（雀頭＋メンツ）
+	if is_normal_hand(hand):
+		return true
+	
+	return false  # どちらでもなければ未完成
+
+
+# 七対子判定（4枚七対子あり）
+# 7種類の対子で構成されているか確認する
+# 14枚でなければ自動的にfalseになる（=ステージ1の8枚やステージ2の11枚では成立しない）
+func is_seven_pairs(hand: Array) -> bool:
+	if hand.size() != 14:  # 14枚でなければ七対子にならない
+		return false
+	
+	var counts = count_tiles(hand)  # 各牌の枚数を数える
+	var pairs = 0                   # 対子の数
+	
+	for tile in counts:
+		var count = counts[tile]
+		if count == 2 or count == 4:  # 2枚か4枚なら対子として認める
+			pairs += count / 2        # 4枚なら対子2つ分
+		else:
+			return false  # 1枚や3枚があれば七対子ではない
+	
+	return pairs == 7  # 対子が7つなら七対子
+
+
+# 通常手判定（雀頭1つ＋メンツN個）
+# Nは手牌の枚数から自動で決まる：
+#   8枚 → N=2、 11枚 → N=3、 14枚 → N=4
+# can_form_meldsが「残った牌を全部メンツで使い切れるか」を再帰で見ているため、
+# 枚数を意識しなくても勝手に正しい判定になる
+func is_normal_hand(hand: Array) -> bool:
+	var counts = count_tiles(hand)  # 各牌の枚数を数える
+	var tiles = counts.keys()       # 存在する牌の種類リスト
+	tiles.sort()                    # 小さい順に並べる
+	
+	# 雀頭候補を全て試す
+	for tile in tiles:
+		if counts[tile] >= 2:  # 2枚以上あれば雀頭候補になる
+			counts[tile] -= 2  # 雀頭として2枚取り除く
+			
+			# 残りがメンツだけで構成できるか確認
+			if can_form_melds(counts):
+				counts[tile] += 2  # 元に戻す
+				return true
+			
+			counts[tile] += 2  # 元に戻して次の雀頭候補を試す
+	
+	return false  # どの雀頭でも完成しなければfalse
+
+
+# 残りの牌がメンツ（刻子か順子）だけで構成できるか再帰的に確認する関数
+# 「全部使い切れるか」を見ているだけなので、メンツの個数を引数で渡す必要はない
+func can_form_melds(counts: Dictionary) -> bool:
+	# 一番小さい牌を探す
+	var min_tile = -1
+	for tile in counts:
+		if counts[tile] > 0:  # 残っている牌の中で
+			if min_tile == -1 or tile < min_tile:
+				min_tile = tile  # 一番小さいものを記録
+	
+	if min_tile == -1:
+		return true  # 全ての牌を使い切れた＝メンツ構成成功
+	
+	# 刻子（同じ牌3枚）を試す
+	if counts[min_tile] >= 3:
+		counts[min_tile] -= 3  # 3枚取り除く
+		if can_form_melds(counts):  # 残りも構成できるか再帰確認
+			counts[min_tile] += 3  # 元に戻す
+			return true
+		counts[min_tile] += 3  # 元に戻す
+	
+	# 順子（連続する3枚）を試す
+	if counts.get(min_tile + 1, 0) > 0 and counts.get(min_tile + 2, 0) > 0:
+		counts[min_tile] -= 1
+		counts[min_tile + 1] -= 1
+		counts[min_tile + 2] -= 1
+		if can_form_melds(counts):
+			counts[min_tile] += 1
+			counts[min_tile + 1] += 1
+			counts[min_tile + 2] += 1
+			return true
+		counts[min_tile] += 1
+		counts[min_tile + 1] += 1
+		counts[min_tile + 2] += 1
+	
+	return false  # 刻子も順子も作れなければ失敗
+
+
+# 各牌の枚数を数えてDictionary形式で返す関数
+# 例：[1,1,2,3] → {1:2, 2:1, 3:1}
+func count_tiles(hand: Array) -> Dictionary:
+	var counts = {}
+	for tile in hand:
+		if tile in counts:
+			counts[tile] += 1  # すでにあれば1増やす
+		else:
+			counts[tile] = 1   # 初めて出た牌は1からスタート
+	return counts
+
+
+# ==============================
+# 手牌生成ロジック
+# 36枚デッキから重複なし抽選
+# ==============================
+
+
+# 指定した枚数の手牌をランダムで生成して返す関数
+# 引数：枚数、ソートするかどうか（デフォルトtrue）
+# 戻り値：手牌の配列
+# 注意：この関数はテンパイかどうか気にせずランダム生成する（=待ちなしも出る）
+func generate_hand(count: int, sort_hand: bool = true) -> Array:
+	var deck = create_deck()  # 36枚のデッキを作る
+	deck.shuffle()            # デッキをシャッフル
+	
+	var hand = []
+	for i in range(count):
+		hand.append(deck[i])  # 先頭からcount枚取り出す
+	
+	if sort_hand:
+		hand.sort()  # ソート指定があるときだけ並び替え
+	return hand
+
+
+# テンパイ（待ちあり）の手牌を作るまで生成し直す関数
+# 引数：枚数、最大試行回数（デフォルト1000回）、ソートするかどうか（デフォルトtrue）
+# 戻り値：テンパイ手牌の配列
+# 万が一max_tries回試しても見つからなかった場合は警告を出して最後の手牌を返す
+# （無限ループ防止のための安全弁）
+func generate_tenpai_hand(count: int, max_tries: int = 1000, sort_hand: bool = true) -> Array:
+	for i in range(max_tries):
+		var hand = generate_hand(count, sort_hand)  # ランダム生成
+		var waiting = find_waiting_tiles(hand)      # 待ち牌を計算
+		if not waiting.is_empty():                  # 待ちが1枚以上あればOK
+			return hand
+	
+	# ここまで来てしまったら、テンパイ手牌が見つからなかった
+	# Godotエディタの「出力」に警告を表示する
+	push_warning("テンパイ手牌の生成に失敗しました（試行回数: " + str(max_tries) + "）")
+	return generate_hand(count, sort_hand)  # 保険として通常生成した手牌を返す
+
+
+# 36枚のデッキを作る関数
+# 筒子1〜9をそれぞれ4枚ずつ用意する
+func create_deck() -> Array:
+	var deck = []
+	for tile in range(1, 10):    # 1〜9
+		for i in range(4):       # 各4枚
+			deck.append(tile)    # デッキに追加
+	return deck  # 合計36枚のデッキを返す

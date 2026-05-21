@@ -1,0 +1,6 @@
+[gd_scene format=3 load_steps=2]
+
+[ext_resource type="Script" path="res://result.gd" id="1"]
+
+[node name="Result" type="Control"]
+script = ExtResource("1")
