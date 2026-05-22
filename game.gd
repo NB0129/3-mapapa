@@ -1809,8 +1809,12 @@ func _debug_init() -> void:
 	if _debug_target_idx == 0:
 		# プレイヤー0: 鳴き後は13枚未満でもOK
 		var sort_end: int = hand.size() - 1 if (_player_drew and hand.size() >= 2) else hand.size()
-		for i in range(min(sort_end, 13)):
-			_debug_hand_tiles[i] = hand[i].duplicate()
+		var sorted_hand: Array = hand.slice(0, sort_end)
+		sorted_hand.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			return _tile_sort_key(a) < _tile_sort_key(b)
+		)
+		for i in range(min(sorted_hand.size(), 13)):
+			_debug_hand_tiles[i] = sorted_hand[i].duplicate()
 		if _player_drew and hand.size() >= 2:
 			_debug_draw_tile = hand[hand.size() - 1].duplicate()
 			# NPC2人が先に引くので wall[2] が自分の次順ツモ
