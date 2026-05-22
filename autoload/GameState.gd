@@ -1325,7 +1325,7 @@ func _find_player_ankan_id() -> int:
 func can_player_riichi() -> bool:
 	var p: Dictionary = players[0]
 	if not p.is_menzen or p.is_riichi or p.score < 1000: return false
-	return not MahjongLogic.get_riichi_discards(p.hand).is_empty()
+	return not get_riichi_selectable_indices().is_empty()
 
 func can_player_kita() -> bool:
 	var p: Dictionary = players[0]
