@@ -825,7 +825,7 @@ func _check_pinfu(decomp: Dictionary, context: Dictionary) -> bool:
 		if not is_meld_sequence(meld): return false
 	# 雀頭が役牌でない
 	var j: int = decomp.jantai
-	if is_honor(j): return false
+	if j == HAKU or j == HATSU or j == CHUN: return false
 	if j == context.get("round_wind", EAST) or j == context.get("player_wind", EAST): return false
 	# 和了牌が両面待ちか確認（タンキ・カンチャン・ペンチャンは不可）
 	var winning_id: int = context.get("winning_tile_id", -1)
