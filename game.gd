@@ -83,6 +83,7 @@ var _debug_rinshan_cursor: int = 0
 var _debug_rinshan_slot_panels: Array = []
 var _debug_rinshan_slot_textures: Array = []
 var _debug_rinshan_error_label: Label
+var _debug_buttons_box: Control
 
 const UPPER_IDX := 2
 const RIGHT_IDX := 1
@@ -255,6 +256,10 @@ func _build_ui() -> void:
 	_hand_box = Control.new()
 	_hand_box.position = Vector2(10, 136)
 	player_panel.add_child(_hand_box)
+
+	_debug_buttons_box = _build_debug_buttons()
+	_debug_buttons_box.position = Vector2(10, 88)
+	player_panel.add_child(_debug_buttons_box)
 
 	_tenpai_assist_box = Control.new()
 	_tenpai_assist_box.position = Vector2(1250, -16)
@@ -1743,9 +1748,42 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.keycode == KEY_F3:
 			_open_debug_for(UPPER_IDX)
 		elif event.keycode == KEY_F4:
-			_debug_rinshan_panel.visible = not _debug_rinshan_panel.visible
-			if _debug_rinshan_panel.visible:
-				_rinshan_debug_init()
+			_toggle_rinshan_debug()
+
+func _build_debug_buttons() -> Control:
+	var box := Control.new()
+	box.size = Vector2(260, 40)
+	var button_defs: Array = [
+		{"text": "F1", "tooltip": "プレイヤー手牌デバッグ", "target": 0},
+		{"text": "F2", "tooltip": "NPC1・右家手牌デバッグ", "target": RIGHT_IDX},
+		{"text": "F3", "tooltip": "NPC2・上家手牌デバッグ", "target": UPPER_IDX},
+	]
+	for i in range(button_defs.size()):
+		var def: Dictionary = button_defs[i]
+		var btn := _make_debug_button(def.text, def.tooltip)
+		btn.position = Vector2(i * 58, 0)
+		var target_idx: int = def.target
+		btn.pressed.connect(func() -> void: _open_debug_for(target_idx))
+		box.add_child(btn)
+
+	var btn_f4 := _make_debug_button("F4", "嶺上牌デバッグ")
+	btn_f4.position = Vector2(3 * 58, 0)
+	btn_f4.pressed.connect(_toggle_rinshan_debug)
+	box.add_child(btn_f4)
+	return box
+
+func _make_debug_button(text: String, tooltip: String) -> Button:
+	var btn := _make_button(text, Color(0.08, 0.10, 0.14, 0.88))
+	btn.tooltip_text = tooltip
+	btn.custom_minimum_size = Vector2(52, 36)
+	btn.size = btn.custom_minimum_size
+	btn.add_theme_font_size_override("font_size", 18)
+	return btn
+
+func _toggle_rinshan_debug() -> void:
+	_debug_rinshan_panel.visible = not _debug_rinshan_panel.visible
+	if _debug_rinshan_panel.visible:
+		_rinshan_debug_init()
 
 func _open_debug_for(target_idx: int) -> void:
 	if _debug_panel.visible and _debug_target_idx == target_idx:
