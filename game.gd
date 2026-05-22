@@ -493,6 +493,10 @@ func _on_tile_drawn(player_idx: int) -> void:
 	if player_idx == 0:
 		_player_drew = true
 		_refresh_hand()
+		if GameState.phase == GameState.Phase.PLAYER_TURN:
+			_check_tsumo_auto()
+			if GameState.players[0].is_riichi:
+				_handle_riichi_draw()
 
 func _on_tile_discarded(_player_idx: int, _tile: Dictionary) -> void:
 	_player_drew = false
@@ -532,9 +536,6 @@ func _on_kita_removed(player_idx: int) -> void:
 	_wanpai_consume()  # 北抜きで嶺上牌消費
 	if player_idx == 0:
 		_refresh_hand()
-		_check_tsumo_auto()
-		if GameState.players[0].is_riichi and GameState.phase == GameState.Phase.PLAYER_TURN:
-			_handle_riichi_draw()
 	else:
 		_refresh_npc_areas()
 
@@ -1680,6 +1681,16 @@ func _set_action_buttons_state(
 
 func _layout_action_buttons() -> void:
 	if _action_box == null:
+		return
+	if _btn_tsumo.visible and _btn_open_riichi.visible and _btn_riichi.visible:
+		var center_x := (_action_box.size.x - _btn_tsumo.custom_minimum_size.x) / 2.0
+		var button_y := 0.0
+		_btn_open_riichi.position = Vector2(center_x - _btn_open_riichi.custom_minimum_size.x, button_y)
+		_btn_tsumo.position = Vector2(center_x, button_y)
+		_btn_riichi.position = Vector2(center_x + _btn_tsumo.custom_minimum_size.x, button_y)
+		_btn_open_riichi.size = _btn_open_riichi.custom_minimum_size
+		_btn_tsumo.size = _btn_tsumo.custom_minimum_size
+		_btn_riichi.size = _btn_riichi.custom_minimum_size
 		return
 	var visible_buttons: Array = []
 	for btn: Button in [_btn_discard, _btn_tsumo, _btn_ron, _btn_open_riichi, _btn_riichi, _btn_pon, _btn_kita, _btn_kan, _btn_skip, _btn_riichi_cancel]:
