@@ -257,10 +257,6 @@ func _build_ui() -> void:
 	_hand_box.position = Vector2(10, 136)
 	player_panel.add_child(_hand_box)
 
-	_debug_buttons_box = _build_debug_buttons()
-	_debug_buttons_box.position = Vector2(10, 88)
-	player_panel.add_child(_debug_buttons_box)
-
 	_tenpai_assist_box = Control.new()
 	_tenpai_assist_box.position = Vector2(1250, -16)
 	_tenpai_assist_box.size = Vector2(620, 112)
@@ -337,6 +333,11 @@ func _build_ui() -> void:
 	_btn_riichi_cancel.pressed.connect(_on_riichi_cancel_pressed)
 	_btn_riichi_cancel.visible = false
 	_action_box.add_child(_btn_riichi_cancel)
+
+	_debug_buttons_box = _build_debug_buttons()
+	_debug_buttons_box.position = Vector2(10, 88)
+	_debug_buttons_box.z_index = 20
+	player_panel.add_child(_debug_buttons_box)
 
 	_status_label = _make_label("", Vector2(10, 720), 24)
 	_status_label.add_theme_color_override("font_color", Color(1, 1, 0))
