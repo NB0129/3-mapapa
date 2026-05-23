@@ -408,12 +408,14 @@ func _build_ui() -> void:
 	_win_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_win_overlay.color = Color(0, 0, 0, 0.68)
 	_win_overlay.visible = false
+	_win_overlay.z_index = 50
 	add_child(_win_overlay)
 
 	_msg_panel = Panel.new()
 	_msg_panel.custom_minimum_size = Vector2(860, 520)
 	_msg_panel.position = Vector2(530, 280)
 	_msg_panel.visible = false
+	_msg_panel.z_index = 70
 	var msg_style := StyleBoxFlat.new()
 	msg_style.bg_color = Color(0.12, 0.12, 0.18)
 	msg_style.border_color = Color(0.6, 0.5, 0.1)
@@ -1848,7 +1850,7 @@ func _play_win_call_animation(result: Dictionary) -> void:
 	AudioManager.play_se("plhora" if winner_idx == 0 else "npchora")
 	var call_rect := TextureRect.new()
 	call_rect.texture = load("res://ui/hassei_tumo.webp" if result.get("is_tsumo", false) else "res://ui/hassei_ron.webp")
-	call_rect.size = Vector2(130, 68)
+	call_rect.size = Vector2(65, 34)
 	call_rect.pivot_offset = call_rect.size * 0.5
 	call_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	call_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -1856,15 +1858,17 @@ func _play_win_call_animation(result: Dictionary) -> void:
 	call_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(call_rect)
 	_result_dynamic_nodes.append(call_rect)
-	var end_pos := Vector2((SCREEN_SIZE.x - call_rect.size.x) * 0.5, 410)
-	var start_pos := Vector2(end_pos.x, 960)
+	var end_center := Vector2(SCREEN_SIZE.x * 0.5, 410)
+	var start_center := Vector2(end_center.x, 960)
 	call_rect.rotation_degrees = 0.0
 	if winner_idx == RIGHT_IDX:
-		start_pos = Vector2(1900, end_pos.y)
+		start_center = Vector2(1900, end_center.y)
 		call_rect.rotation_degrees = -90.0
 	elif winner_idx == UPPER_IDX:
-		start_pos = Vector2(end_pos.x, -130)
+		start_center = Vector2(end_center.x, -130)
 		call_rect.rotation_degrees = 180.0
+	var start_pos := start_center - call_rect.pivot_offset
+	var end_pos := end_center - call_rect.pivot_offset
 	call_rect.position = start_pos
 	var tween := create_tween()
 	tween.tween_property(call_rect, "position", end_pos, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -1876,17 +1880,18 @@ func _play_win_call_animation(result: Dictionary) -> void:
 func _play_result_chara_animation(winner_idx: int) -> void:
 	var chara_rect := TextureRect.new()
 	chara_rect.texture = _make_used_rect_texture(_get_result_chara_path(winner_idx))
-	chara_rect.position = Vector2(SCREEN_SIZE.x, 65)
+	var chara_y := 415.0 if winner_idx != 0 else 65.0
+	chara_rect.position = Vector2(SCREEN_SIZE.x, chara_y)
 	chara_rect.size = Vector2(500, 970)
 	chara_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	chara_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
-	chara_rect.z_index = 90
+	chara_rect.z_index = 60
 	chara_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(chara_rect)
 	_result_dynamic_nodes.append(chara_rect)
 	var tween := create_tween()
 	var dest_x := 0.0
-	tween.tween_property(chara_rect, "position", Vector2(dest_x, 65), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(chara_rect, "position", Vector2(dest_x, chara_y), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished
 	if winner_idx == 0:
 		_play_chara_voice("seplavo_hora")
