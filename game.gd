@@ -674,7 +674,7 @@ func _on_riichi_declared(player_idx: int) -> void:
 	_refresh_npc_areas()
 	if player_idx == 0:
 		_status_label.text = "リーチ！"
-		var npc_riichi := GameState.players[1].is_riichi or GameState.players[2].is_riichi
+		var npc_riichi: bool = GameState.players[1].is_riichi or GameState.players[2].is_riichi
 		_play_chara_voice("seplavo_okkake" if npc_riichi else "seplavo_riti")
 		_play_riichi_bgm()
 
