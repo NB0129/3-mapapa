@@ -353,12 +353,16 @@
   res://assets/bgm/
     bgm_title.wav        タイトルBGM
     bgm_menyu.wav        メニューBGM
+    bgm_neotora.ogg      対局BGM候補「トランポリン白くま」
 
   res://BGM/
-    bgm_ton*.ogg         東場BGM候補（局開始時にランダム選択）
-    bgm_nan*.ogg         南場BGM候補（局開始時にランダム選択）
-    bgm_ora*.ogg         オーラスBGM候補（南3局でランダム選択）
+    bgm_ton*.ogg         東場BGM候補（半荘開始時にシャッフル、局開始時に順番再生）
+    bgm_nan*.ogg         南場BGM候補（半荘開始時にシャッフル、局開始時に順番再生）
+                         nan1/nan2、nan3/nan4は連続しない並びを優先
+    bgm_ora*.ogg         オーラスBGM候補（南3局で順番再生）
     *.ogg.import         Godot OGGインポート設定
+
+  対局中はGame画面左下に再生中BGMの曲名を表示する。
 
 --------------------------------------------------
 ■ 対局画面 UIレイアウト（2026/05/17 大改修②後）

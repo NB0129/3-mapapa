@@ -66,6 +66,7 @@ var _btn_home_icon: Button
 var _settings_popup: Panel
 var _home_confirm_popup: Panel
 var _bgm_slider: HSlider
+var _bgm_title_label: Label
 var _se_slider: HSlider
 var _debug_panel: Panel
 var _debug_hand_tiles: Array = []   # 13要素、{} = 空スロット（id/is_red/is_gold/is_haku_pochi）
@@ -106,29 +107,38 @@ const NPC_HAND_TEXTURE_PATHS := {
 	],
 }
 
-const EAST_BGM_PATHS := [
-	"res://BGM/bgm_ton1_morinosirokuma.ogg",
-	"res://BGM/bgm_ton2_syoppingukuma.ogg",
-	"res://BGM/bgm_ton3_de-tokuma.ogg",
-	"res://BGM/bgm_ton4_houkadonosirokuma.ogg",
-	"res://BGM/bgm_ton5_gekounosirokuma.ogg",
-	"res://BGM/bgm_ton6_madogiwanokuma.ogg",
-	"res://BGM/bgm_ton7_soratobukuma.ogg",
+const EAST_BGM_TRACKS := [
+	{"path": "res://BGM/bgm_ton1_morinosirokuma.ogg", "title": "森の白くま", "group": ""},
+	{"path": "res://BGM/bgm_ton2_syoppingukuma.ogg", "title": "ショッピング白くま", "group": ""},
+	{"path": "res://BGM/bgm_ton3_de-tokuma.ogg", "title": "デート白くま", "group": ""},
+	{"path": "res://BGM/bgm_ton4_houkadonosirokuma.ogg", "title": "放課後の白くま", "group": ""},
+	{"path": "res://BGM/bgm_ton5_gekounosirokuma.ogg", "title": "下校の白くま", "group": ""},
+	{"path": "res://BGM/bgm_ton6_madogiwanokuma.ogg", "title": "窓際の白くま", "group": ""},
+	{"path": "res://BGM/bgm_ton7_soratobukuma.ogg", "title": "空飛ぶ白くま", "group": ""},
+	{"path": "res://BGM/bgm_ton8_youkikuma.ogg", "title": "陽気な白くま", "group": ""},
+	{"path": "res://assets/bgm/bgm_neotora.ogg", "title": "トランポリン白くま", "group": ""},
 ]
 
-const SOUTH_BGM_PATHS := [
-	"res://BGM/bgm_nan1_akazukinnomondou.ogg",
-	"res://BGM/bgm_nan2_akazukintonotatakai.ogg",
-	"res://BGM/bgm_nan3_tanteinomaturo.ogg",
-	"res://BGM/bgm_nan4_nerawaretatantei.ogg",
-	"res://BGM/bgm_nan5_rojiuranobakuto.ogg",
+const SOUTH_BGM_TRACKS := [
+	{"path": "res://BGM/bgm_nan1_akazukinnomondou.ogg", "title": "赤ずきんの問答", "group": "akazukin"},
+	{"path": "res://BGM/bgm_nan2_akazukintonotatakai.ogg", "title": "赤ずきんとの闘い", "group": "akazukin"},
+	{"path": "res://BGM/bgm_nan3_tanteinomaturo.ogg", "title": "探偵の末路", "group": "tantei"},
+	{"path": "res://BGM/bgm_nan4_nerawaretatantei.ogg", "title": "狙われた探偵", "group": "tantei"},
+	{"path": "res://BGM/bgm_nan5_rojiuranobakuto.ogg", "title": "路地裏の博徒", "group": ""},
 ]
 
-const OORASU_BGM_PATHS := [
-	"res://BGM/bgm_ora_wazukanatensa.ogg",
-	"res://BGM/bgm_ora2_baityokujouken.ogg",
-	"res://BGM/bgm_ora3_situyounaosananajimi.ogg",
+const OORASU_BGM_TRACKS := [
+	{"path": "res://BGM/bgm_ora_wazukanatensa.ogg", "title": "僅かな点差", "group": ""},
+	{"path": "res://BGM/bgm_ora2_baityokujouken.ogg", "title": "倍直条件", "group": ""},
+	{"path": "res://BGM/bgm_ora3_situyounaosananajimi.ogg", "title": "執拗な幼馴染", "group": ""},
 ]
+
+var _east_bgm_playlist: Array = []
+var _south_bgm_playlist: Array = []
+var _oorasu_bgm_playlist: Array = []
+var _east_bgm_index: int = 0
+var _south_bgm_index: int = 0
+var _oorasu_bgm_index: int = 0
 
 # ============================================================
 # 初期化
@@ -136,6 +146,7 @@ const OORASU_BGM_PATHS := [
 func _ready() -> void:
 	_build_ui()
 	_connect_signals()
+	_build_bgm_playlists()
 	GameState.start_game()
 
 # ============================================================
@@ -367,6 +378,14 @@ func _build_ui() -> void:
 	_status_label.visible = false
 	add_child(_status_label)
 
+	_bgm_title_label = _make_label("", Vector2(20, 1018), 24)
+	_bgm_title_label.size = Vector2(720, 40)
+	_bgm_title_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+	_bgm_title_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	_bgm_title_label.add_theme_constant_override("shadow_offset_x", 2)
+	_bgm_title_label.add_theme_constant_override("shadow_offset_y", 2)
+	add_child(_bgm_title_label)
+
 	# --- 結果オーバーレイ ---
 	_win_overlay = ColorRect.new()
 	_win_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -499,14 +518,62 @@ func _on_game_started() -> void:
 	_status_label.text = "ゲーム開始！"
 
 func _update_round_bgm() -> void:
-	var candidates: Array = EAST_BGM_PATHS
-	if GameState.round_wind == MahjongLogic.SOUTH:
-		candidates = SOUTH_BGM_PATHS
-	if GameState.round_wind == MahjongLogic.SOUTH and GameState.kyoku == 3:
-		candidates = OORASU_BGM_PATHS
-	if candidates.is_empty():
+	var track: Dictionary = _next_bgm_track()
+	if track.is_empty():
 		return
-	AudioManager.play_bgm_path(candidates.pick_random())
+	AudioManager.play_bgm_path(track.path)
+	_bgm_title_label.text = "BGM: " + str(track.title)
+
+func _build_bgm_playlists() -> void:
+	_east_bgm_playlist = _shuffle_bgm_tracks(EAST_BGM_TRACKS)
+	_south_bgm_playlist = _shuffle_bgm_tracks(SOUTH_BGM_TRACKS, true)
+	_oorasu_bgm_playlist = _shuffle_bgm_tracks(OORASU_BGM_TRACKS)
+	_east_bgm_index = 0
+	_south_bgm_index = 0
+	_oorasu_bgm_index = 0
+
+func _shuffle_bgm_tracks(source_tracks: Array, avoid_same_group_neighbors: bool = false) -> Array:
+	var tracks: Array = source_tracks.duplicate(true)
+	if not avoid_same_group_neighbors:
+		tracks.shuffle()
+		return tracks
+
+	var best: Array = tracks.duplicate(true)
+	var best_conflicts: int = 999
+	for _try_i in range(40):
+		var candidate: Array = tracks.duplicate(true)
+		candidate.shuffle()
+		var conflicts: int = _count_bgm_group_conflicts(candidate)
+		if conflicts < best_conflicts:
+			best = candidate
+			best_conflicts = conflicts
+			if conflicts == 0:
+				break
+	return best
+
+func _count_bgm_group_conflicts(tracks: Array) -> int:
+	var conflicts := 0
+	for i in range(1, tracks.size()):
+		var prev_group: String = tracks[i - 1].get("group", "")
+		var current_group: String = tracks[i].get("group", "")
+		if current_group != "" and current_group == prev_group:
+			conflicts += 1
+	return conflicts
+
+func _next_bgm_track() -> Dictionary:
+	if GameState.round_wind == MahjongLogic.SOUTH and GameState.kyoku == 3:
+		return _next_track_from_playlist(_oorasu_bgm_playlist, "_oorasu_bgm_index")
+	if GameState.round_wind == MahjongLogic.SOUTH:
+		return _next_track_from_playlist(_south_bgm_playlist, "_south_bgm_index")
+	return _next_track_from_playlist(_east_bgm_playlist, "_east_bgm_index")
+
+func _next_track_from_playlist(playlist: Array, index_property: String) -> Dictionary:
+	if playlist.is_empty():
+		return {}
+	var idx: int = get(index_property)
+	var track: Dictionary = playlist[idx % playlist.size()]
+	set(index_property, idx + 1)
+	return track
 
 func _on_turn_started(player_idx: int) -> void:
 	if player_idx == 0:

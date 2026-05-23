@@ -2,6 +2,14 @@
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
 
+【2026/05/23】半荘BGMプレイリスト・曲名表示追加（game.gd / BGM / assets/bgm / 仕様書）
+  - 半荘開始時に東場・南場・オーラス用BGMリストをシャッフルし、局開始ごとに順番再生するよう変更。
+  - リストを使い切った場合は先頭に戻る。
+  - 南場BGMの類似曲（nan1/nan2、nan3/nan4）は連続しない並びを優先するよう調整。
+  - Game画面左下に再生中BGMの曲名を表示。
+  - bgm_ton8_youkikuma.wavをOGG化して東場リストへ追加し、元WAVを削除。
+  - bgm_neotora.wavをOGG化し、曲名「トランポリン白くま」として東場リストへ追加。元WAVと旧importを削除。
+
 【2026/05/23】局別BGM切り替え・NPC基礎牌効率強化（game.gd / AudioManager.gd / GameState.gd / MahjongLogic.gd / BGM）
   - Game画面の対局BGMを固定再生から、東場・南場・オーラスごとのOGG候補ランダム再生へ変更。
   - AudioManagerにres://任意パスを再生できるplay_bgm_path()を追加。
