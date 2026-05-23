@@ -1854,7 +1854,7 @@ func _play_win_call_animation(result: Dictionary) -> void:
 	call_sprite.z_index = 80
 	if call_sprite.texture:
 		var texture_size: Vector2 = call_sprite.texture.get_size()
-		var target_size := Vector2(1300, 680)
+		var target_size := Vector2(780, 408)
 		call_sprite.scale = Vector2.ONE * min(target_size.x / texture_size.x, target_size.y / texture_size.y)
 	add_child(call_sprite)
 	_result_dynamic_nodes.append(call_sprite)
