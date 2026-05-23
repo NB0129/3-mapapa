@@ -172,6 +172,7 @@ func _build_ui() -> void:
 	_bg = ColorRect.new()
 	_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_bg.color = Color(0.08, 0.28, 0.12)
+	_bg.z_index = -30
 	add_child(_bg)
 
 	var bg_tex := TextureRect.new()
@@ -180,7 +181,7 @@ func _build_ui() -> void:
 	bg_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	bg_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	bg_tex.texture = load("res://assets/bg/bg_takujou.webp")
-	bg_tex.z_index = -2
+	bg_tex.z_index = -20
 	add_child(bg_tex)
 	_build_npc_standing_art()
 
@@ -500,7 +501,7 @@ func _make_standing_texture(path: String, pos: Vector2, size: Vector2) -> Textur
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.z_index = -1
+	rect.z_index = -10
 	return rect
 
 # ============================================================
@@ -1926,7 +1927,7 @@ func _reveal_win_result(result: Dictionary) -> void:
 	for yaku: Dictionary in filtered_yaku:
 		var yaku_han: int = int(yaku.get("han", 0))
 		var suffix := " 役満" if yaku_han >= 13 else " " + str(yaku_han) + "飜"
-		_add_result_label(str(yaku.get("name", "")) + suffix, Vector2(80, y), Vector2(780, 38), 30)
+		_add_result_label(str(yaku.get("name", "")) + suffix, Vector2(80, y), Vector2(780, 38), 30, Color(1.0, 0.96, 0.85), HORIZONTAL_ALIGNMENT_RIGHT)
 		AudioManager.play_se("yakuhyouji")
 		y += 42.0
 		await _result_delay()
@@ -1957,7 +1958,7 @@ func _reveal_win_result(result: Dictionary) -> void:
 func _result_delay() -> void:
 	await get_tree().create_timer(RESULT_STEP_DELAY).timeout
 
-func _add_result_label(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color = Color(1.0, 0.96, 0.85)) -> Label:
+func _add_result_label(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color = Color(1.0, 0.96, 0.85), align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var label := Label.new()
 	label.text = text
 	label.position = pos
@@ -1967,6 +1968,7 @@ func _add_result_label(text: String, pos: Vector2, size: Vector2, font_size: int
 	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
 	label.add_theme_constant_override("shadow_offset_x", 2)
 	label.add_theme_constant_override("shadow_offset_y", 2)
+	label.horizontal_alignment = align
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_msg_panel.add_child(label)
 	_result_dynamic_nodes.append(label)
