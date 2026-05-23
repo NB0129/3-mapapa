@@ -497,7 +497,7 @@ func _make_standing_texture(path: String, pos: Vector2, size: Vector2) -> Textur
 	var rect := TextureRect.new()
 	rect.position = pos
 	rect.size = size
-	rect.texture = load(path)
+	rect.texture = _make_used_rect_texture(path)
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1875,7 +1875,7 @@ func _play_win_call_animation(result: Dictionary) -> void:
 
 func _play_result_chara_animation(winner_idx: int) -> void:
 	var chara_rect := TextureRect.new()
-	chara_rect.texture = load(_get_result_chara_path(winner_idx))
+	chara_rect.texture = _make_used_rect_texture(_get_result_chara_path(winner_idx))
 	chara_rect.position = Vector2(SCREEN_SIZE.x, 65)
 	chara_rect.size = Vector2(500, 970)
 	chara_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
