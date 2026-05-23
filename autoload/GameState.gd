@@ -212,6 +212,10 @@ func _start_turn(player_idx: int) -> void:
 	if wall.is_empty():
 		_end_round_draw()
 		return
+	if players[player_idx].is_npc:
+		phase = Phase.NPC_TURN
+	else:
+		phase = Phase.PLAYER_TURN
 
 	var drawn: Dictionary = wall.pop_front()
 	players[player_idx].hand.append(drawn)
@@ -227,14 +231,12 @@ func _start_turn(player_idx: int) -> void:
 		return
 
 	if players[player_idx].is_npc:
-		phase = Phase.NPC_TURN
 		emit_signal("npc_thinking", player_idx)
 		emit_signal("turn_started", player_idx)
 		get_tree().create_timer(NPC_THINK_SEC).timeout.connect(
 			func(): _npc_turn(player_idx), CONNECT_ONE_SHOT)
 	else:
 		junme += 1
-		phase = Phase.PLAYER_TURN
 		emit_signal("turn_started", player_idx)
 
 # ============================================================
@@ -289,7 +291,7 @@ func _npc_turn(player_idx: int) -> void:
 		return
 
 	# リーチ判定（点数1000点以上のとき）
-	if p.is_menzen and not p.is_riichi and p.score >= 1000:
+	if _is_closed_for_riichi(p) and not p.is_riichi and p.score >= 1000:
 		var riichi_idx: Array = MahjongLogic.get_riichi_discards(p.hand)
 		if not riichi_idx.is_empty():
 			var discard_i: int = riichi_idx[0]
@@ -426,7 +428,7 @@ func player_decline_tsumo() -> void:
 
 func player_riichi(hand_idx: int, is_open_riichi: bool = false) -> void:
 	if phase != Phase.PLAYER_TURN: return
-	if not players[0].is_menzen: return
+	if not _is_closed_for_riichi(players[0]): return
 	if players[0].score < 1000: return
 	# 北（花牌）はリーチ宣言牌にできない
 	if hand_idx >= 0 and hand_idx < players[0].hand.size() and \
@@ -557,9 +559,13 @@ func _finish_kita(player_idx: int, resume_npc: bool = false) -> void:
 		var new_tile: Dictionary = rinshan.pop_back()
 		p.hand.append(new_tile)
 	_drew_from_rinshan = true
+	if player_idx == 0:
+		phase = Phase.PLAYER_TURN
+	else:
+		current_player = player_idx
+		phase = Phase.NPC_TURN
 	emit_signal("tile_drawn", player_idx)
 	if resume_npc and players[player_idx].is_npc:
-		phase = Phase.NPC_TURN
 		get_tree().create_timer(NPC_THINK_SEC).timeout.connect(
 			func(): _npc_turn(player_idx), CONNECT_ONE_SHOT)
 
@@ -603,6 +609,11 @@ func _do_ankan(player_idx: int, kan_id_override: int = -1) -> void:
 	_drew_from_rinshan = true  # 嶺上ツモフラグ
 	if MahjongLogic._count_kantsu(p.naki) >= 4:
 		_suukantsu_pending = player_idx
+	if player_idx == 0:
+		phase = Phase.PLAYER_TURN
+	else:
+		current_player = player_idx
+		phase = Phase.NPC_TURN
 	emit_signal("ankan_done", player_idx)
 	emit_signal("tile_drawn", player_idx)
 	# NPCは嶺上ツモ後に自動でターンを継続する
@@ -621,6 +632,11 @@ func _finish_ankan(player_idx: int) -> void:
 	_drew_from_rinshan = true
 	if MahjongLogic._count_kantsu(p.naki) >= 4:
 		_suukantsu_pending = player_idx
+	if player_idx == 0:
+		phase = Phase.PLAYER_TURN
+	else:
+		current_player = player_idx
+		phase = Phase.NPC_TURN
 	emit_signal("ankan_done", player_idx)
 	emit_signal("tile_drawn", player_idx)
 	if players[player_idx].is_npc:
@@ -1443,8 +1459,14 @@ func _find_player_ankan_id() -> int:
 
 func can_player_riichi() -> bool:
 	var p: Dictionary = players[0]
-	if not p.is_menzen or p.is_riichi or p.score < 1000: return false
+	if not _is_closed_for_riichi(p) or p.is_riichi or p.score < 1000: return false
 	return not get_riichi_selectable_indices().is_empty()
+
+func _is_closed_for_riichi(p: Dictionary) -> bool:
+	for meld: Dictionary in p.get("naki", []):
+		if meld.get("type", "") != "ankan":
+			return false
+	return true
 
 func can_player_kita() -> bool:
 	var p: Dictionary = players[0]
@@ -1601,13 +1623,16 @@ func _do_minkan(player_idx: int, from_idx: int, tile: Dictionary, selected_hand_
 	_drew_from_rinshan = true
 	if MahjongLogic._count_kantsu(p.naki) >= 4:
 		_suukantsu_pending = player_idx
+	if player_idx == 0:
+		phase = Phase.PLAYER_TURN
+	else:
+		current_player = player_idx
+		phase = Phase.NPC_TURN
 	emit_signal("naki_done", player_idx)
 	emit_signal("tile_drawn", player_idx)
 	if player_idx == 0:
-		phase = Phase.PLAYER_TURN
 		emit_signal("minkan_done", player_idx)
 	else:
-		current_player = player_idx
 		emit_signal("minkan_done", player_idx)
 		get_tree().create_timer(NPC_THINK_SEC).timeout.connect(
 			func(): _npc_turn(player_idx), CONNECT_ONE_SHOT)
@@ -1723,11 +1748,14 @@ func _finish_kakan(player_idx: int) -> void:
 	_drew_from_rinshan = true
 	if MahjongLogic._count_kantsu(p.naki) >= 4:
 		_suukantsu_pending = player_idx
-	emit_signal("kakan_done", player_idx)
-	emit_signal("tile_drawn", player_idx)
 	if player_idx == 0:
 		phase = Phase.PLAYER_TURN
 	else:
+		current_player = player_idx
+		phase = Phase.NPC_TURN
+	emit_signal("kakan_done", player_idx)
+	emit_signal("tile_drawn", player_idx)
+	if player_idx != 0:
 		get_tree().create_timer(NPC_THINK_SEC).timeout.connect(
 			func(): _npc_turn(player_idx), CONNECT_ONE_SHOT)
 
@@ -1737,6 +1765,12 @@ func _finish_kakan(player_idx: int) -> void:
 func debug_set_hand(hand_tiles_13: Array, draw_tile: Dictionary = {}, next_draw_tile: Dictionary = {}, target_player: int = 0) -> void:
 	var p: Dictionary = players[target_player]
 	p.hand.clear()
+	p.naki.clear()
+	p.is_menzen = true
+	p.is_riichi = false
+	p.is_open_riichi = false
+	p.riichi_waiting_ids.clear()
+	p.riichi_discard_idx = -1
 	for tile: Dictionary in hand_tiles_13:
 		p.hand.append(MahjongLogic.make_tile(
 			tile.get("id", 0),

@@ -633,10 +633,22 @@ func _on_tile_drawn(player_idx: int) -> void:
 	if player_idx == 0:
 		_player_drew = true
 		_refresh_hand()
+		call_deferred("_refresh_player_draw_actions")
 		if GameState.phase == GameState.Phase.PLAYER_TURN:
 			_check_tsumo_auto()
 			if GameState.players[0].is_riichi:
 				_handle_riichi_draw()
+
+func _refresh_player_draw_actions() -> void:
+	if not _player_drew:
+		return
+	if GameState.current_player != 0:
+		return
+	if GameState.phase != GameState.Phase.PLAYER_TURN and GameState.phase != GameState.Phase.AFTER_PON:
+		return
+	_check_tsumo_auto()
+	if GameState.players[0].is_riichi and GameState.phase == GameState.Phase.PLAYER_TURN:
+		_handle_riichi_draw()
 
 func _on_tile_discarded(_player_idx: int, _tile: Dictionary) -> void:
 	_player_drew = false
@@ -2448,6 +2460,7 @@ func _on_debug_apply() -> void:
 		_selected_idx = -1
 		_refresh_hand()
 		_check_tsumo_auto()
+		call_deferred("_refresh_player_draw_actions")
 	else:
 		GameState.debug_set_hand(hand_tiles, {}, {}, _debug_target_idx)
 		_refresh_npc_areas()
