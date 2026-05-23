@@ -17,12 +17,15 @@ func _on_bgm_finished() -> void:
 
 # ループBGM再生（同じファイルが再生中なら何もしない）
 func play_bgm(filename: String) -> void:
-	if current_bgm == filename and bgm_player.playing:
+	play_bgm_path("res://assets/bgm/" + filename)
+
+func play_bgm_path(path: String) -> void:
+	if current_bgm == path and bgm_player.playing:
 		return
-	var stream = load("res://assets/bgm/" + filename)
+	var stream = load(path)
 	if stream == null:
 		return
-	current_bgm = filename
+	current_bgm = path
 	bgm_player.stream = stream
 	bgm_player.volume_db = linear_to_db(bgm_volume)
 	bgm_player.play()

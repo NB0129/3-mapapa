@@ -436,6 +436,120 @@ func get_riichi_discards(hand: Array) -> Array:
 			result.append(i)
 	return result
 
+func calculate_shanten(hand_ids: Array) -> int:
+	var normal: int = _normal_shanten(hand_ids)
+	var chiitoi: int = _chiitoi_shanten(hand_ids)
+	var kokushi: int = _kokushi_shanten(hand_ids)
+	return min(normal, min(chiitoi, kokushi))
+
+func count_ukeire_after_discard(hand_ids_13: Array) -> int:
+	var current: int = calculate_shanten(hand_ids_13)
+	var counts: Dictionary = count_tiles(hand_ids_13)
+	var total := 0
+	for tid: int in ALL_TILE_IDS:
+		var left: int = 4 - counts.get(tid, 0)
+		if left <= 0:
+			continue
+		var test: Array = hand_ids_13.duplicate()
+		test.append(tid)
+		if calculate_shanten(test) < current:
+			total += left
+	return total
+
+func _normal_shanten(hand_ids: Array) -> int:
+	var counts: Dictionary = count_tiles(hand_ids)
+	var best := [8]
+	var cache := {}
+	_normal_shanten_dfs(counts, 0, 0, 0, best, cache)
+	return best[0]
+
+func _normal_shanten_dfs(counts: Dictionary, melds: int, pairs: int, taatsu: int, best: Array, cache: Dictionary) -> void:
+	var cache_key := _shanten_cache_key(counts, melds, pairs, taatsu)
+	if cache.has(cache_key):
+		return
+	cache[cache_key] = true
+
+	var first: int = -1
+	for tid: int in ALL_TILE_IDS:
+		if counts.get(tid, 0) > 0:
+			first = tid
+			break
+	if first == -1:
+		var effective_taatsu: int = min(taatsu, 4 - melds)
+		var shanten: int = 8 - melds * 2 - effective_taatsu - pairs
+		best[0] = min(best[0], shanten)
+		return
+
+	counts[first] -= 1
+	_normal_shanten_dfs(counts, melds, pairs, taatsu, best, cache)
+	counts[first] += 1
+
+	if counts.get(first, 0) >= 3:
+		counts[first] -= 3
+		_normal_shanten_dfs(counts, melds + 1, pairs, taatsu, best, cache)
+		counts[first] += 3
+
+	if _can_start_sequence(first) and counts.get(first + 1, 0) > 0 and counts.get(first + 2, 0) > 0:
+		counts[first] -= 1
+		counts[first + 1] -= 1
+		counts[first + 2] -= 1
+		_normal_shanten_dfs(counts, melds + 1, pairs, taatsu, best, cache)
+		counts[first] += 1
+		counts[first + 1] += 1
+		counts[first + 2] += 1
+
+	if pairs == 0 and counts.get(first, 0) >= 2:
+		counts[first] -= 2
+		_normal_shanten_dfs(counts, melds, 1, taatsu, best, cache)
+		counts[first] += 2
+
+	if counts.get(first, 0) >= 2:
+		counts[first] -= 2
+		_normal_shanten_dfs(counts, melds, pairs, taatsu + 1, best, cache)
+		counts[first] += 2
+
+	if _can_start_sequence(first) and counts.get(first + 1, 0) > 0:
+		counts[first] -= 1
+		counts[first + 1] -= 1
+		_normal_shanten_dfs(counts, melds, pairs, taatsu + 1, best, cache)
+		counts[first] += 1
+		counts[first + 1] += 1
+
+	if _can_start_sequence(first) and counts.get(first + 2, 0) > 0:
+		counts[first] -= 1
+		counts[first + 2] -= 1
+		_normal_shanten_dfs(counts, melds, pairs, taatsu + 1, best, cache)
+		counts[first] += 1
+		counts[first + 2] += 1
+
+func _shanten_cache_key(counts: Dictionary, melds: int, pairs: int, taatsu: int) -> String:
+	var parts := [str(melds), str(pairs), str(taatsu)]
+	for tid: int in ALL_TILE_IDS:
+		parts.append(str(counts.get(tid, 0)))
+	return ",".join(parts)
+
+func _chiitoi_shanten(hand_ids: Array) -> int:
+	var counts: Dictionary = count_tiles(hand_ids)
+	var pairs := 0
+	var unique := 0
+	for tid in counts:
+		unique += 1
+		pairs += min(int(counts[tid] / 2), 2)
+	return 6 - pairs + max(0, 7 - unique)
+
+func _kokushi_shanten(hand_ids: Array) -> int:
+	var yaochu_ids := [MAN_1, MAN_9, PIN_1, PIN_9, SOU_1, SOU_9, EAST, SOUTH, WEST, NORTH, HAKU, HATSU, CHUN]
+	var counts: Dictionary = count_tiles(hand_ids)
+	var unique := 0
+	var has_pair := false
+	for tid: int in yaochu_ids:
+		var c: int = counts.get(tid, 0)
+		if c > 0:
+			unique += 1
+		if c >= 2:
+			has_pair = true
+	return 13 - unique - (1 if has_pair else 0)
+
 # ============================================================
 # 役判定メイン
 # ============================================================

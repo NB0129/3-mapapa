@@ -106,6 +106,30 @@ const NPC_HAND_TEXTURE_PATHS := {
 	],
 }
 
+const EAST_BGM_PATHS := [
+	"res://BGM/bgm_ton1_morinosirokuma.ogg",
+	"res://BGM/bgm_ton2_syoppingukuma.ogg",
+	"res://BGM/bgm_ton3_de-tokuma.ogg",
+	"res://BGM/bgm_ton4_houkadonosirokuma.ogg",
+	"res://BGM/bgm_ton5_gekounosirokuma.ogg",
+	"res://BGM/bgm_ton6_madogiwanokuma.ogg",
+	"res://BGM/bgm_ton7_soratobukuma.ogg",
+]
+
+const SOUTH_BGM_PATHS := [
+	"res://BGM/bgm_nan1_akazukinnomondou.ogg",
+	"res://BGM/bgm_nan2_akazukintonotatakai.ogg",
+	"res://BGM/bgm_nan3_tanteinomaturo.ogg",
+	"res://BGM/bgm_nan4_nerawaretatantei.ogg",
+	"res://BGM/bgm_nan5_rojiuranobakuto.ogg",
+]
+
+const OORASU_BGM_PATHS := [
+	"res://BGM/bgm_ora_wazukanatensa.ogg",
+	"res://BGM/bgm_ora2_baityokujouken.ogg",
+	"res://BGM/bgm_ora3_situyounaosananajimi.ogg",
+]
+
 # ============================================================
 # 初期化
 # ============================================================
@@ -113,7 +137,6 @@ func _ready() -> void:
 	_build_ui()
 	_connect_signals()
 	GameState.start_game()
-	AudioManager.play_bgm("bgm_neotora.wav")
 
 # ============================================================
 # UI 構築
@@ -454,6 +477,7 @@ func _connect_signals() -> void:
 # シグナルハンドラ
 # ============================================================
 func _on_game_started() -> void:
+	_update_round_bgm()
 	_selected_idx = -1
 	_riichi_mode = false
 	_riichi_selectable.clear()
@@ -473,6 +497,16 @@ func _on_game_started() -> void:
 	_refresh_wanpai_dora()
 	_refresh_all()
 	_status_label.text = "ゲーム開始！"
+
+func _update_round_bgm() -> void:
+	var candidates: Array = EAST_BGM_PATHS
+	if GameState.round_wind == MahjongLogic.SOUTH:
+		candidates = SOUTH_BGM_PATHS
+	if GameState.round_wind == MahjongLogic.SOUTH and GameState.kyoku == 3:
+		candidates = OORASU_BGM_PATHS
+	if candidates.is_empty():
+		return
+	AudioManager.play_bgm_path(candidates.pick_random())
 
 func _on_turn_started(player_idx: int) -> void:
 	if player_idx == 0:
