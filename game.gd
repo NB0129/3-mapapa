@@ -1862,9 +1862,11 @@ func _play_win_call_animation(result: Dictionary) -> void:
 	var start_center := Vector2(end_center.x, 960)
 	call_sprite.rotation_degrees = 0.0
 	if winner_idx == RIGHT_IDX:
+		end_center = Vector2(1640, 430)
 		start_center = Vector2(1900, end_center.y)
 		call_sprite.rotation_degrees = -90.0
 	elif winner_idx == UPPER_IDX:
+		end_center = Vector2(SCREEN_SIZE.x * 0.5, 190)
 		start_center = Vector2(end_center.x, -130)
 		call_sprite.rotation_degrees = 180.0
 	call_sprite.position = start_center
@@ -1926,6 +1928,7 @@ func _reveal_win_result(result: Dictionary) -> void:
 	await _result_delay()
 	_add_result_label("ツモ" if result.get("is_tsumo", false) else "ロン", Vector2(80, 148), Vector2(220, 54), 42, Color(1.0, 0.88, 0.44))
 	await _result_delay()
+	_add_result_wanpai(winner_idx)
 	var y := 250.0
 	for yaku: Dictionary in filtered_yaku:
 		var yaku_han: int = int(yaku.get("han", 0))
@@ -1987,6 +1990,40 @@ func _add_result_action_image(is_tsumo: bool) -> void:
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_msg_panel.add_child(rect)
 	_result_dynamic_nodes.append(rect)
+
+func _add_result_wanpai(winner_idx: int) -> void:
+	var tile_w := 44
+	var tile_h := 61
+	var gap := 4
+	var dora_count: int = min(GameState.dora_indicators.size(), 5)
+	if dora_count <= 0:
+		return
+	var show_ura: bool = winner_idx >= 0 and winner_idx < GameState.players.size() and GameState.players[winner_idx].is_riichi
+	var right_margin: float = 44.0
+	var dora_y := 250.0
+	var start_x: float = RESULT_PANEL_RECT.size.x - right_margin - dora_count * tile_w - max(0, dora_count - 1) * gap
+	for i in range(dora_count):
+		var rect := _make_result_wanpai_tile(GameState.dora_indicators[i], Vector2(start_x + i * (tile_w + gap), dora_y), Vector2(tile_w, tile_h))
+		_msg_panel.add_child(rect)
+		_result_dynamic_nodes.append(rect)
+	if not show_ura:
+		return
+	var ura_count: int = min(GameState.ura_dora_indicators.size(), dora_count)
+	var ura_start_x: float = RESULT_PANEL_RECT.size.x - right_margin - ura_count * tile_w - max(0, ura_count - 1) * gap
+	for i in range(ura_count):
+		var rect := _make_result_wanpai_tile(GameState.ura_dora_indicators[i], Vector2(ura_start_x + i * (tile_w + gap), dora_y + tile_h + 6), Vector2(tile_w, tile_h))
+		_msg_panel.add_child(rect)
+		_result_dynamic_nodes.append(rect)
+
+func _make_result_wanpai_tile(tile: Dictionary, pos: Vector2, size: Vector2) -> TextureRect:
+	var rect := TextureRect.new()
+	rect.position = pos
+	rect.size = size
+	rect.texture = _get_tile_texture(tile)
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return rect
 
 func _add_result_hand(hand: Array) -> void:
 	var display_tiles := _get_result_display_tiles(hand)
