@@ -501,7 +501,7 @@ func _make_standing_texture(path: String, pos: Vector2, size: Vector2) -> Textur
 	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.z_index = -10
+	rect.z_index = -25
 	return rect
 
 # ============================================================
@@ -1927,7 +1927,7 @@ func _reveal_win_result(result: Dictionary) -> void:
 	for yaku: Dictionary in filtered_yaku:
 		var yaku_han: int = int(yaku.get("han", 0))
 		var suffix := " 役満" if yaku_han >= 13 else " " + str(yaku_han) + "飜"
-		_add_result_label(str(yaku.get("name", "")) + suffix, Vector2(80, y), Vector2(780, 38), 30, Color(1.0, 0.96, 0.85), HORIZONTAL_ALIGNMENT_RIGHT)
+		_add_result_label(str(yaku.get("name", "")) + suffix, Vector2(80, y), Vector2(780, 38), 30)
 		AudioManager.play_se("yakuhyouji")
 		y += 42.0
 		await _result_delay()
