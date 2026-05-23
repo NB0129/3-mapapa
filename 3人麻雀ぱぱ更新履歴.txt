@@ -2,6 +2,17 @@
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
 
+【2026/05/23】リーチBGM実装・NPC大明槓フリーズ修正・NPC和了演出位置修正（game.gd / GameState.gd / SaveData.gd / 仕様書）
+  - game.gd：プレイヤーがリーチを宣言した際、キャラクターに対応したリーチBGMをランダム再生する機能を実装。
+  - game.gd：HACHIMI_RIICHI_BGMS 定数を追加（乙女の横槍・リーチの舞・1000点棒キャンディの3曲）。
+  - game.gd：_on_riichi_declared でプレイヤーリーチ時に _play_riichi_bgm() を呼び出し、BGM名を更新。
+  - SaveData.gd：selected_player_character 変数を追加（デフォルト "hachimi"）。セーブ・ロード対応。
+  - GameState.gd：_do_minkan のNPC分岐で current_player = player_idx を追加。
+    NPCが大明槓後に _npc_turn を呼んでも current_player が更新されていなかったため、
+    冒頭の「if current_player != player_idx: return」で即リターンしてフリーズする問題を修正。
+  - game.gd：_play_result_chara_animation の目標X座標をNPC和了時は -200 へ変更。
+    従来の x=20 では、大きな透過余白によりキャラの可視部分が画面中央付近に止まっていた問題を修正。
+
 【2026/05/23】NPC打牌速度・BGM名表示・F5手牌表示デバッグ調整（GameState.gd / game.gd / 仕様書）
   - NPC思考待機時間を0.8秒から0.2秒へ短縮。
   - NPC打牌候補評価を、全候補シャンテン比較後、同シャンテン候補のみ受け入れ枚数比較する形へ軽量化。

@@ -19,6 +19,7 @@ var total_chip: int = 0
 
 # プレイヤー設定
 var player_name: String = "あなた"
+var selected_player_character: String = "hachimi"
 var selected_npc: Array = ["npc_01", "npc_02"]
 
 # NPC別対戦回数（NPC01〜06それぞれ）
@@ -40,7 +41,8 @@ func save_data() -> void:
 		"total_agari": total_agari, "total_houjuu": total_houjuu, "total_kyoku": total_kyoku,
 		"total_agari_jun": total_agari_jun, "total_agari_han": total_agari_han,
 		"total_agari_chip": total_agari_chip, "total_score": total_score, "total_chip": total_chip,
-		"player_name": player_name, "selected_npc": selected_npc, "npc_games": npc_games,
+		"player_name": player_name, "selected_player_character": selected_player_character,
+		"selected_npc": selected_npc, "npc_games": npc_games,
 		"bgm_volume": bgm_volume, "se_volume": se_volume,
 	}
 	var f: FileAccess = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -73,8 +75,9 @@ func load_data() -> void:
 	total_agari_chip = d.get("total_agari_chip", 0)
 	total_score    = d.get("total_score", 0)
 	total_chip     = d.get("total_chip", 0)
-	player_name    = d.get("player_name", "あなた")
-	selected_npc   = d.get("selected_npc", ["npc_01", "npc_02"])
+	player_name               = d.get("player_name", "あなた")
+	selected_player_character = d.get("selected_player_character", "hachimi")
+	selected_npc              = d.get("selected_npc", ["npc_01", "npc_02"])
 	npc_games      = d.get("npc_games", {"npc_01": 0, "npc_02": 0, "npc_03": 0, "npc_04": 0, "npc_05": 0, "npc_06": 0})
 	bgm_volume     = d.get("bgm_volume", 0.15)
 	se_volume      = d.get("se_volume", 0.5)

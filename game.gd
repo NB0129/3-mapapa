@@ -140,6 +140,12 @@ const OORASU_BGM_TRACKS := [
 	{"path": "res://BGM/bgm_ora3_situyounaosananajimi.ogg", "title": "執拗な幼馴染", "group": ""},
 ]
 
+const HACHIMI_RIICHI_BGMS := [
+	{"path": "res://BGM/bgm_ritia1_otomenoyokoyari.ogg", "title": "乙女の横槍"},
+	{"path": "res://BGM/bgm_ritia2_ri-tinomai.ogg", "title": "リーチの舞"},
+	{"path": "res://BGM/bgm_ritia3_1000tennnocandy.ogg", "title": "1000点棒キャンディ"},
+]
+
 var _east_bgm_playlist: Array = []
 var _south_bgm_playlist: Array = []
 var _oorasu_bgm_playlist: Array = []
@@ -666,6 +672,18 @@ func _on_riichi_declared(player_idx: int) -> void:
 	_refresh_npc_areas()
 	if player_idx == 0:
 		_status_label.text = "リーチ！"
+		_play_riichi_bgm()
+
+func _play_riichi_bgm() -> void:
+	var bgms: Array = []
+	match SaveData.selected_player_character:
+		"hachimi":
+			bgms = HACHIMI_RIICHI_BGMS
+	if bgms.is_empty():
+		return
+	var track: Dictionary = bgms.pick_random()
+	AudioManager.play_bgm_path(track.path)
+	_bgm_title_label.text = "BGM: " + track.title
 
 func _on_kita_removed(player_idx: int) -> void:
 	_refresh_info()
@@ -1818,7 +1836,8 @@ func _play_result_chara_animation(winner_idx: int) -> void:
 	add_child(chara_rect)
 	_result_dynamic_nodes.append(chara_rect)
 	var tween := create_tween()
-	tween.tween_property(chara_rect, "position", Vector2(20, 65), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var dest_x: float = 20.0 if winner_idx == 0 else -200.0
+	tween.tween_property(chara_rect, "position", Vector2(dest_x, 65), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished
 
 func _prepare_win_result_panel(result: Dictionary) -> void:

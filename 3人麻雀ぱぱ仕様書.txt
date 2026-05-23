@@ -260,8 +260,9 @@
   total_agari_chip  和了時チップ合計
   total_score       点数収入合計
   total_chip        チップ収入合計
-  player_name       プレイヤー名（デフォルト「あなた」）
-  selected_npc      選択NPC ID配列（2要素）
+  player_name                プレイヤー名（デフォルト「あなた」）
+  selected_player_character  プレイヤーキャラID（デフォルト "hachimi"）
+  selected_npc               選択NPC ID配列（2要素）
   npc_games         NPC別対戦回数（npc_01〜npc_06）
   bgm_volume        BGM音量（デフォルト0.15）
   se_volume         SE音量（デフォルト0.5）
@@ -361,9 +362,25 @@
     bgm_nan*.ogg         南場BGM候補（半荘開始時にシャッフル、局開始時に順番再生）
                          nan1/nan2、nan3/nan4は連続しない並びを優先
     bgm_ora*.ogg         オーラスBGM候補（南3局で順番再生）
+    bgm_ritia1_otomenoyokoyari.ogg  八美リーチBGM①「乙女の横槍」
+    bgm_ritia2_ri-tinomai.ogg       八美リーチBGM②「リーチの舞」
+    bgm_ritia3_1000tennnocandy.ogg  八美リーチBGM③「1000点棒キャンディ」
     *.ogg.import         Godot OGGインポート設定
 
   対局中はデバッグボタンの一行上に再生中BGMの曲名をフォントサイズ40で表示する。
+
+--------------------------------------------------
+■ キャラクター選択（SaveData.gd / game.gd）
+--------------------------------------------------
+  プレイヤーキャラクターはメニュー画面から2種類のうち1つを選択できる（予定）。
+  現在は「hachimi」（白隈八美）のみ実装済み。
+
+  【八美（hachimi）】
+    リーチBGM: HACHIMI_RIICHI_BGMS 定数の3曲からランダム再生
+    プレイヤーがリーチ宣言した瞬間（_on_riichi_declared で player_idx==0）に再生開始。
+    次の局開始（_on_game_started → _update_round_bgm）まで継続ループ再生。
+
+  SaveData.selected_player_character: "hachimi"（デフォルト）
 
 --------------------------------------------------
 ■ 対局画面 UIレイアウト（2026/05/17 大改修②後）

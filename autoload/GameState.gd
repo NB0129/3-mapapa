@@ -1537,6 +1537,7 @@ func _do_minkan(player_idx: int, from_idx: int, tile: Dictionary, selected_hand_
 		phase = Phase.PLAYER_TURN
 		emit_signal("minkan_done", player_idx)
 	else:
+		current_player = player_idx
 		emit_signal("minkan_done", player_idx)
 		get_tree().create_timer(NPC_THINK_SEC).timeout.connect(
 			func(): _npc_turn(player_idx), CONNECT_ONE_SHOT)
