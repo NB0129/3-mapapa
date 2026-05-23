@@ -45,5 +45,20 @@ func stop_bgm() -> void:
 		bgm_player.stop()
 	current_bgm = ""
 
-func play_se(_filename: String) -> void:
-	pass
+func play_se(filename: String) -> void:
+	var path := filename
+	if not path.begins_with("res://"):
+		path = "res://se/" + filename
+	if path.get_extension() == "":
+		path += ".wav"
+
+	var stream = load(path)
+	if stream == null:
+		return
+
+	var player := AudioStreamPlayer.new()
+	player.stream = stream
+	player.volume_db = linear_to_db(se_volume)
+	player.finished.connect(player.queue_free)
+	add_child(player)
+	player.play()

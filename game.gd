@@ -31,6 +31,9 @@ var _msg_ok: Button
 var _status_label: Label
 var _haku_pochi_lbl: Label
 var _haku_pochi_img: TextureRect
+var _npc_left_chara: TextureRect
+var _npc_right_chara: TextureRect
+var _result_dynamic_nodes: Array = []
 
 var _upper_hand_box: Control
 var _upper_meld_box: Control
@@ -91,6 +94,9 @@ const UPPER_IDX := 2
 const RIGHT_IDX := 1
 const LEFT_IDX  := -1
 const ACTION_IMAGE_BUTTON_SIZE := Vector2(480, 200)
+const SCREEN_SIZE := Vector2(1920, 1080)
+const RESULT_PANEL_RECT := Rect2(530, 20, 1370, 1040)
+const RESULT_STEP_DELAY := 0.2
 const NPC_HAND_TEXTURE_PATHS := {
 	"kami": [
 		"res://assets/tiles/hai_tati_kami.webp",
@@ -167,7 +173,9 @@ func _build_ui() -> void:
 	bg_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	bg_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	bg_tex.texture = load("res://assets/bg/bg_takujou.webp")
+	bg_tex.z_index = -2
 	add_child(bg_tex)
+	_build_npc_standing_art()
 
 	# --- 上家 鳴きエリア（画面左上＝上家の右端） ---
 	var upper_meld_panel := _make_control_rect(Rect2(430, 10, 260, 160))
@@ -471,6 +479,23 @@ func _build_ui() -> void:
 
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 
+func _build_npc_standing_art() -> void:
+	_npc_left_chara = _make_standing_texture("res://chara/kuma_hiyake.webp", Vector2(-70, 95), Vector2(520, 960))
+	_npc_right_chara = _make_standing_texture("res://chara/kuma_def.webp", Vector2(1470, 95), Vector2(520, 960))
+	add_child(_npc_left_chara)
+	add_child(_npc_right_chara)
+
+func _make_standing_texture(path: String, pos: Vector2, size: Vector2) -> TextureRect:
+	var rect := TextureRect.new()
+	rect.position = pos
+	rect.size = size
+	rect.texture = load(path)
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.z_index = -1
+	return rect
+
 # ============================================================
 # シグナル接続
 # ============================================================
@@ -603,8 +628,17 @@ func _on_tile_drawn(player_idx: int) -> void:
 func _on_tile_discarded(_player_idx: int, _tile: Dictionary) -> void:
 	_player_drew = false
 	_riichi_kan_ready = false
+	_riichi_mode = false
+	_riichi_selectable.clear()
+	_pon_select_mode = false
+	_pon_selectable.clear()
+	_kan_select_mode = false
+	_kan_selectable.clear()
+	_selected_idx = -1
+	_clear_tenpai_assist()
 	_btn_skip.tooltip_text = "キャンセル"
 	_refresh_all()
+	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 
 func _on_tsumo_declared(_player_idx: int, _result: Dictionary) -> void:
 	_refresh_all()
@@ -690,7 +724,7 @@ func _on_game_ended(result: Dictionary) -> void:
 	_refresh_all()
 	if not result.get("draw", false):
 		_refresh_wanpai_dora(result.get("winner_idx", -1))
-	_show_result(result)
+	_show_result_sequence(result)
 
 func _on_match_ended(_session: Dictionary) -> void:
 	get_tree().change_scene_to_file("res://Result.tscn")
@@ -866,6 +900,7 @@ func _on_skip_pressed() -> void:
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 
 func _on_msg_ok_pressed() -> void:
+	_clear_result_dynamic_nodes()
 	_win_overlay.visible = false
 	_msg_panel.visible = false
 	GameState.advance_game()
@@ -1717,6 +1752,231 @@ func _naki_text_vertical(naki: Array) -> String:
 # ============================================================
 # 結果表示
 # ============================================================
+func _show_result_sequence(result: Dictionary) -> void:
+	if result.get("draw", false):
+		_clear_result_dynamic_nodes()
+		_msg_panel.position = Vector2(530, 280)
+		_msg_panel.size = Vector2(860, 520)
+		_msg_panel.custom_minimum_size = Vector2(860, 520)
+		_msg_label.position = Vector2(30, 30)
+		_msg_label.size = Vector2(620, 420)
+		_msg_label.visible = true
+		_msg_ok.position = Vector2(350, 460)
+		_msg_ok.custom_minimum_size = Vector2(160, 50)
+		_msg_ok.size = _msg_ok.custom_minimum_size
+		_show_result(result)
+		return
+	_clear_result_dynamic_nodes()
+	_haku_pochi_lbl.visible = false
+	_haku_pochi_img.visible = false
+	_msg_panel.visible = false
+	_win_overlay.visible = false
+	_msg_ok.visible = false
+	_msg_label.text = ""
+	await _play_win_call_animation(result)
+	_win_overlay.visible = true
+	await _play_result_chara_animation(result.get("winner_idx", 0))
+	_prepare_win_result_panel(result)
+	await _reveal_win_result(result)
+	_finish_win_result_panel(result)
+
+func _play_win_call_animation(result: Dictionary) -> void:
+	var winner_idx: int = result.get("winner_idx", 0)
+	AudioManager.play_se("plhora" if winner_idx == 0 else "npchora")
+	var call_rect := TextureRect.new()
+	call_rect.texture = load("res://ui/hassei_tumo.webp" if result.get("is_tsumo", false) else "res://ui/hassei_ron.webp")
+	call_rect.size = Vector2(360, 190)
+	call_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	call_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	call_rect.z_index = 80
+	call_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(call_rect)
+	_result_dynamic_nodes.append(call_rect)
+	var start_pos := Vector2(780, 790)
+	var end_pos := Vector2(790, 610)
+	if winner_idx == RIGHT_IDX:
+		start_pos = Vector2(1540, 450)
+		end_pos = Vector2(1255, 450)
+	elif winner_idx == UPPER_IDX:
+		start_pos = Vector2(780, 70)
+		end_pos = Vector2(780, 225)
+	call_rect.position = start_pos
+	var tween := create_tween()
+	tween.tween_property(call_rect, "position", end_pos, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	await tween.finished
+	await get_tree().create_timer(0.65).timeout
+
+func _play_result_chara_animation(winner_idx: int) -> void:
+	var chara_rect := TextureRect.new()
+	chara_rect.texture = load(_get_result_chara_path(winner_idx))
+	chara_rect.position = Vector2(SCREEN_SIZE.x, 65)
+	chara_rect.size = Vector2(500, 970)
+	chara_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	chara_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	chara_rect.z_index = 90
+	chara_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(chara_rect)
+	_result_dynamic_nodes.append(chara_rect)
+	var tween := create_tween()
+	tween.tween_property(chara_rect, "position", Vector2(20, 65), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	await tween.finished
+
+func _prepare_win_result_panel(result: Dictionary) -> void:
+	_msg_panel.position = RESULT_PANEL_RECT.position
+	_msg_panel.size = RESULT_PANEL_RECT.size
+	_msg_panel.custom_minimum_size = RESULT_PANEL_RECT.size
+	_msg_panel.visible = true
+	_msg_label.text = ""
+	_msg_label.visible = false
+	_haku_pochi_lbl.visible = false
+	_haku_pochi_img.visible = false
+	_msg_ok.visible = false
+	_msg_ok.position = Vector2(1100, 955)
+	_msg_ok.custom_minimum_size = Vector2(220, 58)
+	_msg_ok.size = _msg_ok.custom_minimum_size
+	_msg_ok.text = "精算へ" if result.get("match_will_end", false) else "次の局へ"
+
+func _finish_win_result_panel(_result: Dictionary) -> void:
+	_msg_ok.visible = true
+
+func _reveal_win_result(result: Dictionary) -> void:
+	var winner_idx: int = result.get("winner_idx", 0)
+	var winner: Dictionary = GameState.players[winner_idx]
+	var sd: Dictionary = result.get("score_data", {})
+	var is_yakuman: bool = result.get("is_yakuman", false)
+	var yaku_list: Array = result.get("yaku", [])
+	var filtered_yaku: Array = []
+	for yaku: Dictionary in yaku_list:
+		if not is_yakuman or int(yaku.get("han", 0)) >= 13:
+			filtered_yaku.append(yaku)
+	_add_result_hand(winner.get("hand", []))
+	await _result_delay()
+	_add_result_action_image(result.get("is_tsumo", false))
+	await _result_delay()
+	var y := 250.0
+	for yaku: Dictionary in filtered_yaku:
+		var yaku_han: int = int(yaku.get("han", 0))
+		var suffix := " 役満" if yaku_han >= 13 else " " + str(yaku_han) + "飜"
+		_add_result_label(str(yaku.get("name", "")) + suffix, Vector2(80, y), Vector2(780, 38), 30)
+		AudioManager.play_se("yakuhyouji")
+		y += 42.0
+		await _result_delay()
+	_add_result_label(str(result.get("han", 0)) + "飜", Vector2(80, y + 8), Vector2(260, 48), 38, Color(1.0, 0.94, 0.62))
+	await _result_delay()
+	var limit_name := _get_limit_name(int(result.get("han", 0)), is_yakuman)
+	var score_text := str(int(sd.get("total", 0))) + "点"
+	if limit_name != "":
+		_add_result_label(limit_name, Vector2(80, y + 70), Vector2(420, 64), 48, Color(1.0, 0.78, 0.25))
+		_add_result_label(score_text, Vector2(540, y + 76), Vector2(360, 54), 42, Color(1.0, 0.96, 0.85))
+		AudioManager.play_se("gangan")
+		await get_tree().create_timer(1.0).timeout
+	else:
+		_add_result_label(score_text, Vector2(80, y + 72), Vector2(360, 54), 42, Color(1.0, 0.96, 0.85))
+		await _result_delay()
+	var chips: int = int(result.get("chips_per_player", 0))
+	if result.get("is_tsumo", false):
+		chips *= 2
+	_add_result_label("チップ " + str(chips) + "枚", Vector2(80, y + 150), Vector2(420, 42), 30, Color(0.86, 1.0, 0.88))
+	await _result_delay()
+	var scores_y := y + 215.0
+	for i in range(GameState.players.size()):
+		var p: Dictionary = GameState.players[i]
+		var row: String = MahjongLogic.get_wind_name(p.wind) + "家 " + p.name + ": " + str(p.score) + "点"
+		_add_result_label(row, Vector2(80, scores_y + i * 42.0), Vector2(720, 38), 28)
+	await _result_delay()
+
+func _result_delay() -> void:
+	await get_tree().create_timer(RESULT_STEP_DELAY).timeout
+
+func _add_result_label(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color = Color(1.0, 0.96, 0.85)) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.position = pos
+	label.size = size
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	label.add_theme_constant_override("shadow_offset_x", 2)
+	label.add_theme_constant_override("shadow_offset_y", 2)
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_msg_panel.add_child(label)
+	_result_dynamic_nodes.append(label)
+	return label
+
+func _add_result_action_image(is_tsumo: bool) -> void:
+	var rect := TextureRect.new()
+	rect.texture = load("res://ui/hassei_tumo.webp" if is_tsumo else "res://ui/hassei_ron.webp")
+	rect.position = Vector2(80, 150)
+	rect.size = Vector2(260, 96)
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_msg_panel.add_child(rect)
+	_result_dynamic_nodes.append(rect)
+
+func _add_result_hand(hand: Array) -> void:
+	var display_tiles := _get_result_display_tiles(hand)
+	var tile_w := 64
+	var tile_h := 86
+	var gap := 4
+	var base := Vector2(80, 42)
+	for i in range(display_tiles.size()):
+		var rect := TextureRect.new()
+		rect.position = base + Vector2(i * (tile_w + gap), 0)
+		if i == display_tiles.size() - 1 and display_tiles.size() >= 14:
+			rect.position.x = base.x + 13 * (tile_w + gap) + 26
+		rect.size = Vector2(tile_w, tile_h)
+		rect.texture = _get_tile_texture(display_tiles[i])
+		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_msg_panel.add_child(rect)
+		_result_dynamic_nodes.append(rect)
+
+func _get_result_display_tiles(hand: Array) -> Array:
+	var tiles := hand.duplicate(true)
+	if tiles.size() <= 1:
+		return tiles
+	var winning_tile: Dictionary = tiles.pop_back()
+	tiles.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a.get("id", 0)) < int(b.get("id", 0))
+	)
+	if hand.size() >= 14:
+		while tiles.size() > 13:
+			tiles.pop_back()
+		tiles.append(winning_tile)
+	return tiles
+
+func _get_limit_name(han: int, is_yakuman: bool) -> String:
+	if is_yakuman or han >= 13:
+		return "役満"
+	if han >= 11:
+		return "三倍満"
+	if han >= 8:
+		return "倍満"
+	if han >= 6:
+		return "跳満"
+	if han >= 4:
+		return "満貫"
+	return ""
+
+func _get_result_chara_path(winner_idx: int) -> String:
+	if winner_idx == 0:
+		return "res://chara/hatimi2.webp"
+	if winner_idx == RIGHT_IDX:
+		return "res://chara/kuma_def.webp"
+	return "res://chara/kuma_hiyake.webp"
+
+func _clear_result_dynamic_nodes() -> void:
+	for node in _result_dynamic_nodes:
+		if is_instance_valid(node):
+			node.queue_free()
+	_result_dynamic_nodes.clear()
+	if _msg_label:
+		_msg_label.visible = true
+	if _msg_ok:
+		_msg_ok.visible = true
+
 func _show_result(result: Dictionary) -> void:
 	var msg := ""
 	_haku_pochi_lbl.visible = false
