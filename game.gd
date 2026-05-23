@@ -1848,34 +1848,32 @@ func _show_result_sequence(result: Dictionary) -> void:
 func _play_win_call_animation(result: Dictionary) -> void:
 	var winner_idx: int = result.get("winner_idx", 0)
 	AudioManager.play_se("plhora" if winner_idx == 0 else "npchora")
-	var call_rect := TextureRect.new()
-	call_rect.texture = load("res://ui/hassei_tumo.webp" if result.get("is_tsumo", false) else "res://ui/hassei_ron.webp")
-	call_rect.size = Vector2(65, 34)
-	call_rect.pivot_offset = call_rect.size * 0.5
-	call_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	call_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	call_rect.z_index = 80
-	call_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(call_rect)
-	_result_dynamic_nodes.append(call_rect)
+	var call_sprite := Sprite2D.new()
+	call_sprite.texture = load("res://ui/hassei_tumo.webp" if result.get("is_tsumo", false) else "res://ui/hassei_ron.webp")
+	call_sprite.centered = true
+	call_sprite.z_index = 80
+	if call_sprite.texture:
+		var texture_size: Vector2 = call_sprite.texture.get_size()
+		var target_size := Vector2(65, 34)
+		call_sprite.scale = Vector2.ONE * min(target_size.x / texture_size.x, target_size.y / texture_size.y)
+	add_child(call_sprite)
+	_result_dynamic_nodes.append(call_sprite)
 	var end_center := Vector2(SCREEN_SIZE.x * 0.5, 410)
 	var start_center := Vector2(end_center.x, 960)
-	call_rect.rotation_degrees = 0.0
+	call_sprite.rotation_degrees = 0.0
 	if winner_idx == RIGHT_IDX:
 		start_center = Vector2(1900, end_center.y)
-		call_rect.rotation_degrees = -90.0
+		call_sprite.rotation_degrees = -90.0
 	elif winner_idx == UPPER_IDX:
 		start_center = Vector2(end_center.x, -130)
-		call_rect.rotation_degrees = 180.0
-	var start_pos := start_center - call_rect.pivot_offset
-	var end_pos := end_center - call_rect.pivot_offset
-	call_rect.position = start_pos
+		call_sprite.rotation_degrees = 180.0
+	call_sprite.position = start_center
 	var tween := create_tween()
-	tween.tween_property(call_rect, "position", end_pos, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(call_sprite, "position", end_center, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished
 	await get_tree().create_timer(1.65).timeout
-	_result_dynamic_nodes.erase(call_rect)
-	call_rect.queue_free()
+	_result_dynamic_nodes.erase(call_sprite)
+	call_sprite.queue_free()
 
 func _play_result_chara_animation(winner_idx: int) -> void:
 	var chara_rect := TextureRect.new()

@@ -296,6 +296,10 @@ func _npc_turn(player_idx: int) -> void:
 			_do_riichi_discard(player_idx, discard_i)
 			return
 
+	if p.is_riichi:
+		_do_discard_internal(player_idx, p.hand.size() - 1)
+		return
+
 	_do_discard_internal(player_idx, _choose_npc_safe_discard_index(player_idx))
 
 func _choose_npc_discard_index(player_idx: int) -> int:
@@ -495,11 +499,15 @@ func player_skip() -> void:
 # ============================================================
 func _do_riichi_discard(player_idx: int, hand_idx: int, is_open_riichi: bool = false) -> void:
 	var p: Dictionary = players[player_idx]
+	if hand_idx < 0 or hand_idx >= p.hand.size():
+		return
 	var is_daburi: bool = (junme <= 1 and p.hand.size() == 14)
 	var riichi_hand_ids: Array = MahjongLogic.get_ids(p.hand)
 	riichi_hand_ids.remove_at(hand_idx)
 	p.riichi_waiting_ids = MahjongLogic.find_waiting_tiles(riichi_hand_ids)
 	p.riichi_waiting_ids.sort()
+	if p.riichi_waiting_ids.is_empty():
+		return
 	p.is_riichi  = true
 	p.is_open_riichi = is_open_riichi
 	p.is_daburi  = is_daburi
