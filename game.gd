@@ -46,6 +46,7 @@ var _tile_buttons: Array = []
 var _tile_texture_cache: Dictionary = {}
 var _selected_idx: int = -1
 var _riichi_mode: bool = false
+var _riichi_is_open: bool = false
 var _riichi_selectable: Array = []
 var _show_player_hand_as_touhai: bool = false
 var _pon_select_mode: bool = false
@@ -531,6 +532,7 @@ func _on_game_started() -> void:
 	_update_round_bgm()
 	_selected_idx = -1
 	_riichi_mode = false
+	_riichi_is_open = false
 	_riichi_selectable.clear()
 	_pon_select_mode = false
 	_pon_selectable.clear()
@@ -549,7 +551,7 @@ func _on_game_started() -> void:
 	_refresh_all()
 	_status_label.text = "ゲーム開始！"
 	if GameState.kyoku == 1 and GameState.round_wind == MahjongLogic.EAST and GameState.honba == 0:
-		_play_chara_voice("seplavo_yoro")
+		_play_chara_voice("seplavo_yoro2")
 
 func _update_round_bgm() -> void:
 	var track: Dictionary = _next_bgm_track()
@@ -637,6 +639,7 @@ func _on_tile_discarded(_player_idx: int, _tile: Dictionary) -> void:
 	_player_drew = false
 	_riichi_kan_ready = false
 	_riichi_mode = false
+	_riichi_is_open = false
 	_riichi_selectable.clear()
 	_pon_select_mode = false
 	_pon_selectable.clear()
@@ -771,6 +774,7 @@ func _on_tile_button_pressed(idx: int) -> void:
 		if idx in _pon_selectable:
 			_pon_select_mode = false
 			_pon_selectable.clear()
+			_play_chara_voice("seplavo_pon")
 			GameState.player_pon(idx)
 			_set_action_buttons_state(false, false, false, false, false, false, false, false)
 			_refresh_hand()
@@ -780,6 +784,7 @@ func _on_tile_button_pressed(idx: int) -> void:
 			var kan_id: int = GameState.players[0].hand[idx].id
 			_kan_select_mode = false
 			_kan_selectable.clear()
+			_play_chara_voice("seplavo_kan")
 			if GameState.can_player_kakan() and _player_has_kakan_id(kan_id):
 				GameState.player_kakan(kan_id)
 			else:
@@ -793,7 +798,7 @@ func _on_tile_button_pressed(idx: int) -> void:
 				_riichi_selectable.clear()
 				_selected_idx = -1
 				_clear_tenpai_assist()
-				GameState.player_riichi(idx)
+				GameState.player_riichi(idx, _riichi_is_open)
 			else:
 				_selected_idx = idx
 				_refresh_hand()
@@ -845,10 +850,14 @@ func _on_ron_pressed() -> void:
 
 func _on_open_riichi_pressed() -> void:
 	_show_player_hand_as_touhai = true
-	_on_riichi_pressed()
+	_start_riichi_selection(true)
 
 func _on_riichi_pressed() -> void:
+	_start_riichi_selection(false)
+
+func _start_riichi_selection(is_open: bool) -> void:
 	_riichi_mode = true
+	_riichi_is_open = is_open
 	_riichi_selectable = GameState.get_riichi_selectable_indices()
 	_pon_select_mode = false
 	_pon_selectable.clear()
@@ -863,6 +872,7 @@ func _on_riichi_pressed() -> void:
 
 func _on_riichi_cancel_pressed() -> void:
 	_riichi_mode = false
+	_riichi_is_open = false
 	_riichi_selectable.clear()
 	_show_player_hand_as_touhai = false
 	_selected_idx = -1
@@ -880,6 +890,7 @@ func _on_pon_pressed() -> void:
 		_refresh_hand()
 		_set_action_buttons_state(false, false, false, true, false, false, false, false)
 		return
+	_play_chara_voice("seplavo_pon")
 	GameState.player_pon()
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 
@@ -901,6 +912,7 @@ func _on_kan_pressed() -> void:
 		_refresh_hand()
 		_set_action_buttons_state(false, false, false, true, false, false, false, false)
 		return
+	_play_chara_voice("seplavo_kan")
 	_btn_skip.tooltip_text = "キャンセル"
 	# ACTION_WAIT中に大明槓可なら大明槓、次に加槓、それ以外は暗槓
 	if GameState.phase == GameState.Phase.ACTION_WAIT and GameState.action_minkan_possible:
@@ -911,6 +923,13 @@ func _on_kan_pressed() -> void:
 		GameState.player_ankan()
 
 func _on_skip_pressed() -> void:
+	if GameState.phase == GameState.Phase.PLAYER_TURN:
+		var hand_ids: Array = MahjongLogic.get_ids(GameState.players[0].hand)
+		if MahjongLogic.is_complete_hand(hand_ids):
+			_show_player_hand_as_touhai = false
+			_set_action_buttons_state(false, false, false, false, false, false, false, false)
+			GameState.player_decline_tsumo()
+			return
 	_pon_select_mode = false
 	_pon_selectable.clear()
 	_kan_select_mode = false
@@ -971,14 +990,23 @@ func _player_has_kakan_id(tile_id: int) -> bool:
 func _check_tsumo_auto() -> void:
 	var player: Dictionary = GameState.players[0]
 	var hand_ids: Array = MahjongLogic.get_ids(player.hand)
-	var can_tsumo: bool = MahjongLogic.is_complete_hand(hand_ids)
+	var can_tsumo: bool = _can_player_tsumo_with_yaku(hand_ids)
 	var can_riichi: bool = GameState.can_player_riichi()
 	var can_kita: bool = GameState.can_player_kita()
 	var can_kan: bool = GameState.can_player_ankan() or GameState.can_player_kakan()
 	if GameState.phase == GameState.Phase.AFTER_PON:
 		_set_action_buttons_state(true, false, false, false, false, false, can_kita, false)
 	else:
-		_set_action_buttons_state(false, can_tsumo, false, false, can_riichi, false, can_kita, can_kan)
+		_set_action_buttons_state(false, can_tsumo, false, can_tsumo, can_riichi, false, can_kita, can_kan)
+
+func _can_player_tsumo_with_yaku(hand_ids: Array) -> bool:
+	if not MahjongLogic.is_complete_hand(hand_ids):
+		return false
+	if GameState.players[0].hand.is_empty():
+		return false
+	var winning_id: int = GameState.players[0].hand[GameState.players[0].hand.size() - 1].id
+	var context: Dictionary = GameState._build_context(0, true, winning_id)
+	return not MahjongLogic.check_yaku(hand_ids, context).is_empty()
 
 func _handle_riichi_draw() -> void:
 	var player: Dictionary = GameState.players[0]
@@ -990,7 +1018,7 @@ func _handle_riichi_draw() -> void:
 	# 北 → kita button only
 	if drawn_tile.id == MahjongLogic.NORTH:
 		if MahjongLogic.is_complete_hand(hand_ids):
-			_set_action_buttons_state(false, true, false, false, false, false, false, false)
+			_set_action_buttons_state(false, true, false, true, false, false, false, false)
 			_status_label.text = "立直！ツモ和了！"
 		else:
 			_set_action_buttons_state(false, false, false, false, false, false, true, false)
@@ -999,7 +1027,7 @@ func _handle_riichi_draw() -> void:
 
 	# Winning tile → tsumo button only
 	if MahjongLogic.is_complete_hand(hand_ids):
-		_set_action_buttons_state(false, true, false, false, false, false, false, false)
+		_set_action_buttons_state(false, true, false, true, false, false, false, false)
 		_status_label.text = "立直！ツモ和了！"
 		return
 
@@ -1819,32 +1847,36 @@ func _play_win_call_animation(result: Dictionary) -> void:
 	AudioManager.play_se("plhora" if winner_idx == 0 else "npchora")
 	var call_rect := TextureRect.new()
 	call_rect.texture = load("res://ui/hassei_tumo.webp" if result.get("is_tsumo", false) else "res://ui/hassei_ron.webp")
-	call_rect.size = Vector2(360, 190)
+	call_rect.size = Vector2(216, 114)
+	call_rect.pivot_offset = call_rect.size * 0.5
 	call_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	call_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	call_rect.z_index = 80
 	call_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(call_rect)
 	_result_dynamic_nodes.append(call_rect)
-	var start_pos := Vector2(780, 790)
-	var end_pos := Vector2(790, 610)
+	var end_pos := Vector2((SCREEN_SIZE.x - call_rect.size.x) * 0.5, 410)
+	var start_pos := Vector2(end_pos.x, 960)
+	call_rect.rotation_degrees = 0.0
 	if winner_idx == RIGHT_IDX:
-		start_pos = Vector2(1540, 450)
-		end_pos = Vector2(1255, 450)
+		start_pos = Vector2(1900, end_pos.y)
+		call_rect.rotation_degrees = -90.0
 	elif winner_idx == UPPER_IDX:
-		start_pos = Vector2(780, 70)
-		end_pos = Vector2(780, 225)
+		start_pos = Vector2(end_pos.x, -130)
+		call_rect.rotation_degrees = 180.0
 	call_rect.position = start_pos
 	var tween := create_tween()
 	tween.tween_property(call_rect, "position", end_pos, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished
 	await get_tree().create_timer(0.65).timeout
+	_result_dynamic_nodes.erase(call_rect)
+	call_rect.queue_free()
 
 func _play_result_chara_animation(winner_idx: int) -> void:
 	var chara_rect := TextureRect.new()
 	chara_rect.texture = load(_get_result_chara_path(winner_idx))
 	chara_rect.position = Vector2(SCREEN_SIZE.x, 65)
-	chara_rect.size = Vector2(500, 970)
+	chara_rect.size = Vector2(520, 970)
 	chara_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	chara_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	chara_rect.z_index = 90
@@ -1852,7 +1884,7 @@ func _play_result_chara_animation(winner_idx: int) -> void:
 	add_child(chara_rect)
 	_result_dynamic_nodes.append(chara_rect)
 	var tween := create_tween()
-	var dest_x: float = 20.0 if winner_idx == 0 else -200.0
+	var dest_x: float = 0.0 if winner_idx == 0 else -200.0
 	tween.tween_property(chara_rect, "position", Vector2(dest_x, 65), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished
 	if winner_idx == 0:
@@ -1886,9 +1918,9 @@ func _reveal_win_result(result: Dictionary) -> void:
 	for yaku: Dictionary in yaku_list:
 		if not is_yakuman or int(yaku.get("han", 0)) >= 13:
 			filtered_yaku.append(yaku)
-	_add_result_hand(winner.get("hand", []))
+	_add_result_hand(result.get("winning_display_tiles", winner.get("hand", [])))
 	await _result_delay()
-	_add_result_action_image(result.get("is_tsumo", false))
+	_add_result_label("ツモ" if result.get("is_tsumo", false) else "ロン", Vector2(80, 148), Vector2(220, 54), 42, Color(1.0, 0.88, 0.44))
 	await _result_delay()
 	var y := 250.0
 	for yaku: Dictionary in filtered_yaku:
@@ -1953,14 +1985,17 @@ func _add_result_action_image(is_tsumo: bool) -> void:
 
 func _add_result_hand(hand: Array) -> void:
 	var display_tiles := _get_result_display_tiles(hand)
-	var tile_w := 64
-	var tile_h := 86
+	var tile_w := 60
+	var tile_h := 80
 	var gap := 4
 	var base := Vector2(80, 42)
+	if display_tiles.size() > 14:
+		tile_w = 54
+		tile_h = 72
 	for i in range(display_tiles.size()):
 		var rect := TextureRect.new()
 		rect.position = base + Vector2(i * (tile_w + gap), 0)
-		if i == display_tiles.size() - 1 and display_tiles.size() >= 14:
+		if i == display_tiles.size() - 1 and display_tiles.size() >= 2:
 			rect.position.x = base.x + 13 * (tile_w + gap) + 26
 		rect.size = Vector2(tile_w, tile_h)
 		rect.texture = _get_tile_texture(display_tiles[i])
