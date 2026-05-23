@@ -85,6 +85,7 @@ var _debug_rinshan_slot_panels: Array = []
 var _debug_rinshan_slot_textures: Array = []
 var _debug_rinshan_error_label: Label
 var _debug_buttons_box: Control
+var _debug_show_npc_hands: bool = false
 
 const UPPER_IDX := 2
 const RIGHT_IDX := 1
@@ -378,13 +379,13 @@ func _build_ui() -> void:
 	_status_label.visible = false
 	add_child(_status_label)
 
-	_bgm_title_label = _make_label("", Vector2(20, 1018), 24)
-	_bgm_title_label.size = Vector2(720, 40)
+	_bgm_title_label = _make_label("", Vector2(10, 36), 40)
+	_bgm_title_label.size = Vector2(900, 50)
 	_bgm_title_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
 	_bgm_title_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
 	_bgm_title_label.add_theme_constant_override("shadow_offset_x", 2)
 	_bgm_title_label.add_theme_constant_override("shadow_offset_y", 2)
-	add_child(_bgm_title_label)
+	player_panel.add_child(_bgm_title_label)
 
 	# --- 結果オーバーレイ ---
 	_win_overlay = ColorRect.new()
@@ -1263,6 +1264,9 @@ func _fill_npc_hand_box(box: Control, player: Dictionary, seat_key: String, max_
 	for child in box.get_children():
 		box.remove_child(child)
 		child.queue_free()
+	if _debug_show_npc_hands:
+		_fill_npc_debug_hand_box(box, player.hand, max_w, max_h, rotation_degrees)
+		return
 	var paths: Array = NPC_HAND_TEXTURE_PATHS.get(seat_key, [])
 	if paths.is_empty():
 		return
@@ -1294,6 +1298,37 @@ func _fill_npc_hand_box(box: Control, player: Dictionary, seat_key: String, max_
 	elif rotated:
 		tex_rect.position.x = tex_rect.size.y
 	box.add_child(tex_rect)
+
+func _fill_npc_debug_hand_box(box: Control, hand: Array, max_w: int, max_h: int, rotation_degrees: float = 0.0) -> void:
+	if hand.is_empty():
+		return
+	var tile_w := 44
+	var tile_h := 61
+	var gap := 2
+	var vertical: bool = not is_zero_approx(fmod(absf(rotation_degrees), 180.0))
+	var sorted_hand: Array = hand.duplicate(true)
+	sorted_hand.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return _tile_sort_key(a) < _tile_sort_key(b)
+	)
+	for i in range(sorted_hand.size()):
+		var tile: Dictionary = sorted_hand[i]
+		var rect := TextureRect.new()
+		rect.size = Vector2(tile_w, tile_h)
+		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.texture = _get_tile_texture(tile)
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rect.rotation_degrees = rotation_degrees
+		if vertical:
+			rect.position = Vector2(0, i * (tile_w + gap))
+			if rotation_degrees > 0.0:
+				rect.position.x += tile_h
+		else:
+			rect.position = Vector2(i * (tile_w + gap), 0)
+			if is_equal_approx(absf(rotation_degrees), 180.0):
+				rect.position.x = max_w - i * (tile_w + gap)
+				rect.position.y = tile_h
+		box.add_child(rect)
 
 func _make_used_rect_texture(path: String) -> Texture2D:
 	var tex: Texture2D = _tile_texture_cache[path] if _tile_texture_cache.has(path) else null
@@ -1862,10 +1897,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			_open_debug_for(UPPER_IDX)
 		elif event.keycode == KEY_F4:
 			_toggle_rinshan_debug()
+		elif event.keycode == KEY_F5:
+			_toggle_npc_hand_debug()
 
 func _build_debug_buttons() -> Control:
 	var box := Control.new()
-	box.size = Vector2(260, 40)
+	box.size = Vector2(320, 40)
 	var button_defs: Array = [
 		{"text": "F1", "tooltip": "プレイヤー手牌デバッグ", "target": 0},
 		{"text": "F2", "tooltip": "NPC1・右家手牌デバッグ", "target": RIGHT_IDX},
@@ -1883,6 +1920,11 @@ func _build_debug_buttons() -> Control:
 	btn_f4.position = Vector2(3 * 58, 0)
 	btn_f4.pressed.connect(_toggle_rinshan_debug)
 	box.add_child(btn_f4)
+
+	var btn_f5 := _make_debug_button("F5", "NPC謇狗煙陦ｨ遉ｺ")
+	btn_f5.position = Vector2(4 * 58, 0)
+	btn_f5.pressed.connect(_toggle_npc_hand_debug)
+	box.add_child(btn_f5)
 	return box
 
 func _make_debug_button(text: String, tooltip: String) -> Button:
@@ -1897,6 +1939,10 @@ func _toggle_rinshan_debug() -> void:
 	_debug_rinshan_panel.visible = not _debug_rinshan_panel.visible
 	if _debug_rinshan_panel.visible:
 		_rinshan_debug_init()
+
+func _toggle_npc_hand_debug() -> void:
+	_debug_show_npc_hands = not _debug_show_npc_hands
+	_refresh_npc_areas()
 
 func _open_debug_for(target_idx: int) -> void:
 	if _debug_panel.visible and _debug_target_idx == target_idx:

@@ -38,7 +38,7 @@ enum Phase {
 # ============================================================
 const INITIAL_SCORE := 35000
 const SETTLEMENT_BASE := 40000  # 精算の基準点（開始点数35000とは別）
-const NPC_THINK_SEC := 0.8
+const NPC_THINK_SEC := 0.2
 
 # ============================================================
 # マッチレベル状態
@@ -301,23 +301,32 @@ func _choose_npc_discard_index(player_idx: int) -> int:
 	var hand_ids: Array = MahjongLogic.get_ids(p.hand)
 	var best_indices: Array = []
 	var best_shanten := 99
-	var best_ukeire := -1
 	for i in range(p.hand.size()):
 		if p.hand[i].id == MahjongLogic.NORTH:
 			continue
 		var test: Array = hand_ids.duplicate()
 		test.remove_at(i)
 		var shanten: int = MahjongLogic.calculate_shanten(test)
-		var ukeire: int = MahjongLogic.count_ukeire_after_discard(test)
-		if shanten < best_shanten or (shanten == best_shanten and ukeire > best_ukeire):
+		if shanten < best_shanten:
 			best_shanten = shanten
-			best_ukeire = ukeire
 			best_indices = [i]
-		elif shanten == best_shanten and ukeire == best_ukeire:
+		elif shanten == best_shanten:
 			best_indices.append(i)
 	if best_indices.is_empty():
 		return p.hand.size() - 1
-	return _prefer_non_bonus_discard(p.hand, best_indices)
+
+	var best_ukeire := -1
+	var best_ukeire_indices: Array = []
+	for i: int in best_indices:
+		var test: Array = hand_ids.duplicate()
+		test.remove_at(i)
+		var ukeire: int = MahjongLogic.count_ukeire_after_discard(test)
+		if ukeire > best_ukeire:
+			best_ukeire = ukeire
+			best_ukeire_indices = [i]
+		elif ukeire == best_ukeire:
+			best_ukeire_indices.append(i)
+	return _prefer_non_bonus_discard(p.hand, best_ukeire_indices)
 
 func _prefer_non_bonus_discard(hand: Array, indices: Array) -> int:
 	var best_indices: Array = []
