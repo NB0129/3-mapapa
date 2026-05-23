@@ -383,6 +383,21 @@
   SaveData.selected_player_character: "hachimi"（デフォルト）
 
 --------------------------------------------------
+■ キャラクターボイスSE（game.gd / se/charavo/）
+--------------------------------------------------
+  _play_chara_voice(voice_name) で selected_player_character に応じたSEを再生。
+  パス: res://se/charavo/<voice_name>.wav
+
+  【八美（hachimi）ボイス一覧】
+    seplavo_yoro   東一局0本場の局開始時（半荘の最初の局のみ）
+    seplavo_riti   先制リーチ宣言時（他のプレイヤーが誰もリーチしていない場合）
+    seplavo_okkake 追いかけリーチ宣言時（NPCが1人以上リーチ済みの場合）
+    seplavo_tumo   プレイヤーがツモボタンを押した時
+    seplavo_ron    プレイヤーがロンボタンを押した時
+    seplavo_hora   プレイヤー和了後、キャラクタースライドアニメーション完了時
+    seplavo_make   プレイヤーが飛んで対局終了が確定した時（bust_player_indicesに0が含まれる場合）
+
+--------------------------------------------------
 ■ 対局画面 UIレイアウト（2026/05/17 大改修②後）
 --------------------------------------------------
   ※ プレイヤー視点：下=東家(自分)・右=南家NPC・上=西家NPC・左=空席

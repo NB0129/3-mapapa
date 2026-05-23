@@ -548,6 +548,8 @@ func _on_game_started() -> void:
 	_refresh_wanpai_dora()
 	_refresh_all()
 	_status_label.text = "ゲーム開始！"
+	if GameState.kyoku == 1 and GameState.round_wind == MahjongLogic.EAST and GameState.honba == 0:
+		_play_chara_voice("seplavo_yoro")
 
 func _update_round_bgm() -> void:
 	var track: Dictionary = _next_bgm_track()
@@ -672,6 +674,8 @@ func _on_riichi_declared(player_idx: int) -> void:
 	_refresh_npc_areas()
 	if player_idx == 0:
 		_status_label.text = "リーチ！"
+		var npc_riichi := GameState.players[1].is_riichi or GameState.players[2].is_riichi
+		_play_chara_voice("seplavo_okkake" if npc_riichi else "seplavo_riti")
 		_play_riichi_bgm()
 
 func _play_riichi_bgm() -> void:
@@ -684,6 +688,11 @@ func _play_riichi_bgm() -> void:
 	var track: Dictionary = bgms.pick_random()
 	AudioManager.play_bgm_path(track.path)
 	_bgm_title_label.text = "BGM: " + track.title
+
+func _play_chara_voice(voice_name: String) -> void:
+	match SaveData.selected_player_character:
+		"hachimi":
+			AudioManager.play_se("charavo/" + voice_name)
 
 func _on_kita_removed(player_idx: int) -> void:
 	_refresh_info()
@@ -825,11 +834,13 @@ func _on_discard_pressed() -> void:
 func _on_tsumo_pressed() -> void:
 	_show_player_hand_as_touhai = true
 	_refresh_hand()
+	_play_chara_voice("seplavo_tumo")
 	GameState.player_tsumo()
 
 func _on_ron_pressed() -> void:
 	_show_player_hand_as_touhai = true
 	_refresh_hand()
+	_play_chara_voice("seplavo_ron")
 	GameState.player_ron()
 
 func _on_open_riichi_pressed() -> void:
@@ -1794,6 +1805,11 @@ func _show_result_sequence(result: Dictionary) -> void:
 	await _play_win_call_animation(result)
 	_win_overlay.visible = true
 	await _play_result_chara_animation(result.get("winner_idx", 0))
+	var _bust_ids: Array = result.get("bust_player_indices", [])
+	if _bust_ids.is_empty() and result.get("bust_player_idx", -1) >= 0:
+		_bust_ids = [result.get("bust_player_idx")]
+	if 0 in _bust_ids:
+		_play_chara_voice("seplavo_make")
 	_prepare_win_result_panel(result)
 	await _reveal_win_result(result)
 	_finish_win_result_panel(result)
@@ -1839,6 +1855,8 @@ func _play_result_chara_animation(winner_idx: int) -> void:
 	var dest_x: float = 20.0 if winner_idx == 0 else -200.0
 	tween.tween_property(chara_rect, "position", Vector2(dest_x, 65), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished
+	if winner_idx == 0:
+		_play_chara_voice("seplavo_hora")
 
 func _prepare_win_result_panel(result: Dictionary) -> void:
 	_msg_panel.position = RESULT_PANEL_RECT.position

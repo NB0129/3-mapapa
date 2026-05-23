@@ -2,6 +2,17 @@
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
 
+【2026/05/23】キャラクターボイスSE実装（game.gd / 仕様書）
+  - se/charavo/ ディレクトリ内のボイスSEを各タイミングで再生する機能を実装。
+  - game.gd：_play_chara_voice() ヘルパーを追加。selected_player_character に応じたパスでSEを再生。
+  - 東一局0本場開始時 → seplavo_yoro（_on_game_started でkyoku==1・EAST・honba==0の条件で判定）
+  - 先制リーチ時 → seplavo_riti（_on_riichi_declared でNPC全員が非リーチの場合）
+  - 追いかけリーチ時 → seplavo_okkake（_on_riichi_declared でNPCが1人以上リーチ中の場合）
+  - ツモ宣言時 → seplavo_tumo（_on_tsumo_pressed）
+  - ロン宣言時 → seplavo_ron（_on_ron_pressed）
+  - プレイヤー和了演出スライド完了時 → seplavo_hora（_play_result_chara_animation / tween.finished後）
+  - プレイヤー飛び確定時 → seplavo_make（_show_result_sequence / bust_player_indicesに0が含まれる場合）
+
 【2026/05/23】リーチBGM実装・NPC大明槓フリーズ修正・NPC和了演出位置修正（game.gd / GameState.gd / SaveData.gd / 仕様書）
   - game.gd：プレイヤーがリーチを宣言した際、キャラクターに対応したリーチBGMをランダム再生する機能を実装。
   - game.gd：HACHIMI_RIICHI_BGMS 定数を追加（乙女の横槍・リーチの舞・1000点棒キャンディの3曲）。
