@@ -1854,11 +1854,11 @@ func _play_win_call_animation(result: Dictionary) -> void:
 	call_sprite.z_index = 80
 	if call_sprite.texture:
 		var texture_size: Vector2 = call_sprite.texture.get_size()
-		var target_size := Vector2(65, 34)
+		var target_size := Vector2(1300, 680)
 		call_sprite.scale = Vector2.ONE * min(target_size.x / texture_size.x, target_size.y / texture_size.y)
 	add_child(call_sprite)
 	_result_dynamic_nodes.append(call_sprite)
-	var end_center := Vector2(SCREEN_SIZE.x * 0.5, 410)
+	var end_center := Vector2(SCREEN_SIZE.x * 0.5, 540)
 	var start_center := Vector2(end_center.x, 960)
 	call_sprite.rotation_degrees = 0.0
 	if winner_idx == RIGHT_IDX:
