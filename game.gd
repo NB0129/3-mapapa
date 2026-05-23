@@ -1847,7 +1847,7 @@ func _play_win_call_animation(result: Dictionary) -> void:
 	AudioManager.play_se("plhora" if winner_idx == 0 else "npchora")
 	var call_rect := TextureRect.new()
 	call_rect.texture = load("res://ui/hassei_tumo.webp" if result.get("is_tsumo", false) else "res://ui/hassei_ron.webp")
-	call_rect.size = Vector2(216, 114)
+	call_rect.size = Vector2(130, 68)
 	call_rect.pivot_offset = call_rect.size * 0.5
 	call_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	call_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -1868,7 +1868,7 @@ func _play_win_call_animation(result: Dictionary) -> void:
 	var tween := create_tween()
 	tween.tween_property(call_rect, "position", end_pos, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished
-	await get_tree().create_timer(0.65).timeout
+	await get_tree().create_timer(1.65).timeout
 	_result_dynamic_nodes.erase(call_rect)
 	call_rect.queue_free()
 
@@ -1876,15 +1876,15 @@ func _play_result_chara_animation(winner_idx: int) -> void:
 	var chara_rect := TextureRect.new()
 	chara_rect.texture = load(_get_result_chara_path(winner_idx))
 	chara_rect.position = Vector2(SCREEN_SIZE.x, 65)
-	chara_rect.size = Vector2(520, 970)
+	chara_rect.size = Vector2(500, 970)
 	chara_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	chara_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	chara_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
 	chara_rect.z_index = 90
 	chara_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(chara_rect)
 	_result_dynamic_nodes.append(chara_rect)
 	var tween := create_tween()
-	var dest_x: float = 0.0 if winner_idx == 0 else -200.0
+	var dest_x := 0.0
 	tween.tween_property(chara_rect, "position", Vector2(dest_x, 65), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished
 	if winner_idx == 0:
