@@ -500,9 +500,13 @@ func _make_button(text: String, bg_color: Color, min_size: Vector2 = Vector2(180
 
 func _is_primary_press(ev: InputEvent) -> bool:
 	if ev is InputEventMouseButton:
+		if OS.has_feature("mobile"):
+			return false
 		return ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT
 	if ev is InputEventScreenTouch:
 		return ev.pressed
+	if ev is InputEventScreenDrag:
+		return false
 	return false
 
 func _make_used_rect_texture(path: String) -> Texture2D:

@@ -15,14 +15,19 @@ func _build_ui() -> void:
 	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	bg.stretch_mode = TextureRect.STRETCH_SCALE
 	bg.texture = bg_tex
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
 	var btn_start := _make_button("ゲームスタート", Color(0.2, 0.5, 0.2))
 	btn_start.position = Vector2(760, 500)
 	btn_start.custom_minimum_size = Vector2(400, 70)
+	btn_start.size = Vector2(400, 70)
 	btn_start.add_theme_font_size_override("font_size", 32)
-	btn_start.pressed.connect(func(): get_tree().change_scene_to_file("res://Menu.tscn"))
+	btn_start.pressed.connect(_on_start_pressed)
 	add_child(btn_start)
+
+func _on_start_pressed() -> void:
+	get_tree().change_scene_to_file("res://Menu.tscn")
 
 func _make_button(text: String, bg_color: Color) -> Button:
 	var btn := Button.new()

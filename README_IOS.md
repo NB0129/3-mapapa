@@ -28,8 +28,17 @@
 
 - 通常の `Button.pressed` はGodotのControl入力に任せる。
 - 手牌、メンツ選択、デバッグパネルなど、自前で `gui_input` を見ている箇所は `InputEventMouseButton` と `InputEventScreenTouch` の両方を受ける。
-- `input_devices/pointing/emulate_mouse_from_touch=false` として、タッチと擬似マウスの二重発火を避ける。
+- `input_devices/pointing/emulate_mouse_from_touch=true` として、iOS実機タッチでGodot標準 `Button.pressed` が発火するようにする。
 - `input_devices/pointing/emulate_touch_from_mouse=false` として、PC確認時のマウス操作が実機タッチ処理を二重に呼ばないようにする。
+- 自前 `gui_input` 判定では、iOS/Androidなど `OS.has_feature("mobile")` の場合に `InputEventMouseButton` を無視し、`InputEventScreenTouch` のみで処理する。これによりタッチ由来の擬似マウスイベントとの二重発火を避ける。
+- タイトル背景など入力不要の `Control` は `mouse_filter=IGNORE` にし、前面ボタンの入力を奪わないようにする。
+
+## iOS Audio
+
+- `audio/general/ios/session_category=3` として、iOSのAVAudioSession CategoryをPlaybackにする。
+- `audio/general/ios/mix_with_others=false` とし、他アプリ音声との混在はしない。
+- Godot 4.6.3のenumは `Ambient,Multi Route,Play and Record,Playback,Record,Solo Ambient` の順。Playbackは値 `3`。
+- Godot公式ProjectSettingsでは、iOSでSilent mode中も音を出したい場合はPlayback categoryを使うと説明されている。
 
 ## 牌のタップ判定
 

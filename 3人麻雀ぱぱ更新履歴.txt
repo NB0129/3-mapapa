@@ -1,6 +1,13 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/26】iOS実機タイトルタッチ・Audio出力修正（project.godot / title.gd / menu.gd / game.gd / README_IOS.md / 仕様書）
+  - iOS実機で標準Button.pressedがタッチ発火するよう、emulate_mouse_from_touch=trueへ変更。
+  - 自前gui_inputのタッチ判定はmobile時にInputEventMouseButtonを無視し、InputEventScreenTouchのみ処理して二重発火を避けるよう修正。
+  - タイトル背景TextureRectをmouse_filter=IGNOREにし、ゲームスタートボタンの入力を奪わないよう修正。
+  - タイトルのゲームスタートボタンに実サイズを明示し、直接配置Controlとしてタッチ判定領域を確保。
+  - iOS Audio Session CategoryをPlayback（Godot 4.6.3では値3）にし、サイレントスイッチ中でもBGM/SEが出る設定へ変更。
+
 【2026/05/26】iOS実機Landscape表示・タッチ座標設定修正（project.godot / README_IOS.md / 仕様書）
   - モバイル向きをPortraitからSensor Landscapeへ変更し、iOS実機ではLandscape Left / Landscape Rightのみ許可する設定にした。
   - Stretch aspectをkeepへ戻し、1920×1080の16:9表示を維持したままGodotの入力座標変換に任せるよう修正。
