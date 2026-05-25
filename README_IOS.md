@@ -5,8 +5,9 @@
 ## 現在の方針
 
 - ゲーム本体の基準解像度は `1920x1080` のまま維持する。
-- iPhone縦画面では、GodotのStretch設定で16:9ゲーム画面全体を縦長画面内へ収める。
-- 画面上部のノッチ / Dynamic Islandとは距離ができるため、現状のUIは直接被りにくい。
+- iPhone実機ではLandscape Left / Landscape Rightのみを許可し、Portrait表示を無効化する。
+- GodotのStretch設定で16:9ゲーム画面全体をLandscape画面内へ収める。
+- 画面左右のノッチ / Dynamic Islandとは距離ができるため、現状のUIは直接被りにくい。
 - 縦画面いっぱいを使う専用UIは、将来の別作業として扱う。
 
 ## Project Settings
@@ -17,15 +18,18 @@
 - `display/window/size/viewport_height=1080`
 - `display/window/stretch/mode="canvas_items"`
 - `display/window/stretch/aspect="keep"`
-- `display/window/handheld/orientation=1`
+- `display/window/handheld/orientation=4`
 
-`aspect="keep"` にしているため、縦長iPhoneではゲーム画面が丸ごと縮小表示される。画面外にはみ出しにくく、ノッチやDynamic Islandにも被りにくいが、縦画面専用レイアウトより表示は小さくなる。
+`orientation=4` はGodotの `SCREEN_SENSOR_LANDSCAPE`。iOS export後は `UISupportedInterfaceOrientations` が `UIInterfaceOrientationLandscapeLeft` / `UIInterfaceOrientationLandscapeRight` のみになり、Portraitは含めない。
+
+`aspect="keep"` にしているため、iPhoneの横長比率が16:9より広い場合でもゲーム画面全体を保ったまま表示する。表示スケールと入力座標の対応をGodot側に任せ、タッチ位置のズレを避ける。
 
 ## タッチ入力
 
 - 通常の `Button.pressed` はGodotのControl入力に任せる。
 - 手牌、メンツ選択、デバッグパネルなど、自前で `gui_input` を見ている箇所は `InputEventMouseButton` と `InputEventScreenTouch` の両方を受ける。
 - `input_devices/pointing/emulate_mouse_from_touch=false` として、タッチと擬似マウスの二重発火を避ける。
+- `input_devices/pointing/emulate_touch_from_mouse=false` として、PC確認時のマウス操作が実機タッチ処理を二重に呼ばないようにする。
 
 ## 牌のタップ判定
 
