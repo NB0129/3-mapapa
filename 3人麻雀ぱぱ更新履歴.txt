@@ -1,6 +1,11 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/26】iOS実機向けTargeted Device Family修正（export_presets.cfg / README_IOS.md / 仕様書）
+  - iOS presetのTargeted Device FamilyをiPhone & iPadへ変更し、iPhone実機ビルド対象に含めるよう修正。
+  - Xcode生成時のTARGETED_DEVICE_FAMILYが1,2になることをREADME_IOS.mdへ追記。
+  - Export Project OnlyとExport PathをXcodeプロジェクト書き出し用の設定へ戻した。
+
 【2026/05/26】iOS Xcodeプロジェクト書き出し設定修正（export_presets.cfg / README_IOS.md / 仕様書）
   - iOS presetのExport Pathを ../iOSBuild/mapapa.ipa に変更し、Xcodeプロジェクト名のベースに .xcodeproj が混入しないよう修正。
   - Export Project Onlyを有効化し、../iOSBuild/mapapa.xcodeproj/project.pbxproj が生成される設定へ戻した。

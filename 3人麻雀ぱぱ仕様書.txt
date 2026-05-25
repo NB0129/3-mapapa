@@ -10,6 +10,7 @@
   - レンダラー: Mobile（D3D12）
   - メインシーン: Main.tscn
   - iOS export preset: Export Project Only有効、Export Pathは ../iOSBuild/mapapa.ipa
+    Targeted Device FamilyはiPhone & iPad（XcodeのTARGETED_DEVICE_FAMILY=1,2）
     ※ Xcodeで開くのは ../iOSBuild/mapapa.xcodeproj。export_pathのベース名に .xcodeproj を含めない。
 
 【AutoLoad 順番（厳守）】
