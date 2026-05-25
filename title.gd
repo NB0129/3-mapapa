@@ -2,7 +2,7 @@ extends Control
 
 func _ready() -> void:
 	_build_ui()
-	AudioManager.play_bgm("bgm_title.wav")
+	AudioManager.play_bgm("bgm_title.ogg")
 
 func _build_ui() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)

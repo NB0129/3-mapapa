@@ -14,6 +14,7 @@
 
 ## アセット運用
 - PNG画像をWebPへ変換した場合、実行時に使うWebPと `.webp.import` を残し、変換元PNGと `.png.import` は削除する
+- 新しい音源を追加・変換した場合は、`AUDIO_NORMALIZATION.md` の基準で音量正規化する
 
 ## ドキュメント
 - 実装・修正後は仕様書を更新する

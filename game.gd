@@ -28,12 +28,18 @@ var _win_overlay: ColorRect
 var _msg_panel: Panel
 var _msg_label: Label
 var _msg_ok: Button
+var _btn_table_view: Button
+var _btn_result_back: Button
 var _status_label: Label
 var _haku_pochi_lbl: Label
 var _haku_pochi_img: TextureRect
 var _npc_left_chara: TextureRect
 var _npc_right_chara: TextureRect
 var _result_dynamic_nodes: Array = []
+var _reach_cutin: CanvasLayer
+var _riichi_stick_layer: Node2D
+var _reach_stick_texture: Texture2D
+var _empty_riichi_stick_count: int = 0
 
 var _upper_hand_box: Control
 var _upper_meld_box: Control
@@ -90,10 +96,14 @@ var _debug_rinshan_slot_textures: Array = []
 var _debug_rinshan_error_label: Label
 var _debug_buttons_box: Control
 var _debug_show_npc_hands: bool = false
+var _player_riichi_cutin_count: int = 0
+var _riichi_cutin_running: bool = false
+var _riichi_tsumogiri_timer_pending: bool = false
 
 const UPPER_IDX := 2
 const RIGHT_IDX := 1
 const LEFT_IDX  := -1
+const CUTIN_REACH_SCENE := preload("res://CutinReach.tscn")
 const ACTION_IMAGE_BUTTON_SIZE := Vector2(480, 200)
 const SCREEN_SIZE := Vector2(1920, 1080)
 const RESULT_PANEL_RECT := Rect2(530, 20, 1370, 1040)
@@ -133,6 +143,7 @@ const SOUTH_BGM_TRACKS := [
 	{"path": "res://BGM/bgm_nan3_tanteinomaturo.ogg", "title": "探偵の末路", "group": "tantei"},
 	{"path": "res://BGM/bgm_nan4_nerawaretatantei.ogg", "title": "狙われた探偵", "group": "tantei"},
 	{"path": "res://BGM/bgm_nan5_rojiuranobakuto.ogg", "title": "路地裏の博徒", "group": ""},
+	{"path": "res://BGM/bgm_nan6_hyouzansatujinjiken.ogg", "title": "氷山殺人事件", "group": ""},
 ]
 
 const OORASU_BGM_TRACKS := [
@@ -146,6 +157,46 @@ const HACHIMI_RIICHI_BGMS := [
 	{"path": "res://BGM/bgm_ritia2_ri-tinomai.ogg", "title": "リーチの舞"},
 	{"path": "res://BGM/bgm_ritia3_1000tennnocandy.ogg", "title": "1000点棒キャンディ"},
 ]
+
+const NPC_VOICE_DEFS := {
+	"kuma_def": {
+		"folder": "npc1_くまぱぱ", "prefix": "senpc1vo",
+		"actions": {"riti": "riti", "ron": "ron", "tumo": "tumo", "pon": "pon", "kan": "kan", "siropotti": "siropotti", "noten": "noten", "tenpai": "tenpai"}
+	},
+	"kuma_hokkyoku": {
+		"folder": "npc2_北極熊", "prefix": "senpc2vo",
+		"actions": {"riti": "riti", "ron": "ron", "tumo": "tumo", "noten": "noten", "tenpai": "tenpai"}
+	},
+	"kuma_megane": {
+		"folder": "npc3_眼鏡くま", "prefix": "senpc3vo",
+		"actions": {"riti": "riti", "ron": "ron", "tumo": "tumo", "pon": "pon", "kan": "kan", "siropotti": "siropo", "noten": "no-ten", "tenpai": "tenpai"}
+	},
+	"kuma_hiyake": {
+		"folder": "npc4_日焼けくま", "prefix": "senpc4vo",
+		"actions": {"riti": "riti", "ron": "ron", "tumo": "tumo", "pon": "pon", "kan": "kan", "siropotti": "siropotti", "noten": "noten", "tenpai": "tenpai"}
+	},
+	"kuma_black": {
+		"folder": "npc5_ブラックくま", "prefix": "senpc5vo",
+		"actions": {"riti": "riti", "ron": "ron", "tumo": "tumo", "pon": "pon", "kan": "kan", "siropotti": "siropotti", "noten": "noten", "tenpai": "tenpai"}
+	},
+	"kuma_saibo": {
+		"folder": "npc6_サイボーグくま", "prefix": "senpc6vo",
+		"actions": {"riti": "riti", "ron": "ron", "tumo": "tumo", "pon": "pon", "kan": "kan", "siropotti": "siropotti", "noten": "noten", "tenpai": "tenpai"}
+	},
+}
+
+const NPC_RIICHI_BGMS := {
+	"kuma_def": {"path": "res://BGM/bgm_ritinpc1_sirokumari-ti.ogg", "title": "白くまリーチ"},
+	"kuma_hokkyoku": {"path": "res://BGM/bgm_ritinpc2_sitteitaka.ogg", "title": "知っていたか？普段ツモ切りしかできない俺でもダブルリーチは打てる～得意な役は天和で和了したら君は死ぬ～"},
+	"kuma_megane": {"path": "res://BGM/bgm_ritinpc3_waruikedo.ogg", "title": "悪いけど、君の負け"},
+	"kuma_hiyake": {"path": "res://BGM/bgm_ritinpc4_hawairi-ti.ogg", "title": "ハワイリーチ"},
+	"kuma_black": {"path": "res://BGM/bgm_ritinpc5_ri-tinoame.ogg", "title": "リーチの雨"},
+	"kuma_saibo": {"path": "res://BGM/bgm_ritinpc6_mutekinoai.ogg", "title": "無敵のAI"},
+}
+
+const NPC_VOICE_VOLUME_SCALE := {
+	"kuma_hiyake": 0.7,
+}
 
 var _east_bgm_playlist: Array = []
 var _south_bgm_playlist: Array = []
@@ -211,63 +262,63 @@ func _build_ui() -> void:
 	add_child(_right_meld_box)
 
 	# --- 上家 捨て牌エリア（上家視点の何場表示左下） ---
-	var upper_discard_panel := _make_control_rect(Rect2(820, 244, 400, 170))
+	var upper_discard_panel := _make_control_rect(Rect2(820, 220, 400, 170))
 	add_child(upper_discard_panel)
 	_upper_discard_box = Control.new()
 	_upper_discard_box.position = Vector2.ZERO
 	upper_discard_panel.add_child(_upper_discard_box)
 
 	# --- 右家 捨て牌エリア（右家視点の何場表示左下） ---
-	var right_discard_panel := _make_control_rect(Rect2(1109, 366, 490, 260))
+	var right_discard_panel := _make_control_rect(Rect2(1124, 366, 490, 260))
 	add_child(right_discard_panel)
 	_right_discard_box = Control.new()
 	_right_discard_box.position = Vector2.ZERO
 	right_discard_panel.add_child(_right_discard_box)
 
 	# --- 何場表示（画面中央の正方形）---
-	var jouba_panel := _make_panel(Color(0.0, 0.05, 0.15, 0.80), Rect2(820, 370, 280, 280))
+	var jouba_panel := _make_panel(Color(0.0, 0.05, 0.15, 0.80), Rect2(830, 370, 260, 260))
 	add_child(jouba_panel)
 	# 上家スコア（上家視点で手前）
-	_upper_score_label = _make_label("", Vector2(60, 8), 20)
-	_upper_score_label.size = Vector2(160, 34)
+	_upper_score_label = _make_label("", Vector2(50, 7), 19)
+	_upper_score_label.size = Vector2(160, 32)
 	_upper_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_upper_score_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	_upper_score_label.pivot_offset = Vector2(80, 17)
+	_upper_score_label.pivot_offset = Vector2(80, 16)
 	_upper_score_label.rotation_degrees = 180.0
 	_upper_score_label.add_theme_color_override("font_color", Color(0.85, 1.0, 0.85))
 	jouba_panel.add_child(_upper_score_label)
 	# 局・本場（中央）
-	_info_label = _make_label("東一局", Vector2(20, 92), 40)
-	_info_label.size = Vector2(240, 54)
+	_info_label = _make_label("東一局", Vector2(20, 86), 38)
+	_info_label.size = Vector2(220, 54)
 	_info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_info_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_info_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
 	jouba_panel.add_child(_info_label)
 	# 残り枚数（中央下）
-	_wall_label = _make_label("0本場  残り--枚", Vector2(20, 150), 24)
-	_wall_label.size = Vector2(240, 36)
+	_wall_label = _make_label("0本場  残り--枚", Vector2(20, 144), 23)
+	_wall_label.size = Vector2(220, 36)
 	_wall_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_wall_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	jouba_panel.add_child(_wall_label)
 	# 右家スコア（右家視点で手前）
-	_right_score_label = _make_label("", Vector2(200, 78), 18)
-	_right_score_label.size = Vector2(120, 28)
+	_right_score_label = _make_label("", Vector2(170, 54), 17)
+	_right_score_label.size = Vector2(160, 38)
 	_right_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_right_score_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_right_score_label.pivot_offset = Vector2(60, 14)
+	_right_score_label.pivot_offset = Vector2(80, 19)
 	_right_score_label.rotation_degrees = -90.0
 	_right_score_label.add_theme_color_override("font_color", Color(0.85, 0.85, 1.0))
 	jouba_panel.add_child(_right_score_label)
 	# プレイヤースコア（下辺）
-	_player_score_label = _make_label("", Vector2(60, 238), 20)
-	_player_score_label.size = Vector2(160, 34)
+	_player_score_label = _make_label("", Vector2(50, 224), 19)
+	_player_score_label.size = Vector2(160, 32)
 	_player_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_player_score_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	_player_score_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.85))
 	jouba_panel.add_child(_player_score_label)
 
 	# --- プレイヤー 捨て牌エリア（プレイヤー視点の何場表示左下） ---
-	var player_discard_panel := _make_control_rect(Rect2(820, 650, 400, 175))
+	var player_discard_panel := _make_control_rect(Rect2(820, 655, 400, 175))
 	add_child(player_discard_panel)
 	_player_discard_box = Control.new()
 	_player_discard_box.position = Vector2.ZERO
@@ -454,6 +505,22 @@ func _build_ui() -> void:
 	_msg_ok.pressed.connect(_on_msg_ok_pressed)
 	_msg_panel.add_child(_msg_ok)
 
+	_btn_table_view = _make_button("卓上を見る", Color(0.28, 0.34, 0.44))
+	_btn_table_view.position = Vector2(350, 390)
+	_btn_table_view.custom_minimum_size = Vector2(160, 50)
+	_btn_table_view.pressed.connect(_on_table_view_pressed)
+	_btn_table_view.visible = false
+	_msg_panel.add_child(_btn_table_view)
+
+	_btn_result_back = _make_button("戻る", Color(0.20, 0.32, 0.48))
+	_btn_result_back.position = Vector2(1700, 990)
+	_btn_result_back.custom_minimum_size = Vector2(160, 58)
+	_btn_result_back.size = _btn_result_back.custom_minimum_size
+	_btn_result_back.z_index = 90
+	_btn_result_back.pressed.connect(_on_result_back_pressed)
+	_btn_result_back.visible = false
+	add_child(_btn_result_back)
+
 	# --- アイコンボタン（ホーム・設定） ---
 	_btn_home_icon = _make_icon_button("res://assets/bg/icon_home.webp")
 	_btn_home_icon.position = Vector2(1682, 6)
@@ -487,13 +554,39 @@ func _build_ui() -> void:
 	add_child(_debug_rinshan_panel)
 	_debug_rinshan_panel.visible = false
 
+	_riichi_stick_layer = Node2D.new()
+	_riichi_stick_layer.z_index = -5
+	add_child(_riichi_stick_layer)
+
+	_reach_cutin = CUTIN_REACH_SCENE.instantiate()
+	add_child(_reach_cutin)
+
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 
 func _build_npc_standing_art() -> void:
-	_npc_left_chara = _make_standing_texture("res://chara/kuma_hiyake.webp", Vector2(-70, 95), Vector2(520, 960))
-	_npc_right_chara = _make_standing_texture("res://chara/kuma_def.webp", Vector2(1470, 95), Vector2(520, 960))
+	var standing_ids: Dictionary = _get_standing_npc_ids()
+	var left_id: String = standing_ids.left
+	var right_id: String = standing_ids.right
+	_npc_left_chara = _make_standing_texture(SaveData.get_npc_path(left_id), Vector2(-70, 95), Vector2(520, 960))
+	_npc_right_chara = _make_standing_texture(SaveData.get_npc_path(right_id), Vector2(1470, -70), Vector2(520, 960))
 	add_child(_npc_left_chara)
 	add_child(_npc_right_chara)
+
+func _get_standing_npc_ids() -> Dictionary:
+	var seats: Dictionary = SaveData.selected_npc_seats
+	var bottom_id := str(seats.get("bottom", ""))
+	var right_id := str(seats.get("right", ""))
+	var top_id := str(seats.get("top", ""))
+	if bottom_id == "":
+		return {
+			"left": top_id if top_id != "" else "kuma_def",
+			"right": right_id if right_id != "" else "kuma_hiyake",
+		}
+	var left_id := right_id if right_id != "" else top_id
+	return {
+		"left": left_id if left_id != "" else "kuma_def",
+		"right": bottom_id,
+	}
 
 func _make_standing_texture(path: String, pos: Vector2, size: Vector2) -> TextureRect:
 	var rect := TextureRect.new()
@@ -561,7 +654,7 @@ func _update_round_bgm() -> void:
 	if track.is_empty():
 		return
 	AudioManager.play_bgm_path(track.path)
-	_bgm_title_label.text = "BGM: " + str(track.title)
+	_bgm_title_label.text = "♪" + str(track.title)
 
 func _build_bgm_playlists() -> void:
 	_east_bgm_playlist = _shuffle_bgm_tracks(EAST_BGM_TRACKS)
@@ -653,6 +746,7 @@ func _refresh_player_draw_actions() -> void:
 func _on_tile_discarded(_player_idx: int, _tile: Dictionary) -> void:
 	_player_drew = false
 	_riichi_kan_ready = false
+	_riichi_tsumogiri_timer_pending = false
 	_riichi_mode = false
 	_riichi_is_open = false
 	_riichi_selectable.clear()
@@ -667,9 +761,13 @@ func _on_tile_discarded(_player_idx: int, _tile: Dictionary) -> void:
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 
 func _on_tsumo_declared(_player_idx: int, _result: Dictionary) -> void:
+	_riichi_tsumogiri_timer_pending = false
+	if _player_idx == 0 and _result.has("haku_pochi_best_tile"):
+		_play_chara_voice("seplavo_potti")
 	_refresh_all()
 
 func _on_ron_opportunity(_winner_idx: int, loser_idx: int, tile: Dictionary) -> void:
+	_riichi_tsumogiri_timer_pending = false
 	var tile_name := MahjongLogic.get_tile_name(tile)
 	var discarder: Dictionary = GameState.players[loser_idx]
 	var discarder_name: String = discarder.name
@@ -690,11 +788,15 @@ func _on_pon_opportunity(_player_idx: int, from_idx: int, tile: Dictionary) -> v
 func _on_riichi_declared(player_idx: int) -> void:
 	_refresh_scores()
 	_refresh_npc_areas()
+	_refresh_riichi_stick_display()
 	if player_idx == 0:
 		_status_label.text = "リーチ！"
 		var npc_riichi: bool = GameState.players[1].is_riichi or GameState.players[2].is_riichi
-		_play_chara_voice("seplavo_okkake" if npc_riichi else "seplavo_riti")
+		_play_chara_voice("seplavo_gote" if npc_riichi else "seplavo_sennsei")
 		_play_riichi_bgm()
+	else:
+		_play_npc_voice(player_idx, "riti")
+		_play_npc_riichi_bgm(player_idx)
 
 func _play_riichi_bgm() -> void:
 	var bgms: Array = []
@@ -705,12 +807,38 @@ func _play_riichi_bgm() -> void:
 		return
 	var track: Dictionary = bgms.pick_random()
 	AudioManager.play_bgm_path(track.path)
-	_bgm_title_label.text = "BGM: " + track.title
+	_bgm_title_label.text = "♪" + track.title
 
 func _play_chara_voice(voice_name: String) -> void:
 	match SaveData.selected_player_character:
 		"hachimi":
-			AudioManager.play_se("charavo/" + voice_name)
+			AudioManager.play_se("charavo/pl1_hatimi/" + voice_name)
+
+func _get_npc_id_for_player(player_idx: int) -> String:
+	if player_idx < 0 or player_idx >= GameState.players.size():
+		return ""
+	return str(GameState.players[player_idx].get("npc_id", ""))
+
+func _play_npc_voice(player_idx: int, action: String) -> bool:
+	var npc_id := _get_npc_id_for_player(player_idx)
+	var def: Dictionary = NPC_VOICE_DEFS.get(npc_id, {})
+	if def.is_empty():
+		return false
+	var actions: Dictionary = def.get("actions", {})
+	var suffix := str(actions.get(action, ""))
+	if suffix == "":
+		return false
+	var path := "charavo/%s/%s_%s.ogg" % [str(def.get("folder", "")), str(def.get("prefix", "")), suffix]
+	AudioManager.play_se(path, float(NPC_VOICE_VOLUME_SCALE.get(npc_id, 1.0)))
+	return true
+
+func _play_npc_riichi_bgm(player_idx: int) -> void:
+	var npc_id := _get_npc_id_for_player(player_idx)
+	var track: Dictionary = NPC_RIICHI_BGMS.get(npc_id, {})
+	if track.is_empty():
+		return
+	AudioManager.play_bgm_path(str(track.path))
+	_bgm_title_label.text = "♪" + str(track.title)
 
 func _on_kita_removed(player_idx: int) -> void:
 	_refresh_info()
@@ -730,6 +858,7 @@ func _on_ankan_done(player_idx: int) -> void:
 		if GameState.players[0].is_riichi and GameState.phase == GameState.Phase.PLAYER_TURN:
 			_handle_riichi_draw()
 	else:
+		_play_npc_voice(player_idx, "kan")
 		_refresh_npc_areas()
 
 func _on_minkan_done(player_idx: int) -> void:
@@ -742,6 +871,7 @@ func _on_minkan_done(player_idx: int) -> void:
 		_refresh_hand()
 		_check_tsumo_auto()
 	else:
+		_play_npc_voice(player_idx, "kan")
 		_refresh_npc_areas()
 
 func _on_kakan_done(player_idx: int) -> void:
@@ -756,12 +886,16 @@ func _on_kakan_done(player_idx: int) -> void:
 		if GameState.players[0].is_riichi and GameState.phase == GameState.Phase.PLAYER_TURN:
 			_handle_riichi_draw()
 	else:
+		_play_npc_voice(player_idx, "kan")
 		_refresh_npc_areas()
 
 func _on_naki_done(player_idx: int) -> void:
 	if player_idx == 0:
 		_refresh_hand()
 	else:
+		var naki: Array = GameState.players[player_idx].get("naki", [])
+		if not naki.is_empty() and naki[-1].get("type", "") == "pon":
+			_play_npc_voice(player_idx, "pon")
 		_refresh_npc_areas()
 
 func _on_game_ended(result: Dictionary) -> void:
@@ -769,6 +903,7 @@ func _on_game_ended(result: Dictionary) -> void:
 	_refresh_all()
 	if not result.get("draw", false):
 		_refresh_wanpai_dora(result.get("winner_idx", -1))
+	_refresh_riichi_stick_display(result)
 	_show_result_sequence(result)
 
 func _on_match_ended(_session: Dictionary) -> void:
@@ -785,6 +920,8 @@ func _on_npc_thinking(player_idx: int) -> void:
 # プレイヤー入力ハンドラ
 # ============================================================
 func _on_tile_button_pressed(idx: int) -> void:
+	if _riichi_cutin_running:
+		return
 	if _pon_select_mode:
 		if idx in _pon_selectable:
 			_pon_select_mode = false
@@ -809,11 +946,7 @@ func _on_tile_button_pressed(idx: int) -> void:
 	if _riichi_mode:
 		if idx in _riichi_selectable:
 			if _selected_idx == idx:
-				_riichi_mode = false
-				_riichi_selectable.clear()
-				_selected_idx = -1
-				_clear_tenpai_assist()
-				GameState.player_riichi(idx, _riichi_is_open)
+				await _run_player_riichi_cutin_sequence(idx, _riichi_is_open)
 			else:
 				_selected_idx = idx
 				_refresh_hand()
@@ -842,6 +975,8 @@ func _on_tile_button_pressed(idx: int) -> void:
 		_refresh_hand()
 
 func _on_discard_pressed() -> void:
+	if _riichi_cutin_running:
+		return
 	if _selected_idx < 0:
 		return
 	if _riichi_mode:
@@ -852,23 +987,66 @@ func _on_discard_pressed() -> void:
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 
 func _on_tsumo_pressed() -> void:
+	if _riichi_cutin_running:
+		return
 	_show_player_hand_as_touhai = true
 	_refresh_hand()
 	_play_chara_voice("seplavo_tumo")
 	GameState.player_tsumo()
 
 func _on_ron_pressed() -> void:
+	if _riichi_cutin_running:
+		return
 	_show_player_hand_as_touhai = true
 	_refresh_hand()
 	_play_chara_voice("seplavo_ron")
 	GameState.player_ron()
 
 func _on_open_riichi_pressed() -> void:
+	if _riichi_cutin_running:
+		return
+	if not GameState.can_player_open_riichi():
+		return
 	_show_player_hand_as_touhai = true
 	_start_riichi_selection(true)
 
 func _on_riichi_pressed() -> void:
+	if _riichi_cutin_running:
+		return
 	_start_riichi_selection(false)
+
+func _run_player_riichi_cutin_sequence(hand_idx: int, is_open: bool) -> void:
+	if _riichi_cutin_running:
+		return
+	_riichi_cutin_running = true
+	_riichi_mode = false
+	_riichi_is_open = false
+	_riichi_selectable.clear()
+	_selected_idx = -1
+	_clear_tenpai_assist()
+	_btn_riichi_cancel.visible = false
+	_show_player_hand_as_touhai = is_open
+	_set_action_buttons_state(false, false, false, false, false, false, false, false)
+	if not GameState.prepare_player_riichi(hand_idx, is_open):
+		_riichi_cutin_running = false
+		_show_player_hand_as_touhai = false
+		_refresh_all()
+		_check_tsumo_auto()
+		return
+	_refresh_scores()
+	_refresh_hand()
+	_status_label.text = "リーチ！"
+	_play_riichi_bgm()
+	var npc_riichi: bool = GameState.players[1].is_riichi or GameState.players[2].is_riichi
+	_play_chara_voice("seplavo_gote" if npc_riichi else "seplavo_sennsei")
+	if _reach_cutin != null:
+		await _reach_cutin.play_cutin(_get_player_riichi_cutin_path(npc_riichi), _get_riichi_stick_target_position(0))
+	_refresh_riichi_stick_display()
+	GameState.finish_player_riichi()
+	_riichi_cutin_running = false
+
+func _get_player_riichi_cutin_path(is_okkake: bool) -> String:
+	return "res://chara/hatimiriti1.webp" if is_okkake else "res://chara/hatimiriti2.webp"
 
 func _start_riichi_selection(is_open: bool) -> void:
 	_riichi_mode = true
@@ -966,7 +1144,24 @@ func _on_msg_ok_pressed() -> void:
 	_clear_result_dynamic_nodes()
 	_win_overlay.visible = false
 	_msg_panel.visible = false
+	_btn_result_back.visible = false
+	_btn_table_view.visible = false
 	GameState.advance_game()
+
+func _on_table_view_pressed() -> void:
+	_set_result_display_visible(false)
+	_btn_result_back.visible = true
+
+func _on_result_back_pressed() -> void:
+	_btn_result_back.visible = false
+	_set_result_display_visible(true)
+
+func _set_result_display_visible(visible: bool) -> void:
+	_win_overlay.visible = visible
+	_msg_panel.visible = visible
+	for node in _result_dynamic_nodes:
+		if is_instance_valid(node) and node is CanvasItem:
+			(node as CanvasItem).visible = visible
 
 # ============================================================
 # ツモ和了・アクション自動チェック（プレイヤーのターン開始時）
@@ -1055,11 +1250,15 @@ func _handle_riichi_draw() -> void:
 		return
 
 	# Auto tsumo-giri after short delay
+	if _riichi_tsumogiri_timer_pending:
+		return
+	_riichi_tsumogiri_timer_pending = true
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 	_status_label.text = "立直中：ツモ切り..."
 	get_tree().create_timer(0.5).timeout.connect(func():
+		_riichi_tsumogiri_timer_pending = false
 		if GameState.players[0].is_riichi and GameState.phase == GameState.Phase.PLAYER_TURN:
-			GameState.player_discard(GameState.players[0].hand.size() - 1)
+			GameState.player_riichi_tsumogiri()
 	, CONNECT_ONE_SHOT)
 
 # ============================================================
@@ -1070,6 +1269,7 @@ func _refresh_all() -> void:
 	_refresh_hand()
 	_refresh_npc_areas()
 	_refresh_discard_area()
+	_refresh_riichi_stick_display()
 
 func _refresh_info() -> void:
 	var round_name := MahjongLogic.get_wind_name(GameState.round_wind)
@@ -1088,6 +1288,132 @@ func _refresh_scores() -> void:
 	_upper_score_label.text = "【" + MahjongLogic.get_wind_name(p2.wind) + "】" + r2 + str(p2.score)
 	_right_score_label.text  = "【" + MahjongLogic.get_wind_name(p1.wind) + "】" + r1 + str(p1.score)
 	_player_score_label.text = "【" + MahjongLogic.get_wind_name(p0.wind) + "】" + r0 + str(p0.score)
+
+func _refresh_riichi_stick_display(result: Dictionary = {}) -> void:
+	if _riichi_stick_layer == null:
+		return
+	for child in _riichi_stick_layer.get_children():
+		_riichi_stick_layer.remove_child(child)
+		child.queue_free()
+	_empty_riichi_stick_count = 0
+	var is_draw_result: bool = bool(result.get("draw", false))
+	var total_kyotaku: int = int(result.get("kyotaku_before_collection", GameState.kyotaku))
+	var active_count: int = 0
+	if not is_draw_result:
+		for player_idx in range(GameState.players.size()):
+			var player: Dictionary = GameState.players[player_idx]
+			if not bool(player.get("is_riichi", false)):
+				continue
+			var sticks: int = int(player.get("riichi_sticks", 0))
+			if sticks <= 0:
+				sticks = 1
+			active_count += sticks
+			_add_riichi_sticks_for_player(player_idx, sticks)
+	var deposit_count: int = total_kyotaku if is_draw_result else max(0, total_kyotaku - active_count)
+	_add_deposit_riichi_sticks(deposit_count)
+
+func _add_riichi_sticks_for_player(player_idx: int, count: int) -> void:
+	var base: Vector2 = _get_riichi_stick_target_position(player_idx)
+	_add_riichi_stick(base, _get_riichi_stick_rotation(player_idx), 0.161)
+	for i in range(1, count):
+		_add_empty_riichi_stick(0.161)
+
+func _add_deposit_riichi_sticks(count: int) -> void:
+	for i in range(count):
+		_add_empty_riichi_stick(0.126)
+
+func _add_empty_riichi_stick(scale_value: float) -> void:
+	var base: Vector2 = _get_empty_riichi_stick_target_position()
+	var offset: Vector2 = _get_empty_riichi_stick_offset()
+	var rotation_deg: float = _get_empty_riichi_stick_rotation()
+	_add_riichi_stick(base + offset * _empty_riichi_stick_count, rotation_deg, scale_value)
+	_empty_riichi_stick_count += 1
+
+func _add_riichi_stick(pos: Vector2, rotation_deg: float, scale_value: float) -> void:
+	if _riichi_stick_layer == null:
+		return
+	var sprite: Sprite2D = Sprite2D.new()
+	sprite.texture = _get_reach_stick_texture()
+	sprite.position = pos
+	sprite.rotation_degrees = rotation_deg
+	sprite.scale = Vector2.ONE * scale_value
+	sprite.z_index = 0
+	_riichi_stick_layer.add_child(sprite)
+
+func _get_reach_stick_texture() -> Texture2D:
+	if _reach_stick_texture == null:
+		_reach_stick_texture = _load_texture_resource_or_file("res://ui/ritibo.webp")
+	return _reach_stick_texture
+
+func _load_texture_resource_or_file(path: String) -> Texture2D:
+	if path.get_extension().to_lower() == "png":
+		return _load_texture_file(path)
+	var texture := load(path) as Texture2D
+	if texture != null:
+		return texture
+	return _load_texture_file(path)
+
+func _load_texture_file(path: String) -> Texture2D:
+	var image: Image = Image.new()
+	var err: Error = image.load(ProjectSettings.globalize_path(path))
+	if err != OK:
+		return null
+	return ImageTexture.create_from_image(image)
+
+func _get_riichi_stick_target_position(player_idx: int) -> Vector2:
+	match player_idx:
+		0:
+			return Vector2(964, 637)
+		RIGHT_IDX:
+			return Vector2(1101, 514)
+		UPPER_IDX:
+			return Vector2(964, 356)
+		LEFT_IDX:
+			return Vector2(822, 514)
+	return Vector2(960, 540)
+
+func _get_riichi_stick_rotation(player_idx: int) -> float:
+	match player_idx:
+		0:
+			return 0.0
+		RIGHT_IDX:
+			return 90.0
+		UPPER_IDX:
+			return 180.0
+		LEFT_IDX:
+			return -90.0
+	return 0.0
+
+func _get_riichi_stick_offset(player_idx: int) -> Vector2:
+	match player_idx:
+		0:
+			return Vector2(42, 0)
+		RIGHT_IDX:
+			return Vector2(0, 42)
+		UPPER_IDX:
+			return Vector2(-42, 0)
+		LEFT_IDX:
+			return Vector2(0, -42)
+	return Vector2(42, 0)
+
+func _get_empty_riichi_stick_target_position() -> Vector2:
+	return _get_riichi_stick_target_position(_get_empty_riichi_stick_slot_idx())
+
+func _get_empty_riichi_stick_rotation() -> float:
+	return _get_riichi_stick_rotation(_get_empty_riichi_stick_slot_idx())
+
+func _get_empty_riichi_stick_offset() -> Vector2:
+	return _get_riichi_stick_offset(_get_empty_riichi_stick_slot_idx())
+
+func _get_empty_riichi_stick_slot_idx() -> int:
+	match SaveData.selected_empty_seat:
+		"bottom":
+			return RIGHT_IDX
+		"right":
+			return LEFT_IDX
+		"top":
+			return LEFT_IDX
+	return LEFT_IDX
 
 func _tile_sort_key(tile: Dictionary) -> int:
 	var variant := 0
@@ -1260,7 +1586,7 @@ func _refresh_hand() -> void:
 
 		var captured_orig := orig_idx
 		container.gui_input.connect(func(event: InputEvent) -> void:
-			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			if _is_primary_press(event):
 				_on_tile_button_pressed(captured_orig)
 		)
 		_hand_box.add_child(container)
@@ -1385,11 +1711,17 @@ func _fill_npc_hand_box(box: Control, player: Dictionary, seat_key: String, max_
 	var tex: Texture2D = _tile_texture_cache[cache_key]
 	if tex == null:
 		return
+	var base_cache_key := str(paths[0]) + "#used"
+	if not _tile_texture_cache.has(base_cache_key):
+		_tile_texture_cache[base_cache_key] = _make_used_rect_texture(str(paths[0]))
+	var base_tex: Texture2D = _tile_texture_cache[base_cache_key]
 	var tex_size: Vector2 = tex.get_size()
+	var base_size: Vector2 = base_tex.get_size() if base_tex != null else tex_size
 	var rotated: bool = not is_zero_approx(fmod(absf(rotation_degrees), 180.0))
-	var visual_base := Vector2(tex_size.y, tex_size.x) if rotated else tex_size
+	var visual_base := Vector2(base_size.y, base_size.x) if rotated else base_size
 	var scale_ratio: float = min(float(max_w) / visual_base.x, float(max_h) / visual_base.y)
-	var visual_size := visual_base * scale_ratio
+	var current_visual_base := Vector2(tex_size.y, tex_size.x) if rotated else tex_size
+	var visual_size := current_visual_base * scale_ratio
 	var tex_rect := TextureRect.new()
 	tex_rect.size = tex_size * scale_ratio
 	tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -1404,6 +1736,8 @@ func _fill_npc_hand_box(box: Control, player: Dictionary, seat_key: String, max_
 		tex_rect.position.y = visual_size.y
 	elif rotated:
 		tex_rect.position.x = tex_rect.size.y
+		if rotation_degrees > 0.0:
+			tex_rect.position.y = max(0.0, float(max_h) - visual_size.y)
 	box.add_child(tex_rect)
 
 func _fill_npc_debug_hand_box(box: Control, hand: Array, max_w: int, max_h: int, rotation_degrees: float = 0.0) -> void:
@@ -1417,6 +1751,10 @@ func _fill_npc_debug_hand_box(box: Control, hand: Array, max_w: int, max_h: int,
 	sorted_hand.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return _tile_sort_key(a) < _tile_sort_key(b)
 	)
+	var start_y := 0.0
+	if vertical and rotation_degrees > 0.0:
+		var hand_visual_h: float = sorted_hand.size() * tile_w + max(0, sorted_hand.size() - 1) * gap
+		start_y = max(0.0, float(max_h) - hand_visual_h)
 	for i in range(sorted_hand.size()):
 		var tile: Dictionary = sorted_hand[i]
 		var rect := TextureRect.new()
@@ -1427,7 +1765,7 @@ func _fill_npc_debug_hand_box(box: Control, hand: Array, max_w: int, max_h: int,
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		rect.rotation_degrees = rotation_degrees
 		if vertical:
-			rect.position = Vector2(0, i * (tile_w + gap))
+			rect.position = Vector2(0, start_y + i * (tile_w + gap))
 			if rotation_degrees > 0.0:
 				rect.position.x += tile_h
 		else:
@@ -1826,6 +2164,7 @@ func _naki_text_vertical(naki: Array) -> String:
 # ============================================================
 func _show_result_sequence(result: Dictionary) -> void:
 	if result.get("draw", false):
+		await _reveal_draw_tenpai_hands(result)
 		_clear_result_dynamic_nodes()
 		_msg_panel.position = Vector2(530, 280)
 		_msg_panel.size = Vector2(860, 520)
@@ -1836,7 +2175,14 @@ func _show_result_sequence(result: Dictionary) -> void:
 		_msg_ok.position = Vector2(350, 460)
 		_msg_ok.custom_minimum_size = Vector2(160, 50)
 		_msg_ok.size = _msg_ok.custom_minimum_size
+		_btn_table_view.position = Vector2(350, 350)
+		_btn_table_view.custom_minimum_size = Vector2(160, 50)
+		_btn_table_view.size = _btn_table_view.custom_minimum_size
+		_btn_table_view.visible = true
 		_show_result(result)
+		await _play_draw_npc_tenpai_voices(result)
+		if result.get("oorasu_choice_required", false):
+			_show_oorasu_choice_prompt()
 		return
 	_clear_result_dynamic_nodes()
 	_haku_pochi_lbl.visible = false
@@ -1844,6 +2190,8 @@ func _show_result_sequence(result: Dictionary) -> void:
 	_msg_panel.visible = false
 	_win_overlay.visible = false
 	_msg_ok.visible = false
+	_btn_table_view.visible = false
+	_btn_result_back.visible = false
 	_msg_label.text = ""
 	await _play_win_call_animation(result)
 	_win_overlay.visible = true
@@ -1857,9 +2205,34 @@ func _show_result_sequence(result: Dictionary) -> void:
 	await _reveal_win_result(result)
 	_finish_win_result_panel(result)
 
+func _reveal_draw_tenpai_hands(result: Dictionary) -> void:
+	var ti: Dictionary = result.get("tenpai_info", {})
+	if ti.is_empty():
+		return
+	var tenpai: Array = ti.get("tenpai", [])
+	if tenpai.is_empty():
+		return
+	if 0 in tenpai:
+		_show_player_hand_as_touhai = true
+		_refresh_hand()
+	if UPPER_IDX in tenpai:
+		for child in _upper_hand_box.get_children():
+			_upper_hand_box.remove_child(child)
+			child.queue_free()
+		_fill_npc_debug_hand_box(_upper_hand_box, GameState.players[UPPER_IDX].hand, 617, 76)
+	if RIGHT_IDX in tenpai:
+		for child in _right_hand_box.get_children():
+			_right_hand_box.remove_child(child)
+			child.queue_free()
+		_fill_npc_debug_hand_box(_right_hand_box, GameState.players[RIGHT_IDX].hand, 180, 540, 90.0)
+	await get_tree().create_timer(3.0).timeout
+
 func _play_win_call_animation(result: Dictionary) -> void:
 	var winner_idx: int = result.get("winner_idx", 0)
-	AudioManager.play_se("plhora" if winner_idx == 0 else "npchora")
+	if winner_idx == 0:
+		AudioManager.play_se("plhora")
+	elif not _play_npc_win_voice(winner_idx, result):
+		AudioManager.play_se("npchora")
 	var call_sprite := Sprite2D.new()
 	call_sprite.texture = load("res://ui/hassei_tumo.webp" if result.get("is_tsumo", false) else "res://ui/hassei_ron.webp")
 	call_sprite.centered = true
@@ -1888,6 +2261,37 @@ func _play_win_call_animation(result: Dictionary) -> void:
 	await get_tree().create_timer(1.65).timeout
 	_result_dynamic_nodes.erase(call_sprite)
 	call_sprite.queue_free()
+
+func _play_npc_win_voice(winner_idx: int, result: Dictionary) -> bool:
+	if result.get("is_tsumo", false):
+		if result.has("haku_pochi_best_tile") and _play_npc_voice(winner_idx, "siropotti"):
+			return true
+		return _play_npc_voice(winner_idx, "tumo")
+	return _play_npc_voice(winner_idx, "ron")
+
+func _play_draw_npc_tenpai_voices(result: Dictionary) -> void:
+	var ti: Dictionary = result.get("tenpai_info", {})
+	if ti.is_empty():
+		return
+	var tenpai: Array = ti.get("tenpai", [])
+	var noten: Array = ti.get("noten", [])
+	for wind: int in [MahjongLogic.EAST, MahjongLogic.SOUTH, MahjongLogic.WEST]:
+		var player_idx := _find_player_index_by_wind(wind)
+		if player_idx <= 0:
+			continue
+		var played := false
+		if player_idx in tenpai:
+			played = _play_npc_voice(player_idx, "tenpai")
+		elif player_idx in noten:
+			played = _play_npc_voice(player_idx, "noten")
+		if played:
+			await get_tree().create_timer(0.9).timeout
+
+func _find_player_index_by_wind(wind: int) -> int:
+	for i in range(GameState.players.size()):
+		if int(GameState.players[i].get("wind", -1)) == wind:
+			return i
+	return -1
 
 func _play_result_chara_animation(winner_idx: int) -> void:
 	var chara_rect := TextureRect.new()
@@ -1922,9 +2326,62 @@ func _prepare_win_result_panel(result: Dictionary) -> void:
 	_msg_ok.custom_minimum_size = Vector2(220, 58)
 	_msg_ok.size = _msg_ok.custom_minimum_size
 	_msg_ok.text = "精算へ" if result.get("match_will_end", false) else "次の局へ"
+	_btn_table_view.position = Vector2(1100, 835)
+	_btn_table_view.custom_minimum_size = Vector2(220, 58)
+	_btn_table_view.size = _btn_table_view.custom_minimum_size
+	_btn_table_view.visible = false
 
 func _finish_win_result_panel(_result: Dictionary) -> void:
-	_msg_ok.visible = true
+	_btn_table_view.visible = true
+	if _result.get("oorasu_choice_required", false):
+		_show_oorasu_choice_prompt()
+	else:
+		_msg_ok.visible = true
+
+func _show_oorasu_choice_prompt() -> void:
+	_msg_ok.visible = false
+	_btn_table_view.position = Vector2(_msg_panel.size.x - 340.0, _msg_panel.size.y - 236.0)
+	_btn_table_view.visible = true
+	var label := Label.new()
+	label.text = "ゲームを続行しますか？"
+	label.position = Vector2(_msg_panel.size.x - 470.0, _msg_panel.size.y - 172.0)
+	label.size = Vector2(420, 44)
+	label.add_theme_font_size_override("font_size", 28)
+	label.add_theme_color_override("font_color", Color(1.0, 0.96, 0.85))
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_msg_panel.add_child(label)
+	_result_dynamic_nodes.append(label)
+	var btn_yes := _make_button("はい", Color(0.15, 0.50, 0.24))
+	btn_yes.position = Vector2(_msg_panel.size.x - 430.0, _msg_panel.size.y - 104.0)
+	btn_yes.custom_minimum_size = Vector2(150, 58)
+	btn_yes.size = btn_yes.custom_minimum_size
+	btn_yes.pressed.connect(_on_oorasu_continue_yes_pressed)
+	_msg_panel.add_child(btn_yes)
+	_result_dynamic_nodes.append(btn_yes)
+	var btn_no := _make_button("いいえ", Color(0.42, 0.20, 0.20))
+	btn_no.position = Vector2(_msg_panel.size.x - 250.0, _msg_panel.size.y - 104.0)
+	btn_no.custom_minimum_size = Vector2(150, 58)
+	btn_no.size = btn_no.custom_minimum_size
+	btn_no.pressed.connect(_on_oorasu_continue_no_pressed)
+	_msg_panel.add_child(btn_no)
+	_result_dynamic_nodes.append(btn_no)
+
+func _on_oorasu_continue_yes_pressed() -> void:
+	_clear_result_dynamic_nodes()
+	_win_overlay.visible = false
+	_msg_panel.visible = false
+	_btn_result_back.visible = false
+	_btn_table_view.visible = false
+	GameState.resolve_oorasu_player_choice(true)
+
+func _on_oorasu_continue_no_pressed() -> void:
+	_clear_result_dynamic_nodes()
+	_win_overlay.visible = false
+	_msg_panel.visible = false
+	_btn_result_back.visible = false
+	_btn_table_view.visible = false
+	GameState.resolve_oorasu_player_choice(false)
 
 func _reveal_win_result(result: Dictionary) -> void:
 	var winner_idx: int = result.get("winner_idx", 0)
@@ -1936,17 +2393,22 @@ func _reveal_win_result(result: Dictionary) -> void:
 	for yaku: Dictionary in yaku_list:
 		if not is_yakuman or int(yaku.get("han", 0)) >= 13:
 			filtered_yaku.append(yaku)
-	_add_result_hand(result.get("winning_display_tiles", winner.get("hand", [])))
+	var meld_start_x := _add_result_hand(result.get("winning_display_tiles", winner.get("hand", [])))
+	meld_start_x = _add_result_haku_pochi_conversion(result, meld_start_x)
+	meld_start_x = _add_result_nukita(result, meld_start_x)
+	_add_result_melds(result.get("winning_display_melds", []), meld_start_x, winner_idx)
 	await _result_delay()
-	_add_result_label("ツモ" if result.get("is_tsumo", false) else "ロン", Vector2(80, 148), Vector2(220, 54), 42, Color(1.0, 0.88, 0.44))
+	_add_result_label("ツモ" if result.get("is_tsumo", false) else "ロン", Vector2(80, 172), Vector2(220, 54), 42, Color(1.0, 0.88, 0.44))
 	await _result_delay()
 	_add_result_wanpai(winner_idx)
 	var y := 250.0
 	for yaku: Dictionary in filtered_yaku:
 		var yaku_han: int = int(yaku.get("han", 0))
 		var suffix := " 役満" if yaku_han >= 13 else " " + str(yaku_han) + "飜"
+		if yaku.get("no_yakuman_chip", false):
+			suffix = " " + str(yaku_han) + "飜"
 		_add_result_label(str(yaku.get("name", "")) + suffix, Vector2(80, y), Vector2(780, 38), 30)
-		AudioManager.play_se("yakuhyouji")
+		AudioManager.play_se("wav/yakuhyouji.wav", 1.5)
 		y += 42.0
 		await _result_delay()
 	_add_result_label(str(result.get("han", 0)) + "飜", Vector2(80, y + 8), Vector2(260, 48), 38, Color(1.0, 0.94, 0.62))
@@ -1968,13 +2430,20 @@ func _reveal_win_result(result: Dictionary) -> void:
 	await _result_delay()
 	var scores_y := y + 215.0
 	for i in range(GameState.players.size()):
-		var p: Dictionary = GameState.players[i]
-		var row: String = MahjongLogic.get_wind_name(p.wind) + "家 " + p.name + ": " + str(p.score) + "点"
-		_add_result_label(row, Vector2(80, scores_y + i * 42.0), Vector2(720, 38), 28)
+		var row: String = _result_score_transition_text(result, i)
+		_add_result_label(row, Vector2(80, scores_y + i * 42.0), Vector2(1040, 38), 26)
 	await _result_delay()
 
 func _result_delay() -> void:
 	await get_tree().create_timer(RESULT_STEP_DELAY).timeout
+
+func _result_score_transition_text(result: Dictionary, player_idx: int) -> String:
+	var p: Dictionary = GameState.players[player_idx]
+	var before_scores: Array = result.get("score_before", [])
+	var after_scores: Array = result.get("score_after", [])
+	var before: int = int(before_scores[player_idx]) if player_idx < before_scores.size() else int(p.score)
+	var after: int = int(after_scores[player_idx]) if player_idx < after_scores.size() else int(p.score)
+	return MahjongLogic.get_wind_name(p.wind) + "家 " + p.name + ": " + str(before) + "点→" + str(after) + "点"
 
 func _add_result_label(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color = Color(1.0, 0.96, 0.85), align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var label := Label.new()
@@ -2014,6 +2483,12 @@ func _add_result_wanpai(winner_idx: int) -> void:
 	var right_margin: float = 44.0
 	var dora_y := 250.0
 	var start_x: float = RESULT_PANEL_RECT.size.x - right_margin - dora_count * tile_w - max(0, dora_count - 1) * gap
+	var rinshan_count: int = min(GameState.rinshan.size(), 4)
+	var rinshan_start_x: float = start_x - 18.0 - rinshan_count * tile_w - max(0, rinshan_count - 1) * gap
+	for i in range(rinshan_count):
+		var rect := _make_result_wanpai_back_tile(Vector2(rinshan_start_x + i * (tile_w + gap), dora_y), Vector2(tile_w, tile_h))
+		_msg_panel.add_child(rect)
+		_result_dynamic_nodes.append(rect)
 	for i in range(dora_count):
 		var rect := _make_result_wanpai_tile(GameState.dora_indicators[i], Vector2(start_x + i * (tile_w + gap), dora_y), Vector2(tile_w, tile_h))
 		_msg_panel.add_child(rect)
@@ -2037,7 +2512,17 @@ func _make_result_wanpai_tile(tile: Dictionary, pos: Vector2, size: Vector2) -> 
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return rect
 
-func _add_result_hand(hand: Array) -> void:
+func _make_result_wanpai_back_tile(pos: Vector2, size: Vector2) -> TextureRect:
+	var rect := TextureRect.new()
+	rect.position = pos
+	rect.size = size
+	rect.texture = _get_haimen_texture()
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return rect
+
+func _add_result_hand(hand: Array) -> float:
 	var display_tiles := _get_result_display_tiles(hand)
 	var tile_w := 60
 	var tile_h := 80
@@ -2050,7 +2535,7 @@ func _add_result_hand(hand: Array) -> void:
 		var rect := TextureRect.new()
 		rect.position = base + Vector2(i * (tile_w + gap), 0)
 		if i == display_tiles.size() - 1 and display_tiles.size() >= 2:
-			rect.position.x = base.x + 13 * (tile_w + gap) + 26
+			rect.position.x = base.x + i * (tile_w + gap) + 26
 		rect.size = Vector2(tile_w, tile_h)
 		rect.texture = _get_tile_texture(display_tiles[i])
 		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -2058,6 +2543,98 @@ func _add_result_hand(hand: Array) -> void:
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_msg_panel.add_child(rect)
 		_result_dynamic_nodes.append(rect)
+	if display_tiles.is_empty():
+		return base.x
+	var last_i := display_tiles.size() - 1
+	var last_x := base.x + last_i * (tile_w + gap)
+	if display_tiles.size() >= 2:
+		last_x += 26
+	return last_x + tile_w + 20
+
+func _add_result_nukita(result: Dictionary, start_x: float) -> float:
+	var count: int = int(result.get("nukita_count", 0))
+	if count <= 0:
+		return start_x
+	var rect := TextureRect.new()
+	rect.position = Vector2(start_x, 42.0)
+	rect.size = Vector2(60, 80)
+	rect.texture = _get_tile_texture(MahjongLogic.make_tile(MahjongLogic.NORTH))
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_msg_panel.add_child(rect)
+	_result_dynamic_nodes.append(rect)
+	_add_result_label("×" + str(count), Vector2(start_x + 62.0, 58.0), Vector2(66, 42), 32, Color(1.0, 0.96, 0.85))
+	return start_x + 132.0
+
+func _add_result_haku_pochi_conversion(result: Dictionary, start_x: float) -> float:
+	if not result.has("haku_pochi_best_tile"):
+		return start_x
+	var arrow := _add_result_label("→", Vector2(start_x - 2.0, 48.0), Vector2(42, 64), 42, Color(1.0, 0.94, 0.62), HORIZONTAL_ALIGNMENT_CENTER)
+	arrow.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var rect := TextureRect.new()
+	rect.position = Vector2(start_x + 44.0, 42.0)
+	rect.size = Vector2(60, 80)
+	rect.texture = _get_tile_texture(MahjongLogic.make_tile(int(result.get("haku_pochi_best_tile", 45))))
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_msg_panel.add_child(rect)
+	_result_dynamic_nodes.append(rect)
+	return start_x + 124.0
+
+func _add_result_melds(melds: Array, start_x: float, winner_idx: int) -> void:
+	if melds.is_empty():
+		return
+	var tile_w := 54
+	var tile_h := 72
+	var tile_gap := 4
+	var meld_gap := 18
+	var cursor_x := start_x
+	var y := 46.0
+	for meld: Dictionary in melds:
+		var tiles: Array = meld.get("tiles", [])
+		if tiles.is_empty():
+			var tile_ids: Array = meld.get("tile_ids", [])
+			for tid in tile_ids:
+				tiles.append(MahjongLogic.make_tile(int(tid)))
+		var order: Array = _build_meld_display_order(meld, winner_idx)
+		var mtype: String = str(meld.get("type", ""))
+		var kakan_rotated_x := cursor_x
+		for vi in range(order.size()):
+			var data_idx: int = int(order[vi])
+			if data_idx < 0 or data_idx >= tiles.size():
+				continue
+			var rotated := data_idx == 0 and mtype != "ankan"
+			var is_haimen: bool = mtype == "ankan" and (vi == 0 or vi == order.size() - 1)
+			var rect := TextureRect.new()
+			rect.position = Vector2(cursor_x, y)
+			rect.size = Vector2(tile_w, tile_h)
+			rect.texture = _get_haimen_texture() if is_haimen else _get_tile_texture(tiles[data_idx])
+			rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			if rotated:
+				kakan_rotated_x = cursor_x
+				rect.pivot_offset = Vector2(tile_w * 0.5, tile_h * 0.5)
+				rect.rotation_degrees = 90.0
+				rect.position += Vector2((tile_h - tile_w) * 0.5, -2.0)
+			_msg_panel.add_child(rect)
+			_result_dynamic_nodes.append(rect)
+			cursor_x += (tile_h if rotated else tile_w) + tile_gap
+		if mtype == "kakan" and tiles.size() >= 4:
+			var add_rect := TextureRect.new()
+			add_rect.position = Vector2(kakan_rotated_x + (tile_h - tile_w) * 0.5, y - tile_w + 6.0)
+			add_rect.size = Vector2(tile_w, tile_h)
+			add_rect.texture = _get_tile_texture(tiles[3])
+			add_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			add_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			add_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_rect.pivot_offset = Vector2(tile_w * 0.5, tile_h * 0.5)
+			add_rect.rotation_degrees = 90.0
+			_msg_panel.add_child(add_rect)
+			_result_dynamic_nodes.append(add_rect)
+		cursor_x += meld_gap
 
 func _get_result_display_tiles(hand: Array) -> Array:
 	var tiles := hand.duplicate(true)
@@ -2070,7 +2647,7 @@ func _get_result_display_tiles(hand: Array) -> Array:
 	if hand.size() >= 14:
 		while tiles.size() > 13:
 			tiles.pop_back()
-		tiles.append(winning_tile)
+	tiles.append(winning_tile)
 	return tiles
 
 func _get_limit_name(han: int, is_yakuman: bool) -> String:
@@ -2089,9 +2666,11 @@ func _get_limit_name(han: int, is_yakuman: bool) -> String:
 func _get_result_chara_path(winner_idx: int) -> String:
 	if winner_idx == 0:
 		return "res://chara/hatimi2.webp"
-	if winner_idx == RIGHT_IDX:
-		return "res://chara/kuma_def.webp"
-	return "res://chara/kuma_hiyake.webp"
+	if winner_idx >= 0 and winner_idx < GameState.players.size():
+		var npc_id := str(GameState.players[winner_idx].get("npc_id", ""))
+		if npc_id != "":
+			return SaveData.get_npc_path(npc_id)
+	return "res://chara/kuma_def.webp"
 
 func _clear_result_dynamic_nodes() -> void:
 	for node in _result_dynamic_nodes:
@@ -2120,8 +2699,8 @@ func _show_result(result: Dictionary) -> void:
 			msg += "テンパイ: " + tp_names + "\nノーテン: " + nt_names + "\n\n"
 		else:
 			msg += "（テンパイ精算なし）\n\n"
-		for p: Dictionary in GameState.players:
-			msg += MahjongLogic.get_wind_name(p.wind) + "家 " + p.name + ": " + str(p.score) + "点\n"
+		for i in range(GameState.players.size()):
+			msg += _result_score_transition_text(result, i) + "\n"
 	else:
 		var winner: Dictionary = GameState.players[result.winner_idx]
 		var sd: Dictionary = result.score_data
@@ -2132,7 +2711,10 @@ func _show_result(result: Dictionary) -> void:
 			if is_yakuman:
 				for y: Dictionary in result.yaku:
 					if y.han >= 13:
-						msg += "  " + y.name + "  役満\n"
+						if y.get("no_yakuman_chip", false):
+							msg += "  " + y.name + "  " + str(y.han) + "飜\n"
+						else:
+							msg += "  " + y.name + "  役満\n"
 			else:
 				for y: Dictionary in result.yaku:
 					msg += "  " + y.name + "  " + str(y.han) + "ハン\n"
@@ -2146,8 +2728,8 @@ func _show_result(result: Dictionary) -> void:
 		if result.get("chips_per_player", 0) > 0:
 			msg += "  チップ: " + str(result.chips_per_player) + "枚/人"
 		msg += "\n\n"
-		for p: Dictionary in GameState.players:
-			msg += MahjongLogic.get_wind_name(p.wind) + "家 " + p.name + ": " + str(p.score) + "点\n"
+		for i in range(GameState.players.size()):
+			msg += _result_score_transition_text(result, i) + "\n"
 		if result.has("haku_pochi_best_tile"):
 			_haku_pochi_lbl.text = "白ポッチ\nツモ牌："
 			_haku_pochi_img.texture = _get_tile_texture(MahjongLogic.make_tile(result.haku_pochi_best_tile))
@@ -2181,7 +2763,7 @@ func _set_action_buttons_state(
 	_btn_ron.disabled     = not can_ron
 	_btn_skip.disabled    = not can_skip
 	_btn_riichi.disabled  = not can_riichi
-	_btn_open_riichi.disabled = not can_riichi
+	_btn_open_riichi.disabled = not can_riichi or not GameState.can_player_open_riichi()
 	_btn_pon.disabled     = not can_pon
 	_btn_kita.disabled    = not can_kita
 	_btn_kan.disabled     = not can_kan
@@ -2371,6 +2953,11 @@ func _debug_init() -> void:
 		# NPC: 全手牌をスロット0〜N-1に配置（ツモ牌も手牌に含む）
 		for i in range(min(hand.size(), 13)):
 			_debug_hand_tiles[i] = hand[i].duplicate()
+		if hand.size() > 13:
+			_debug_draw_tile = hand[hand.size() - 1].duplicate()
+		var next_wall_idx: int = GameState.debug_next_draw_wall_index(_debug_target_idx, _debug_draw_tile.get("id", 0) > 0)
+		if next_wall_idx >= 0 and next_wall_idx < GameState.wall.size():
+			_debug_next_draw_tile = GameState.wall[next_wall_idx].duplicate()
 	_debug_refresh_slots()
 	if is_instance_valid(_debug_error_label):
 		_debug_error_label.text = ""
@@ -2462,7 +3049,7 @@ func _on_debug_apply() -> void:
 		_check_tsumo_auto()
 		call_deferred("_refresh_player_draw_actions")
 	else:
-		GameState.debug_set_hand(hand_tiles, {}, {}, _debug_target_idx)
+		GameState.debug_set_hand(hand_tiles, _debug_draw_tile, _debug_next_draw_tile, _debug_target_idx)
 		_refresh_npc_areas()
 	_debug_panel.visible = false
 
@@ -2496,7 +3083,7 @@ func _debug_make_slot(panel: Panel, slot_idx: int) -> void:
 
 	var ci := slot_idx
 	sp.gui_input.connect(func(ev: InputEvent) -> void:
-		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+		if _is_primary_press(ev):
 			_debug_on_slot_click(ci)
 	)
 	panel.add_child(sp)
@@ -2642,7 +3229,7 @@ func _build_rinshan_debug_panel() -> Panel:
 		sp.add_child(st)
 		var ci := i
 		sp.gui_input.connect(func(ev: InputEvent) -> void:
-			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			if _is_primary_press(ev):
 				_debug_rinshan_cursor = ci
 				_rinshan_debug_refresh_slots()
 		)
@@ -2691,7 +3278,7 @@ func _build_rinshan_debug_panel() -> Panel:
 			pt.add_child(ptex)
 			var ctile := tile_dict.duplicate()
 			pt.gui_input.connect(func(ev: InputEvent) -> void:
-				if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+				if _is_primary_press(ev):
 					_rinshan_debug_on_palette_click(ctile)
 			)
 			panel.add_child(pt)
@@ -2738,7 +3325,7 @@ func _build_rinshan_debug_panel() -> Panel:
 		pt.add_child(name_lbl)
 		var cstile := stile.duplicate()
 		pt.gui_input.connect(func(ev: InputEvent) -> void:
-			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			if _is_primary_press(ev):
 				_rinshan_debug_on_palette_click(cstile)
 		)
 		panel.add_child(pt)
@@ -2887,7 +3474,7 @@ func _build_debug_panel() -> Panel:
 			pt.add_child(ptex)
 			var ctile := tile_dict.duplicate()
 			pt.gui_input.connect(func(ev: InputEvent) -> void:
-				if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+				if _is_primary_press(ev):
 					_debug_on_palette_click(ctile)
 			)
 			panel.add_child(pt)
@@ -2940,7 +3527,7 @@ func _build_debug_panel() -> Panel:
 		pt.add_child(name_lbl)
 		var cstile := stile.duplicate()
 		pt.gui_input.connect(func(ev: InputEvent) -> void:
-			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			if _is_primary_press(ev):
 				_debug_on_palette_click(cstile)
 		)
 		panel.add_child(pt)
@@ -3091,11 +3678,10 @@ func _on_settings_icon_pressed() -> void:
 	_settings_popup.visible = true
 
 func _on_bgm_slider_changed(value: float) -> void:
-	AudioManager.bgm_volume = value
-	AudioManager.bgm_player.volume_db = linear_to_db(value)
+	AudioManager.set_bgm_volume(value)
 
 func _on_se_slider_changed(value: float) -> void:
-	AudioManager.se_volume = value
+	AudioManager.set_se_volume(value)
 
 func _on_settings_close_pressed() -> void:
 	SaveData.bgm_volume = AudioManager.bgm_volume
@@ -3135,6 +3721,13 @@ func _make_button(text: String, bg_color: Color) -> Button:
 	btn.add_theme_stylebox_override("disabled", disabled_style)
 	btn.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.35))
 	return btn
+
+func _is_primary_press(event: InputEvent) -> bool:
+	if event is InputEventMouseButton:
+		return event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+	if event is InputEventScreenTouch:
+		return event.pressed
+	return false
 
 func _apply_button_image(btn: Button, icon_path: String, tooltip: String) -> void:
 	btn.text = ""

@@ -46,6 +46,7 @@ const NPC_THINK_SEC := 0.2
 var player_chips: Array = [0, 0, 0]  # チップ収支（現試合）
 var session_result: Dictionary = {}   # 精算結果（Result画面用）
 var _pending_match_end: bool = false
+var _pending_oorasu_player_choice: bool = false
 var match_kyoku_count: int = 0
 var match_player_agari: int = 0
 var match_player_houjuu: int = 0
@@ -63,6 +64,7 @@ var _drew_from_rinshan: bool = false      # 嶺上ツモかどうか（役・点
 var _is_chankan_ron: bool = false         # 槍槓ロン中かどうか（_finalize_ronでis_chankan=trueにするため）
 var _suukantsu_pending: int = -1         # 四槓子成立待ち（4つ目槓後の捨て牌でロンなければ成立）
 var _pending_npc_ron_after_skip: int = -1 # プレイヤーがロンを見逃した場合の次順位NPCロン候補
+var _pending_player_riichi_hand_idx: int = -1
 
 # ============================================================
 # 局レベル状態
@@ -79,6 +81,7 @@ var round_wind: int = 0
 var kyoku: int = 1
 var honba: int = 0
 var kyotaku: int = 0
+var _kyoku_start_scores: Array = []
 
 var phase: int = Phase.IDLE
 var last_discarded_tile: Dictionary = {}
@@ -92,13 +95,16 @@ var action_pon_from: int = -1
 # ============================================================
 # プレイヤーデータ生成
 # ============================================================
-func _make_player(p_name: String, is_npc: bool, wind: int) -> Dictionary:
+func _make_player(p_name: String, is_npc: bool, wind: int, npc_id: String = "") -> Dictionary:
 	return {
 		"name": p_name, "is_npc": is_npc, "wind": wind,
+		"npc_id": npc_id,
+		"npc_mode": "",
 		"score": INITIAL_SCORE,
 		"hand": [], "discards": [], "naki": [], "nukita": [],
 		"is_riichi": false, "is_daburi": false, "is_ippatsu": false,
 		"is_open_riichi": false,
+		"riichi_sticks": 0,
 		"is_menzen": true,
 		"riichi_discard_idx": -1,
 		"riichi_waiting_ids": [],
@@ -119,6 +125,7 @@ func start_match() -> void:
 	match_player_agari_han = 0
 	match_player_agari_chip = 0
 	_pending_match_end = false
+	_pending_oorasu_player_choice = false
 	session_result = {}
 	kyotaku = 0
 	# プレイヤー初期化
@@ -128,10 +135,30 @@ func start_match() -> void:
 	honba = 0
 	dealer = 0
 	# SaveDataのプレイヤー名とNPC選択を使う
-	var npc_ids: Array = SaveData.selected_npc
-	players.append(_make_player(SaveData.player_name, false, MahjongLogic.EAST))
-	players.append(_make_player(npc_ids[0].to_upper().replace("_", ""), true, MahjongLogic.SOUTH))
-	players.append(_make_player(npc_ids[1].to_upper().replace("_", ""), true, MahjongLogic.WEST))
+	var seat_npcs: Dictionary = SaveData.selected_npc_seats
+	var empty_seat: String = SaveData.selected_empty_seat
+	var player_wind: int = MahjongLogic.EAST
+	var seat_winds := {"bottom": MahjongLogic.SOUTH, "right": MahjongLogic.WEST, "top": MahjongLogic.NORTH}
+	match empty_seat:
+		"bottom":
+			player_wind = MahjongLogic.WEST
+			seat_winds = {"bottom": MahjongLogic.NORTH, "right": MahjongLogic.EAST, "top": MahjongLogic.SOUTH}
+		"right":
+			player_wind = MahjongLogic.SOUTH
+			seat_winds = {"bottom": MahjongLogic.WEST, "right": MahjongLogic.NORTH, "top": MahjongLogic.EAST}
+		_:
+			player_wind = MahjongLogic.EAST
+			seat_winds = {"bottom": MahjongLogic.SOUTH, "right": MahjongLogic.WEST, "top": MahjongLogic.NORTH}
+	players.append(_make_player(SaveData.player_name, false, player_wind))
+	for seat in ["bottom", "right", "top"]:
+		var npc_id := str(seat_npcs.get(seat, ""))
+		if npc_id == "":
+			continue
+		players.append(_make_player(SaveData.get_npc_name(npc_id), true, seat_winds[seat], npc_id))
+	while players.size() < 3:
+		var fallback_id := "kuma_def" if players.size() == 1 else "kuma_hiyake"
+		players.append(_make_player(SaveData.get_npc_name(fallback_id), true, MahjongLogic.SOUTH if players.size() == 1 else MahjongLogic.WEST, fallback_id))
+	dealer = _find_dealer_index()
 	_start_kyoku()
 
 # 後方互換エイリアス
@@ -148,14 +175,18 @@ func _start_kyoku() -> void:
 		p.is_open_riichi = false
 		p.is_daburi = false
 		p.is_ippatsu = false
+		p.riichi_sticks = 0
 		p.is_menzen = true
 		p.riichi_discard_idx = -1
 		p.riichi_waiting_ids = []
 		p.pon_forbidden_id = -1
 		p.is_riichi_furiten = false
 		p.is_doujun_furiten = false
+		p.npc_mode = ""
 	_setup_wall()
 	_deal_hands()
+	_init_npc_modes()
+	_kyoku_start_scores = _snapshot_scores()
 	phase = Phase.IDLE
 	junme = 0
 	kyoku_has_meld = false
@@ -175,16 +206,31 @@ func _start_kyoku() -> void:
 	_is_chankan_ron = false
 	_suukantsu_pending = -1
 	_pending_npc_ron_after_skip = -1
+	_pending_player_riichi_hand_idx = -1
 	emit_signal("game_started")
 	_start_turn(dealer)
 
 # 局結果確認後に呼び出し（ゲーム.gd から）
 func advance_game() -> void:
+	if _pending_oorasu_player_choice:
+		return
 	if _pending_match_end:
 		_compute_session_result()
 		emit_signal("match_ended", session_result)
 	else:
 		_start_kyoku()
+
+func resolve_oorasu_player_choice(continue_match: bool) -> void:
+	if not _pending_oorasu_player_choice:
+		return
+	_pending_oorasu_player_choice = false
+	if continue_match:
+		honba += 1
+		_start_kyoku()
+	else:
+		_pending_match_end = true
+		_compute_session_result()
+		emit_signal("match_ended", session_result)
 
 # ============================================================
 # 壁・配牌
@@ -203,6 +249,26 @@ func _deal_hands() -> void:
 		p.hand = []
 		for _i in range(13):
 			p.hand.append(wall.pop_front())
+
+func _snapshot_scores() -> Array:
+	var scores: Array = []
+	for p: Dictionary in players:
+		scores.append(int(p.score))
+	return scores
+
+func _init_npc_modes() -> void:
+	for i in range(players.size()):
+		var p: Dictionary = players[i]
+		if not p.get("is_npc", false):
+			continue
+		var npc_id := str(p.get("npc_id", ""))
+		var kokushi_threshold := 10
+		if npc_id == "kuma_hiyake":
+			kokushi_threshold = 9
+		if _is_black_family_npc(npc_id) and _count_yaochu_types(MahjongLogic.get_ids(p.hand)) >= kokushi_threshold:
+			p.npc_mode = "kokushi"
+		else:
+			p.npc_mode = "normal"
 
 # ============================================================
 # ターン管理
@@ -243,15 +309,13 @@ func _start_turn(player_idx: int) -> void:
 # NPC AI
 # ============================================================
 func _npc_turn(player_idx: int) -> void:
-	if current_player != player_idx: return
+	if current_player != player_idx:
+		return
 	var p: Dictionary = players[player_idx]
 	var hand_ids: Array = MahjongLogic.get_ids(p.hand)
 
-	# ツモ和了チェック
 	if MahjongLogic.is_complete_hand(hand_ids):
-		var winning_id: int = p.hand[p.hand.size() - 1].id
-		var context: Dictionary = _build_context(player_idx, true, winning_id)
-		var yaku: Array = MahjongLogic.check_yaku(hand_ids, context)
+		var yaku: Array = _npc_tsumo_yaku(player_idx, hand_ids)
 		if not yaku.is_empty():
 			var result: Dictionary = _build_win_result(player_idx, true, -1, yaku)
 			_apply_score(result)
@@ -259,17 +323,13 @@ func _npc_turn(player_idx: int) -> void:
 			_process_kyoku_end(result)
 			return
 
-	# 北抜き（門前でなくても可能）
-	if _has_kita(p):
+	if _has_kita(p) and _npc_should_kita(player_idx):
 		_do_kita(player_idx)
 		if phase == Phase.ACTION_WAIT:
 			return
-		# 嶺上ツモ後の和了チェック
 		var kita_hand_ids: Array = MahjongLogic.get_ids(p.hand)
 		if MahjongLogic.is_complete_hand(kita_hand_ids):
-			var kita_win_id: int = p.hand[p.hand.size() - 1].id
-			var kita_ctx: Dictionary = _build_context(player_idx, true, kita_win_id)
-			var kita_yaku: Array = MahjongLogic.check_yaku(kita_hand_ids, kita_ctx)
+			var kita_yaku: Array = _npc_tsumo_yaku(player_idx, kita_hand_ids)
 			if not kita_yaku.is_empty():
 				var kita_result: Dictionary = _build_win_result(player_idx, true, -1, kita_yaku)
 				_apply_score(kita_result)
@@ -280,29 +340,294 @@ func _npc_turn(player_idx: int) -> void:
 			func(): _npc_turn(player_idx), CONNECT_ONE_SHOT)
 		return
 
-	# 暗槓チェック（ツモった牌で4枚揃ったら槓）
+	if _is_hokkyoku_npc(player_idx):
+		if _npc_should_daburi(player_idx):
+			var hokkyoku_riichi: Array = MahjongLogic.get_riichi_discards(p.hand)
+			hokkyoku_riichi = _filter_north_indices(p.hand, hokkyoku_riichi)
+			if not hokkyoku_riichi.is_empty():
+				_do_riichi_discard(player_idx, _choose_best_riichi_discard(player_idx, hokkyoku_riichi))
+				return
+		if p.is_riichi:
+			_do_discard_internal(player_idx, p.hand.size() - 1, true)
+			return
+		_do_discard_internal(player_idx, _choose_open_riichi_legal_discard_index(player_idx, _choose_tsumogiri_index(player_idx)))
+		return
+
+	if _npc_must_fold_before_actions(player_idx):
+		_do_discard_internal(player_idx, _choose_open_riichi_legal_discard_index(player_idx, _choose_npc_fold_discard_index(player_idx)))
+		return
+
 	if _npc_can_ankan(player_idx):
 		_do_ankan(player_idx)
 		return
 
-	# 加槓チェック（ツモった牌が既存のポンに追加できるなら槓）
 	if _npc_can_kakan(player_idx):
 		_do_kakan(player_idx)
 		return
 
-	# リーチ判定（点数1000点以上のとき）
 	if _is_closed_for_riichi(p) and not p.is_riichi and p.score >= 1000:
 		var riichi_idx: Array = MahjongLogic.get_riichi_discards(p.hand)
+		riichi_idx = _filter_north_indices(p.hand, riichi_idx)
 		if not riichi_idx.is_empty():
-			var discard_i: int = riichi_idx[0]
+			var discard_i: int = _choose_npc_riichi_index(player_idx, riichi_idx)
+			var legal_discard_i := _choose_open_riichi_legal_discard_index(player_idx, discard_i)
+			if legal_discard_i != discard_i:
+				_do_discard_internal(player_idx, legal_discard_i)
+				return
 			_do_riichi_discard(player_idx, discard_i)
 			return
 
 	if p.is_riichi:
-		_do_discard_internal(player_idx, p.hand.size() - 1)
+		_do_discard_internal(player_idx, p.hand.size() - 1, true)
 		return
 
-	_do_discard_internal(player_idx, _choose_npc_safe_discard_index(player_idx))
+	_do_discard_internal(player_idx, _choose_open_riichi_legal_discard_index(player_idx, _choose_npc_personality_discard_index(player_idx)))
+
+func _npc_tsumo_yaku(player_idx: int, hand_ids: Array) -> Array:
+	var p: Dictionary = players[player_idx]
+	var winning_id: int = p.hand[p.hand.size() - 1].id
+	var context: Dictionary = _build_context(player_idx, true, winning_id)
+	var yaku: Array = MahjongLogic.check_yaku(hand_ids, context)
+	if yaku.is_empty():
+		return []
+	if _is_hokkyoku_npc(player_idx) and not (p.is_riichi or context.get("is_tenhou", false) or context.get("is_chiihou", false)):
+		return []
+	return yaku
+
+func _is_renhou_ron(player_idx: int) -> bool:
+	var p: Dictionary = players[player_idx]
+	return player_idx != dealer and junme == 1 and not kyoku_has_meld and p.naki.is_empty() and not p.is_riichi
+
+func _is_hokkyoku_npc(player_idx: int) -> bool:
+	return str(players[player_idx].get("npc_id", "")) == "kuma_hokkyoku"
+
+func _is_black_family_npc(npc_id: String) -> bool:
+	return npc_id in ["kuma_black", "kuma_megane", "kuma_hiyake", "kuma_saibo"]
+
+func _npc_should_kita(player_idx: int) -> bool:
+	var p: Dictionary = players[player_idx]
+	if _is_hokkyoku_npc(player_idx):
+		return true
+	if p.get("npc_mode", "") == "kokushi":
+		return _count_tile_in_hand(p.hand, MahjongLogic.NORTH) > 1
+	return true
+
+func _npc_should_daburi(player_idx: int) -> bool:
+	var p: Dictionary = players[player_idx]
+	return _is_closed_for_riichi(p) and not p.is_riichi and p.score >= 1000 and junme <= 1 and p.hand.size() == 14
+
+func _npc_must_fold_before_actions(player_idx: int) -> bool:
+	var p: Dictionary = players[player_idx]
+	if p.get("is_riichi", false):
+		return false
+	return str(p.get("npc_id", "")) == "kuma_megane" and _riichi_opponents(player_idx).size() > 0
+
+func _choose_tsumogiri_index(player_idx: int) -> int:
+	var p: Dictionary = players[player_idx]
+	for i in range(p.hand.size() - 1, -1, -1):
+		if p.hand[i].id != MahjongLogic.NORTH:
+			return i
+	return p.hand.size() - 1
+
+func _filter_north_indices(hand: Array, indices: Array) -> Array:
+	var result: Array = []
+	for i in indices:
+		if hand[int(i)].id != MahjongLogic.NORTH:
+			result.append(int(i))
+	return result
+
+func _choose_npc_riichi_index(player_idx: int, riichi_indices: Array) -> int:
+	if str(players[player_idx].get("npc_id", "")) in ["kuma_black", "kuma_megane", "kuma_hiyake", "kuma_saibo", "kuma_hokkyoku"]:
+		return _choose_best_riichi_discard(player_idx, riichi_indices)
+	return int(riichi_indices[0])
+
+func _choose_best_riichi_discard(player_idx: int, riichi_indices: Array) -> int:
+	var best_idx: int = int(riichi_indices[0])
+	var best_score: Array = []
+	for raw_idx in riichi_indices:
+		var i: int = int(raw_idx)
+		var score: Array = _score_riichi_discard(player_idx, i)
+		if best_score.is_empty() or _is_riichi_score_better(score, best_score):
+			best_score = score
+			best_idx = i
+	return best_idx
+
+func _score_riichi_discard(player_idx: int, hand_idx: int) -> Array:
+	var p: Dictionary = players[player_idx]
+	var hand_ids: Array = MahjongLogic.get_ids(p.hand)
+	var test: Array = hand_ids.duplicate()
+	test.remove_at(hand_idx)
+	var waits: Array = MahjongLogic.find_waiting_tiles(test)
+	var wait_count: int = 0
+	for tid: int in waits:
+		wait_count += _remaining_tile_count_for_npc(player_idx, tid)
+	var best_han: int = 0
+	for tid: int in waits:
+		var win_hand: Array = test.duplicate()
+		win_hand.append(tid)
+		win_hand.sort()
+		var ctx: Dictionary = _build_context(player_idx, false, tid)
+		ctx["is_riichi"] = true
+		ctx["is_daburi"] = junme <= 1 and p.hand.size() == 14
+		var yaku: Array = MahjongLogic.check_yaku(win_hand, ctx)
+		best_han = max(best_han, MahjongLogic.count_han(yaku))
+	var safety: int = _discard_safety_score_for_all_opponents(player_idx, p.hand[hand_idx])
+	return [wait_count, best_han, waits.size(), safety]
+
+func _is_riichi_score_better(a: Array, b: Array) -> bool:
+	for i in range(min(a.size(), b.size())):
+		if int(a[i]) != int(b[i]):
+			return int(a[i]) > int(b[i])
+	return false
+
+func _remaining_tile_count_for_npc(player_idx: int, tile_id: int) -> int:
+	var visible: int = 0
+	for i in range(players.size()):
+		var p: Dictionary = players[i]
+		for t: Dictionary in p.discards:
+			if t.id == tile_id:
+				visible += 1
+		for t: Dictionary in p.nukita:
+			if t.id == tile_id:
+				visible += 1
+		for m: Dictionary in p.naki:
+			for mid in m.get("tile_ids", []):
+				if int(mid) == tile_id:
+					visible += 1
+		if i == player_idx:
+			for t: Dictionary in p.hand:
+				if t.id == tile_id:
+					visible += 1
+	for t: Dictionary in dora_indicators:
+		if t.id == tile_id:
+			visible += 1
+	return max(0, 4 - visible)
+
+func _choose_npc_personality_discard_index(player_idx: int) -> int:
+	var npc_id: String = str(players[player_idx].get("npc_id", ""))
+	if npc_id == "kuma_saibo":
+		if players[player_idx].get("npc_mode", "") == "kokushi":
+			return _choose_kokushi_discard_index(player_idx)
+		return _choose_saibo_discard_index(player_idx)
+	if _is_black_family_npc(npc_id):
+		if npc_id == "kuma_megane" and _npc_should_fold(player_idx):
+			return _choose_npc_fold_discard_index(player_idx)
+		if players[player_idx].get("npc_mode", "") == "kokushi":
+			return _choose_kokushi_discard_index(player_idx)
+		if _npc_should_fold(player_idx):
+			return _choose_npc_fold_discard_index(player_idx)
+	if _is_hokkyoku_npc(player_idx):
+		return _choose_tsumogiri_index(player_idx)
+	return _choose_npc_safe_discard_index(player_idx)
+
+func _choose_saibo_discard_index(player_idx: int) -> int:
+	var p: Dictionary = players[player_idx]
+	var hand_ids: Array = MahjongLogic.get_ids(p.hand)
+	var best: Array = []
+	var best_score := -999999
+	for i in range(p.hand.size()):
+		if p.hand[i].id == MahjongLogic.NORTH:
+			continue
+		var test: Array = hand_ids.duplicate()
+		test.remove_at(i)
+		var shanten: int = MahjongLogic.calculate_shanten(test)
+		var ukeire: int = MahjongLogic.count_ukeire_after_discard(test)
+		var safety: int = _discard_safety_score_for_fold(player_idx, p.hand[i])
+		var value: int = -shanten * 10000 + ukeire * 80 + safety
+		if _is_dora_id(p.hand[i].id):
+			value -= 120
+		if p.hand[i].get("is_gold", false):
+			value -= 180
+		if p.hand[i].get("is_red", false):
+			value -= 120
+		if _riichi_opponents(player_idx).is_empty() and junme < 12:
+			value -= safety / 2
+		if value > best_score:
+			best_score = value
+			best = [i]
+		elif value == best_score:
+			best.append(i)
+	if best.is_empty():
+		return _choose_npc_discard_index(player_idx)
+	return _prefer_non_bonus_discard(p.hand, best)
+
+func _choose_kokushi_discard_index(player_idx: int) -> int:
+	var p: Dictionary = players[player_idx]
+	var best: Array = []
+	var best_priority: int = -999
+	for i in range(p.hand.size()):
+		if p.hand[i].id == MahjongLogic.NORTH and _count_tile_in_hand(p.hand, MahjongLogic.NORTH) <= 1:
+			continue
+		var priority: int = _kokushi_discard_priority(player_idx, p.hand[i])
+		if priority > best_priority:
+			best_priority = priority
+			best = [i]
+		elif priority == best_priority:
+			best.append(i)
+	if best.is_empty():
+		return _choose_npc_discard_index(player_idx)
+	return int(best.pick_random())
+
+func _kokushi_discard_priority(player_idx: int, tile: Dictionary) -> int:
+	if tile.get("is_gold", false):
+		return 100
+	if tile.get("is_red", false):
+		return 95
+	if _is_chunchan(tile.id) and _is_dora_id(tile.id):
+		return 90
+	var num: int = _tile_number(tile.id)
+	match num:
+		5: return 80
+		7: return 75
+		3: return 70
+		4, 6: return 65
+		8, 2: return 60
+		1, 9:
+			if _count_tile_in_hand(players[player_idx].hand, tile.id) > 1:
+				return 55
+			return 10
+	if MahjongLogic.is_honor(tile.id):
+		if _is_otakaze(player_idx, tile.id):
+			return 50
+		if _is_yakuhai(player_idx, tile.id) and _visible_count_for_player(player_idx, tile.id) >= 3:
+			return 45
+		if tile.id == players[player_idx].wind:
+			return 40
+		if tile.id in [MahjongLogic.HAKU, MahjongLogic.HATSU, MahjongLogic.CHUN]:
+			return 35
+		if tile.id == round_wind:
+			return 30
+	return 20
+
+func _npc_should_fold(player_idx: int) -> bool:
+	var npc_id: String = str(players[player_idx].get("npc_id", ""))
+	if npc_id == "kuma_hiyake" or npc_id == "kuma_saibo":
+		return false
+	if npc_id == "kuma_megane":
+		return _riichi_opponents(player_idx).size() > 0
+	var shanten: int = MahjongLogic.calculate_shanten(MahjongLogic.get_ids(players[player_idx].hand))
+	if _riichi_opponents(player_idx).size() >= 2 and shanten > 0:
+		return true
+	if junme >= 13 and shanten > 0:
+		return true
+	return players[player_idx].wind != MahjongLogic.EAST and players[dealer].get("is_riichi", false) and shanten >= 2
+
+func _choose_npc_fold_discard_index(player_idx: int) -> int:
+	var p: Dictionary = players[player_idx]
+	var best: Array = []
+	var best_score: int = -999999
+	for i in range(p.hand.size()):
+		if p.hand[i].id == MahjongLogic.NORTH:
+			continue
+		var score: int = _discard_safety_score_for_fold(player_idx, p.hand[i])
+		if score > best_score:
+			best_score = score
+			best = [i]
+		elif score == best_score:
+			best.append(i)
+	if best.is_empty():
+		return _choose_npc_discard_index(player_idx)
+	return _prefer_non_bonus_discard(p.hand, best)
 
 func _choose_npc_discard_index(player_idx: int) -> int:
 	var p: Dictionary = players[player_idx]
@@ -337,22 +662,66 @@ func _choose_npc_discard_index(player_idx: int) -> int:
 	return _prefer_non_bonus_discard(p.hand, best_ukeire_indices)
 
 func _choose_npc_safe_discard_index(player_idx: int) -> int:
-	var waits: Array = players[0].get("riichi_waiting_ids", [])
-	if not players[0].get("is_open_riichi", false) or waits.is_empty():
+	var waits: Array = _open_riichi_wait_ids_against(player_idx)
+	if waits.is_empty():
 		return _choose_npc_discard_index(player_idx)
 	var original_hand: Array = players[player_idx].hand
 	var safe_indices: Array = []
 	for i in range(original_hand.size()):
+		if original_hand[i].id == MahjongLogic.NORTH:
+			continue
 		if original_hand[i].id not in waits:
 			safe_indices.append(i)
 	if safe_indices.is_empty():
 		return _choose_npc_discard_index(player_idx)
 
+	return _choose_best_discard_from_indices(player_idx, safe_indices)
+
+func _choose_open_riichi_legal_discard_index(player_idx: int, preferred_idx: int) -> int:
+	if player_idx < 0 or player_idx >= players.size():
+		return preferred_idx
+	var p: Dictionary = players[player_idx]
+	if p.get("is_riichi", false):
+		return preferred_idx
+	if preferred_idx < 0 or preferred_idx >= p.hand.size():
+		return preferred_idx
+	var waits: Array = _open_riichi_wait_ids_against(player_idx)
+	if waits.is_empty():
+		return preferred_idx
+	if p.hand[preferred_idx].id not in waits:
+		return preferred_idx
+	var safe_indices: Array = []
+	for i in range(p.hand.size()):
+		if p.hand[i].id == MahjongLogic.NORTH:
+			continue
+		if p.hand[i].id not in waits:
+			safe_indices.append(i)
+	if safe_indices.is_empty():
+		return preferred_idx
+	return _choose_best_discard_from_indices(player_idx, safe_indices)
+
+func _open_riichi_wait_ids_against(player_idx: int) -> Array:
+	var result: Array = []
+	for i in range(players.size()):
+		if i == player_idx:
+			continue
+		var p: Dictionary = players[i]
+		if not p.get("is_open_riichi", false):
+			continue
+		for tid in p.get("riichi_waiting_ids", []):
+			var id := int(tid)
+			if id not in result:
+				result.append(id)
+	return result
+
+func _choose_best_discard_from_indices(player_idx: int, indices: Array) -> int:
+	if indices.is_empty():
+		return _choose_npc_discard_index(player_idx)
 	var p: Dictionary = players[player_idx]
 	var hand_ids: Array = MahjongLogic.get_ids(p.hand)
 	var best_indices: Array = []
 	var best_shanten := 99
-	for i: int in safe_indices:
+	for i: int in indices:
 		if p.hand[i].id == MahjongLogic.NORTH:
 			continue
 		var test: Array = hand_ids.duplicate()
@@ -364,7 +733,7 @@ func _choose_npc_safe_discard_index(player_idx: int) -> int:
 		elif shanten == best_shanten:
 			best_indices.append(i)
 	if best_indices.is_empty():
-		best_indices = safe_indices
+		best_indices = indices
 	return _prefer_non_bonus_discard(p.hand, best_indices)
 
 func _prefer_non_bonus_discard(hand: Array, indices: Array) -> int:
@@ -383,6 +752,159 @@ func _prefer_non_bonus_discard(hand: Array, indices: Array) -> int:
 		elif penalty == best_penalty:
 			best_indices.append(i)
 	return best_indices.pick_random()
+
+func _count_yaochu_types(hand_ids: Array) -> int:
+	var yaochu: Dictionary = {}
+	for tid in hand_ids:
+		var id: int = int(tid)
+		if id in [MahjongLogic.MAN_1, MahjongLogic.MAN_9, MahjongLogic.PIN_1, MahjongLogic.PIN_9,
+				MahjongLogic.SOU_1, MahjongLogic.SOU_9, MahjongLogic.EAST, MahjongLogic.SOUTH,
+				MahjongLogic.WEST, MahjongLogic.NORTH, MahjongLogic.HAKU, MahjongLogic.HATSU, MahjongLogic.CHUN]:
+			yaochu[id] = true
+	return yaochu.size()
+
+func _is_chunchan(tile_id: int) -> bool:
+	var n: int = _tile_number(tile_id)
+	return n >= 2 and n <= 8
+
+func _tile_number(tile_id: int) -> int:
+	if tile_id >= 21 and tile_id <= 29:
+		return tile_id - 20
+	if tile_id >= 31 and tile_id <= 39:
+		return tile_id - 30
+	if tile_id == MahjongLogic.MAN_1:
+		return 1
+	if tile_id == MahjongLogic.MAN_9:
+		return 9
+	return 0
+
+func _is_dora_id(tile_id: int) -> bool:
+	for indicator: Dictionary in dora_indicators:
+		if tile_id == MahjongLogic.get_dora_from_indicator(indicator.id):
+			return true
+	return false
+
+func _is_yakuhai(player_idx: int, tile_id: int) -> bool:
+	return tile_id in [MahjongLogic.HAKU, MahjongLogic.HATSU, MahjongLogic.CHUN, round_wind, players[player_idx].wind]
+
+func _is_otakaze(player_idx: int, tile_id: int) -> bool:
+	if tile_id not in [MahjongLogic.EAST, MahjongLogic.SOUTH, MahjongLogic.WEST, MahjongLogic.NORTH]:
+		return false
+	return tile_id != round_wind and tile_id != players[player_idx].wind
+
+func _visible_count_for_player(player_idx: int, tile_id: int) -> int:
+	var count: int = 0
+	for i in range(players.size()):
+		var p: Dictionary = players[i]
+		if i == player_idx:
+			for t: Dictionary in p.hand:
+				if t.id == tile_id:
+					count += 1
+		for t: Dictionary in p.discards:
+			if t.id == tile_id:
+				count += 1
+		for t: Dictionary in p.nukita:
+			if t.id == tile_id:
+				count += 1
+		for m: Dictionary in p.naki:
+			for mid in m.get("tile_ids", []):
+				if int(mid) == tile_id:
+					count += 1
+	return count
+
+func _riichi_opponents(player_idx: int) -> Array:
+	var result: Array = []
+	for i in range(players.size()):
+		if i != player_idx and players[i].get("is_riichi", false):
+			result.append(i)
+	return result
+
+func _discard_safety_score_for_all_opponents(player_idx: int, tile: Dictionary) -> int:
+	var score: int = 0
+	for i in range(players.size()):
+		if i == player_idx:
+			continue
+		score += _discard_safety_score_against(i, tile)
+	return score
+
+func _discard_safety_score_for_fold(player_idx: int, tile: Dictionary) -> int:
+	var riichi_targets: Array = _riichi_opponents(player_idx)
+	if riichi_targets.is_empty():
+		return _discard_safety_score_for_all_opponents(player_idx, tile)
+	var total: int = 0
+	for target: int in riichi_targets:
+		var weight: int = 1
+		if target == dealer:
+			weight = 3
+		elif player_idx == dealer and target == 0:
+			weight = 3
+		total += _discard_safety_score_against(target, tile) * weight
+	return total
+
+func _discard_safety_score_against(target_idx: int, tile: Dictionary) -> int:
+	if _is_genbutsu(target_idx, tile.id):
+		return 1000
+	if _is_complete_suji_tile(tile.id):
+		var visible: int = min(_visible_count_for_player(target_idx, tile.id), 4)
+		return 900 + visible * 20
+	if _is_nakasuji(target_idx, tile.id):
+		return 600
+	if _is_declared_tile_half_suji(target_idx, tile.id):
+		return 80
+	if _is_half_suji(target_idx, tile.id):
+		return 200
+	return _terminal_closeness_score(tile.id)
+
+func _is_genbutsu(target_idx: int, tile_id: int) -> bool:
+	for t: Dictionary in players[target_idx].discards:
+		if t.id == tile_id:
+			return true
+	return false
+
+func _is_complete_suji_tile(tile_id: int) -> bool:
+	if MahjongLogic.is_honor(tile_id) or tile_id in [MahjongLogic.MAN_1, MahjongLogic.MAN_9]:
+		return true
+	var n: int = _tile_number(tile_id)
+	return n == 1 or n == 9
+
+func _is_nakasuji(target_idx: int, tile_id: int) -> bool:
+	var n: int = _tile_number(tile_id)
+	if n == 4:
+		return _is_genbutsu(target_idx, tile_id - 3) and _is_genbutsu(target_idx, tile_id + 3)
+	if n == 5:
+		return _is_genbutsu(target_idx, tile_id - 3) and _is_genbutsu(target_idx, tile_id + 3)
+	if n == 6:
+		return _is_genbutsu(target_idx, tile_id - 3) and _is_genbutsu(target_idx, tile_id + 3)
+	return false
+
+func _is_half_suji(target_idx: int, tile_id: int) -> bool:
+	var n: int = _tile_number(tile_id)
+	if n == 1:
+		return _is_genbutsu(target_idx, tile_id + 3)
+	if n == 2:
+		return _is_genbutsu(target_idx, tile_id + 3)
+	if n == 3:
+		return _is_genbutsu(target_idx, tile_id + 3)
+	if n == 7:
+		return _is_genbutsu(target_idx, tile_id - 3)
+	if n == 8:
+		return _is_genbutsu(target_idx, tile_id - 3)
+	if n == 9:
+		return _is_genbutsu(target_idx, tile_id - 3)
+	return false
+
+func _is_declared_tile_half_suji(target_idx: int, tile_id: int) -> bool:
+	var idx: int = players[target_idx].get("riichi_discard_idx", -1)
+	if idx < 0 or idx >= players[target_idx].discards.size():
+		return false
+	var declared_id: int = players[target_idx].discards[idx].id
+	return _is_half_suji(target_idx, tile_id) and abs(_tile_number(declared_id) - _tile_number(tile_id)) == 3
+
+func _terminal_closeness_score(tile_id: int) -> int:
+	var n: int = _tile_number(tile_id)
+	if n == 0:
+		return 120
+	return 100 - abs(5 - n) * 10
 
 func _has_kita(p: Dictionary) -> bool:
 	var hand: Array = p.hand
@@ -429,11 +951,54 @@ func player_decline_tsumo() -> void:
 func player_riichi(hand_idx: int, is_open_riichi: bool = false) -> void:
 	if phase != Phase.PLAYER_TURN: return
 	if not _is_closed_for_riichi(players[0]): return
-	if players[0].score < 1000: return
+	if players[0].score < (2000 if is_open_riichi else 1000): return
 	# 北（花牌）はリーチ宣言牌にできない
 	if hand_idx >= 0 and hand_idx < players[0].hand.size() and \
 			players[0].hand[hand_idx].id == MahjongLogic.NORTH: return
 	_do_riichi_discard(0, hand_idx, is_open_riichi)
+
+func prepare_player_riichi(hand_idx: int, is_open_riichi: bool = false) -> bool:
+	if phase != Phase.PLAYER_TURN:
+		return false
+	var p: Dictionary = players[0]
+	if not _is_closed_for_riichi(p) or p.is_riichi:
+		return false
+	if p.score < (2000 if is_open_riichi else 1000):
+		return false
+	if hand_idx < 0 or hand_idx >= p.hand.size():
+		return false
+	if p.hand[hand_idx].id == MahjongLogic.NORTH:
+		return false
+	var riichi_hand_ids: Array = MahjongLogic.get_ids(p.hand)
+	riichi_hand_ids.remove_at(hand_idx)
+	p.riichi_waiting_ids = MahjongLogic.find_waiting_tiles(riichi_hand_ids)
+	p.riichi_waiting_ids.sort()
+	if p.riichi_waiting_ids.is_empty():
+		return false
+	p.is_riichi = true
+	p.is_open_riichi = is_open_riichi
+	p.is_daburi = (junme <= 1 and p.hand.size() == 14)
+	p.riichi_discard_idx = p.discards.size()
+	p.riichi_sticks = 2 if is_open_riichi else 1
+	p.score -= 1000 * int(p.riichi_sticks)
+	kyotaku += int(p.riichi_sticks)
+	p.hand[hand_idx]["is_riichi_tile"] = true
+	_pending_player_riichi_hand_idx = hand_idx
+	return true
+
+func finish_player_riichi() -> bool:
+	if _pending_player_riichi_hand_idx < 0:
+		return false
+	var hand_idx: int = _pending_player_riichi_hand_idx
+	_pending_player_riichi_hand_idx = -1
+	var p: Dictionary = players[0]
+	if hand_idx < 0 or hand_idx >= p.hand.size() or not p.is_riichi:
+		return false
+	_do_discard_internal(0, hand_idx)
+	p.is_ippatsu = true
+	if p.riichi_discard_idx >= 0 and p.riichi_discard_idx < p.discards.size():
+		p.discards[p.riichi_discard_idx]["is_riichi_tile"] = true
+	return true
 
 func player_ron() -> void:
 	if phase != Phase.ACTION_WAIT or not action_is_ron: return
@@ -503,6 +1068,8 @@ func _do_riichi_discard(player_idx: int, hand_idx: int, is_open_riichi: bool = f
 	var p: Dictionary = players[player_idx]
 	if hand_idx < 0 or hand_idx >= p.hand.size():
 		return
+	if is_open_riichi and p.score < 2000:
+		return
 	var is_daburi: bool = (junme <= 1 and p.hand.size() == 14)
 	var riichi_hand_ids: Array = MahjongLogic.get_ids(p.hand)
 	riichi_hand_ids.remove_at(hand_idx)
@@ -514,8 +1081,10 @@ func _do_riichi_discard(player_idx: int, hand_idx: int, is_open_riichi: bool = f
 	p.is_open_riichi = is_open_riichi
 	p.is_daburi  = is_daburi
 	p.riichi_discard_idx = p.discards.size()
-	p.score -= 1000
-	kyotaku += 1
+	var riichi_sticks := 2 if is_open_riichi else 1
+	p.riichi_sticks = riichi_sticks
+	p.score -= 1000 * riichi_sticks
+	kyotaku += riichi_sticks
 	p.hand[hand_idx]["is_riichi_tile"] = true
 	emit_signal("riichi_declared", player_idx)
 	_do_discard_internal(player_idx, hand_idx)
@@ -524,16 +1093,33 @@ func _do_riichi_discard(player_idx: int, hand_idx: int, is_open_riichi: bool = f
 	players[player_idx].is_ippatsu = true
 	players[player_idx].discards[players[player_idx].riichi_discard_idx]["is_riichi_tile"] = true
 
-func _do_discard_internal(player_idx: int, hand_idx: int) -> void:
+func _do_discard_internal(player_idx: int, hand_idx: int, forced_tsumogiri: bool = false) -> void:
+	if hand_idx < 0 or hand_idx >= players[player_idx].hand.size():
+		push_error("Invariant violation [%s]: invalid discard index player=%d hand_idx=%d hand_size=%d" % ["discard", player_idx, hand_idx, players[player_idx].hand.size()])
+		return
+	var before_hand_size: int = players[player_idx].hand.size()
 	var tile: Dictionary = players[player_idx].hand[hand_idx]
+	if forced_tsumogiri:
+		tile["is_forced_tsumogiri"] = true
+	_mark_open_riichi_forced_houjuu(player_idx, tile)
 	players[player_idx].hand.remove_at(hand_idx)
 	players[player_idx].discards.append(tile)
+	if players[player_idx].hand.size() != before_hand_size - 1:
+		push_error("Invariant violation [%s]: discard must remove exactly one tile player=%d before=%d after=%d" % ["discard", player_idx, before_hand_size, players[player_idx].hand.size()])
 	players[player_idx].is_ippatsu = false
 	players[player_idx].pon_forbidden_id = -1  # 捨て牌後に食い変え禁止をリセット
 	last_discarded_tile = tile
 	last_discard_player = player_idx
+	phase = Phase.ACTION_WAIT
 	emit_signal("tile_discarded", player_idx, tile)
+	_assert_kyoku_invariants("after_discard")
 	_check_actions_after_discard(player_idx, tile)
+
+func player_riichi_tsumogiri() -> void:
+	if phase != Phase.PLAYER_TURN: return
+	var p: Dictionary = players[0]
+	if not p.is_riichi or p.hand.is_empty(): return
+	_do_discard_internal(0, p.hand.size() - 1, true)
 
 func _do_kita(player_idx: int) -> void:
 	var p: Dictionary = players[player_idx]
@@ -772,10 +1358,10 @@ func _do_pon(player_idx: int, from_idx: int, tile: Dictionary, selected_hand_idx
 	p.is_menzen = false
 	p.pon_forbidden_id = tile.id  # 食い変え禁止: ポン直後に同種牌は切れない
 	# ポンされた捨て牌にフラグを立てる（河に残るが黒マスクで覆う）
-	if not players[from_idx].discards.is_empty():
-		players[from_idx].discards[-1]["is_taken"] = true
+	_mark_taken_discard(from_idx, tile, "pon")
 	action_minkan_possible = false
 	emit_signal("naki_done", player_idx)
+	_assert_kyoku_invariants("after_pon")
 	if player_idx == 0:
 		phase = Phase.AFTER_PON
 		emit_signal("turn_started", player_idx)
@@ -788,11 +1374,56 @@ func _npc_pon_discard(player_idx: int) -> void:
 	if p.hand.is_empty(): return
 	_do_discard_internal(player_idx, _choose_npc_safe_discard_index(player_idx))
 
+func _mark_taken_discard(from_idx: int, tile: Dictionary, reason: String) -> void:
+	if from_idx < 0 or from_idx >= players.size():
+		push_error("Invariant violation [%s]: invalid from_idx=%d" % [reason, from_idx])
+		return
+	var discards: Array = players[from_idx].discards
+	for i in range(discards.size() - 1, -1, -1):
+		var d: Dictionary = discards[i]
+		if d.get("is_taken", false):
+			continue
+		if d.get("id", -1) == tile.get("id", -2) and _tile_variant_key(d) == _tile_variant_key(tile):
+			d["is_taken"] = true
+			return
+	push_error("Invariant violation [%s]: called tile not found in discards from=%d tile=%s" % [reason, from_idx, MahjongLogic.get_tile_name(tile)])
+
+func _tile_variant_key(tile: Dictionary) -> String:
+	return str(tile.get("is_red", false)) + ":" + str(tile.get("is_gold", false)) + ":" + str(tile.get("is_haku_pochi", false))
+
+func _assert_kyoku_invariants(context: String) -> void:
+	if players.is_empty() or phase == Phase.GAME_OVER:
+		return
+	if last_discard_player >= 0:
+		if last_discard_player >= players.size():
+			push_error("Invariant violation [%s]: last_discard_player out of range=%d" % [context, last_discard_player])
+		elif last_discarded_tile.is_empty():
+			push_error("Invariant violation [%s]: last_discarded_tile is empty" % context)
+	for i in range(players.size()):
+		var p: Dictionary = players[i]
+		var hand_count: int = p.get("hand", []).size()
+		if hand_count < 0 or hand_count > 14:
+			push_error("Invariant violation [%s]: impossible hand size player=%d hand=%d" % [context, i, hand_count])
+		var total_in_hand_area: int = hand_count + _meld_tile_count(p.get("naki", []))
+		if total_in_hand_area < 10 or total_in_hand_area > 14:
+			push_error("Invariant violation [%s]: hand/meld tile total out of range player=%d hand=%d meld_tiles=%d total=%d" % [context, i, hand_count, _meld_tile_count(p.get("naki", [])), total_in_hand_area])
+
+func _meld_tile_count(melds: Array) -> int:
+	var count := 0
+	for meld: Dictionary in melds:
+		var tile_ids: Array = meld.get("tile_ids", [])
+		if not tile_ids.is_empty():
+			count += tile_ids.size()
+		else:
+			count += (meld.get("tiles", []) as Array).size()
+	return count
+
 # ============================================================
 # 捨て後のアクションチェック
 # ============================================================
 func _check_actions_after_discard(discarder_idx: int, tile: Dictionary) -> void:
 	var player_can_ron: bool = false
+	var open_riichi_blocked_player_ron: bool = false
 	if discarder_idx != 0:
 		var p: Dictionary = players[0]
 		var hand_ids: Array = MahjongLogic.get_ids(p.hand)
@@ -806,9 +1437,12 @@ func _check_actions_after_discard(discarder_idx: int, tile: Dictionary) -> void:
 				var ctx: Dictionary = _build_context(0, false, tile.id)
 				var yaku: Array = MahjongLogic.check_yaku(test_hand, ctx)
 				if not yaku.is_empty():
-					player_can_ron = true
+					if _can_ron_against_open_riichi(0, discarder_idx, tile):
+						player_can_ron = true
+					else:
+						open_riichi_blocked_player_ron = true
 			# 当たり牌が出たがロンできない（フリテン or 役なし）→ 同順フリテン
-			if not player_can_ron:
+			if not player_can_ron and not open_riichi_blocked_player_ron:
 				players[0].is_doujun_furiten = true
 
 	var ron_candidates: Array = []
@@ -819,7 +1453,7 @@ func _check_actions_after_discard(discarder_idx: int, tile: Dictionary) -> void:
 		if candidate_idx == 0:
 			if player_can_ron:
 				ron_candidates.append(candidate_idx)
-		elif _npc_can_ron(candidate_idx, tile):
+		elif _npc_can_ron(candidate_idx, discarder_idx, tile):
 			ron_candidates.append(candidate_idx)
 	if not ron_candidates.is_empty():
 		var winner_idx: int = ron_candidates[0]  # 頭ハネ: 捨てた人から次順に近い和了者を優先
@@ -854,10 +1488,18 @@ func _check_actions_after_discard(discarder_idx: int, tile: Dictionary) -> void:
 		if np.is_riichi: continue
 		# 大明槓（3枚持ちの役牌）はポンより優先
 		if _npc_wants_kan(i, tile):
+			phase = Phase.ACTION_WAIT
+			action_is_ron = false
+			action_pon_from = -1
+			action_minkan_possible = false
 			get_tree().create_timer(NPC_THINK_SEC * 0.3).timeout.connect(
 				func(): _do_minkan(i, discarder_idx, tile), CONNECT_ONE_SHOT)
 			return
 		if _npc_wants_pon(i, tile):
+			phase = Phase.ACTION_WAIT
+			action_is_ron = false
+			action_pon_from = -1
+			action_minkan_possible = false
 			get_tree().create_timer(NPC_THINK_SEC * 0.3).timeout.connect(
 				func(): _do_pon(i, discarder_idx, tile), CONNECT_ONE_SHOT)
 			return
@@ -873,12 +1515,16 @@ func _check_actions_after_discard(discarder_idx: int, tile: Dictionary) -> void:
 
 	_next_turn(discarder_idx)
 
-func _npc_can_ron(npc_idx: int, tile: Dictionary) -> bool:
+func _npc_can_ron(npc_idx: int, discarder_idx: int, tile: Dictionary) -> bool:
 	var p: Dictionary = players[npc_idx]
+	if _is_hokkyoku_npc(npc_idx) and not p.is_riichi and not _is_renhou_ron(npc_idx):
+		return false
 	var hand_ids: Array = MahjongLogic.get_ids(p.hand)
 	if tile.id not in MahjongLogic.find_waiting_tiles(hand_ids):
 		return false
 	if MahjongLogic.is_furiten(hand_ids, MahjongLogic.get_ids(p.discards)):
+		return false
+	if not _can_ron_against_open_riichi(npc_idx, discarder_idx, tile):
 		return false
 	var test_hand: Array = hand_ids.duplicate()
 	test_hand.append(tile.id)
@@ -888,6 +1534,10 @@ func _npc_can_ron(npc_idx: int, tile: Dictionary) -> bool:
 	return not yaku.is_empty()
 
 func _npc_wants_pon(npc_idx: int, tile: Dictionary) -> bool:
+	if _is_hokkyoku_npc(npc_idx):
+		return false
+	if _npc_must_fold_before_actions(npc_idx):
+		return false
 	var p: Dictionary = players[npc_idx]
 	var cnt: int = 0
 	for t: Dictionary in p.hand:
@@ -901,6 +1551,38 @@ func _npc_wants_pon(npc_idx: int, tile: Dictionary) -> bool:
 
 func _is_riichi_valid_win(_player_idx: int, _tile: Dictionary) -> bool:
 	return true
+
+func _can_ron_against_open_riichi(winner_idx: int, discarder_idx: int, tile: Dictionary) -> bool:
+	var winner: Dictionary = players[winner_idx]
+	if not winner.get("is_open_riichi", false):
+		return true
+	if tile.get("is_forced_tsumogiri", false) and players[discarder_idx].get("is_riichi", false):
+		return true
+	return tile.get("open_riichi_forced_houjuu", false)
+
+func _mark_open_riichi_forced_houjuu(discarder_idx: int, tile: Dictionary) -> void:
+	tile["open_riichi_forced_houjuu"] = false
+	for i in range(players.size()):
+		if i == discarder_idx:
+			continue
+		if not players[i].get("is_open_riichi", false):
+			continue
+		if _all_discardable_tiles_are_open_riichi_waits(discarder_idx, i):
+			tile["open_riichi_forced_houjuu"] = true
+			return
+
+func _all_discardable_tiles_are_open_riichi_waits(discarder_idx: int, open_riichi_idx: int) -> bool:
+	var waits: Array = players[open_riichi_idx].get("riichi_waiting_ids", [])
+	if waits.is_empty():
+		return false
+	var has_discardable := false
+	for t: Dictionary in players[discarder_idx].hand:
+		if t.id == MahjongLogic.NORTH:
+			continue
+		has_discardable = true
+		if t.id not in waits:
+			return false
+	return has_discardable
 
 # ============================================================
 # 白ポッチ強制和了処理
@@ -923,6 +1605,8 @@ func _process_haku_pochi_tsumo(player_idx: int) -> void:
 	var yaku: Array = MahjongLogic.check_yaku(hand_ids_14, ctx)
 	var result: Dictionary = _build_win_result(player_idx, true, -1, yaku)
 	result["haku_pochi_best_tile"] = best_id
+	if result.has("winning_display_tiles") and not result["winning_display_tiles"].is_empty():
+		result["winning_display_tiles"][result["winning_display_tiles"].size() - 1] = MahjongLogic.make_tile(45, false, false, true)
 	# 計算後は手牌表示用に白ポッチへ戻す
 	p.hand[pochi_idx] = MahjongLogic.make_tile(45, false, false, true)
 	_apply_score(result)
@@ -1014,6 +1698,15 @@ func _finalize_ron(winner_idx: int, loser_idx: int) -> void:
 		_pending_kita_player = -1
 		_next_turn(loser_idx)
 		return
+	if winner.get("is_open_riichi", false) \
+			and last_discarded_tile.get("open_riichi_forced_houjuu", false) \
+			and not last_discarded_tile.get("is_forced_tsumogiri", false):
+		var actual_yakuman: Array = []
+		for y: Dictionary in yaku:
+			if int(y.get("han", 0)) >= 13:
+				actual_yakuman.append(y)
+		yaku = [{"name": "オープン立直（手詰まり放銃）", "han": 13, "no_yakuman_chip": true}]
+		yaku.append_array(actual_yakuman)
 	var result: Dictionary = _build_win_result(winner_idx, false, loser_idx, yaku)
 	winner.hand.pop_back()  # ロン牌を手牌に残さない
 	_pending_kakan_player = -1
@@ -1045,6 +1738,7 @@ func _build_context(player_idx: int, is_tsumo: bool, winning_tile_id: int = -1) 
 		"player_wind":     p.wind,
 		"is_tsumo":        is_tsumo,
 		"is_riichi":       p.is_riichi,
+		"is_open_riichi":  p.is_open_riichi,
 		"is_daburi":       p.is_daburi,
 		"is_ippatsu":      p.is_ippatsu,
 		"is_rinshan":      is_tsumo and _drew_from_rinshan,
@@ -1053,7 +1747,7 @@ func _build_context(player_idx: int, is_tsumo: bool, winning_tile_id: int = -1) 
 		"is_houtei":       (not is_tsumo) and wall.is_empty(),
 		"is_tenhou":       player_idx == dealer and junme == 1 and is_tsumo and p.naki.is_empty() and not p.is_riichi,
 		"is_chiihou":      player_idx != dealer and junme == 1 and is_tsumo and not kyoku_has_meld,
-		"is_renhou":       false,
+		"is_renhou":       (not is_tsumo) and _is_renhou_ron(player_idx),
 		"is_nagashi":      false,
 		"open_melds":      p.naki,
 		"winning_tile_id": winning_tile_id,
@@ -1067,7 +1761,12 @@ func _build_win_result(winner_idx: int, is_tsumo: bool, loser_idx: int, yaku: Ar
 	var is_parent: bool = (winner_idx == dealer)
 	# 役満チェックはドラ加算前の役ハンで行う
 	var is_yakuman: bool = MahjongLogic.count_han(yaku) >= 13
-	var han: int = MahjongLogic.count_han(yaku)
+	var has_yakuman_chip_yaku: bool = false
+	for y: Dictionary in yaku:
+		if int(y.get("han", 0)) >= 13 and not y.get("no_yakuman_chip", false):
+			has_yakuman_chip_yaku = true
+			break
+	var han: int = 13 if is_yakuman else MahjongLogic.count_han(yaku)
 	var ura_count: int = 0
 
 	var hand: Array = winner.hand
@@ -1088,6 +1787,9 @@ func _build_win_result(winner_idx: int, is_tsumo: bool, loser_idx: int, yaku: Ar
 			for tid: int in m.get("tile_ids", []):
 				if tid == dora_id:
 					han += 1; regular_dora += 1
+		for nt: Dictionary in winner.nukita:
+			if nt.id == dora_id:
+				han += 1; regular_dora += 1
 
 	# 赤ドラ（常にドラ扱い）
 	var red_count: int = 0
@@ -1124,20 +1826,25 @@ func _build_win_result(winner_idx: int, is_tsumo: bool, loser_idx: int, yaku: Ar
 	if kita_count > 0:
 		yaku.append({"name": "北×" + str(kita_count), "han": kita_count})
 
-	var chips_per: int = _calc_chips(winner, is_tsumo, winner.is_ippatsu, is_yakuman, ura_count)
+	var chips_per: int = _calc_chips(winner, is_tsumo, winner.is_ippatsu, has_yakuman_chip_yaku, ura_count)
 	var score_data: Dictionary = MahjongLogic.calc_score(han, is_parent, is_tsumo)
 	var winning_display_tiles: Array = _build_winning_display_tiles(winner)
+	var winning_display_melds: Array = _build_winning_display_melds(winner)
 	return {
 		"winner_idx": winner_idx, "winner_name": winner.name,
 		"is_tsumo": is_tsumo, "loser_idx": loser_idx,
 		"han": han, "is_parent": is_parent,
 		"yaku": yaku, "score_data": score_data,
 		"winning_display_tiles": winning_display_tiles,
+		"winning_display_melds": winning_display_melds,
+		"nukita_count": winner.nukita.size(),
 		"honba": honba, "honba_bonus": honba * 2000,
+		"kyotaku_before_collection": kyotaku,
 		"draw": false,
 		"chips_per_player": chips_per,
 		"ura_count": ura_count,
 		"is_yakuman": is_yakuman,
+		"score_before": _kyoku_start_scores.duplicate(),
 	}
 
 func _build_winning_display_tiles(winner: Dictionary) -> Array:
@@ -1146,14 +1853,18 @@ func _build_winning_display_tiles(winner: Dictionary) -> Array:
 	if not concealed.is_empty():
 		winning_tile = concealed.pop_back()
 	var display_tiles: Array = concealed
-	for meld: Dictionary in winner.naki:
-		display_tiles.append_array(meld.get("tiles", []))
 	display_tiles.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return int(a.get("id", 0)) < int(b.get("id", 0))
 	)
 	if not winning_tile.is_empty():
 		display_tiles.append(winning_tile)
 	return display_tiles
+
+func _build_winning_display_melds(winner: Dictionary) -> Array:
+	var melds: Array = []
+	for meld: Dictionary in winner.naki:
+		melds.append(meld.duplicate(true))
+	return melds
 
 func _apply_score(result: Dictionary) -> void:
 	var winner_idx: int = result.winner_idx
@@ -1174,6 +1885,7 @@ func _apply_score(result: Dictionary) -> void:
 	players[winner_idx].score += kyotaku * 1000
 	kyotaku = 0
 	_apply_chips(result)
+	result["score_after"] = _snapshot_scores()
 
 # ============================================================
 # チップ計算
@@ -1220,8 +1932,11 @@ func _process_kyoku_end(result: Dictionary) -> void:
 
 	# 流局テンパイ精算
 	if result.get("draw", false):
+		if not result.has("score_before"):
+			result["score_before"] = _kyoku_start_scores.duplicate()
 		var tenpai_info: Dictionary = _apply_tenpai_payments()
 		result["tenpai_info"] = tenpai_info
+		result["score_after"] = _snapshot_scores()
 
 	# 飛び判定
 	var bust_indices: Array = _check_bust()
@@ -1242,9 +1957,13 @@ func _process_kyoku_end(result: Dictionary) -> void:
 		var winner_idx: int = result.get("winner_idx", -1)
 		var dealer_wins: bool = (not result.get("draw", false)) and (winner_idx == dealer)
 		var draw_dealer_tenpai: bool = result.get("draw", false) and _is_player_tenpai(dealer)
-		_advance_kyoku_state(dealer_wins or draw_dealer_tenpai, result.get("draw", false))
+		if _is_oorasu():
+			_apply_oorasu_end_policy(result, dealer_wins or draw_dealer_tenpai)
+		else:
+			_advance_kyoku_state(dealer_wins or draw_dealer_tenpai, result.get("draw", false))
 
 	result["match_will_end"] = _pending_match_end
+	result["oorasu_choice_required"] = _pending_oorasu_player_choice
 	phase = Phase.GAME_OVER
 	emit_signal("game_ended", result)
 
@@ -1301,6 +2020,33 @@ func _is_player_tenpai(idx: int) -> bool:
 	var p: Dictionary = players[idx]
 	if p.is_riichi: return true
 	return not MahjongLogic.find_waiting_tiles(MahjongLogic.get_ids(p.hand)).is_empty()
+
+func _is_oorasu() -> bool:
+	return round_wind == MahjongLogic.SOUTH and kyoku == 3
+
+func _apply_oorasu_end_policy(result: Dictionary, dealer_continues: bool) -> void:
+	if dealer_continues:
+		if dealer == 0:
+			_pending_oorasu_player_choice = true
+		elif _is_top_score(dealer):
+			_pending_match_end = true
+		else:
+			honba += 1
+	else:
+		_pending_match_end = true
+
+func _is_top_score(player_idx: int) -> bool:
+	var score: int = int(players[player_idx].score)
+	for i in range(players.size()):
+		if i != player_idx and int(players[i].score) > score:
+			return false
+	return true
+
+func _find_dealer_index() -> int:
+	for i in range(players.size()):
+		if int(players[i].wind) == MahjongLogic.EAST:
+			return i
+	return 0
 
 # ============================================================
 # 局進行（ディーラー回転・風更新）
@@ -1387,7 +2133,7 @@ func _compute_session_result() -> void:
 # 流局
 # ============================================================
 func _end_round_draw() -> void:
-	var result: Dictionary = {"draw": true, "winner_idx": -1}
+	var result: Dictionary = {"draw": true, "winner_idx": -1, "score_before": _kyoku_start_scores.duplicate()}
 	_process_kyoku_end(result)
 
 # ============================================================
@@ -1458,9 +2204,19 @@ func _find_player_ankan_id() -> int:
 	return -1
 
 func can_player_riichi() -> bool:
+	if players.is_empty():
+		return false
 	var p: Dictionary = players[0]
 	if not _is_closed_for_riichi(p) or p.is_riichi or p.score < 1000: return false
 	return not get_riichi_selectable_indices().is_empty()
+
+func can_player_open_riichi() -> bool:
+	if players.is_empty():
+		return false
+	var p: Dictionary = players[0]
+	if p.score < 2000:
+		return false
+	return can_player_riichi()
 
 func _is_closed_for_riichi(p: Dictionary) -> bool:
 	for meld: Dictionary in p.get("naki", []):
@@ -1568,6 +2324,10 @@ func _npc_can_kakan(player_idx: int) -> bool:
 
 func _npc_wants_kan(npc_idx: int, tile: Dictionary) -> bool:
 	# 役牌で3枚持ちなら大明槓する（ポンと同条件）
+	if _is_hokkyoku_npc(npc_idx):
+		return false
+	if _npc_must_fold_before_actions(npc_idx):
+		return false
 	var p: Dictionary = players[npc_idx]
 	if not _can_start_kan():
 		return false
@@ -1609,8 +2369,7 @@ func _do_minkan(player_idx: int, from_idx: int, tile: Dictionary, selected_hand_
 	p.naki.append({"type": "minkan", "tile_ids": [tile.id, tile.id, tile.id, tile.id],
 				   "tiles": meld_tiles, "from_player": from_idx})
 	p.is_menzen = false
-	if not players[from_idx].discards.is_empty():
-		players[from_idx].discards[-1]["is_taken"] = true
+	_mark_taken_discard(from_idx, tile, "minkan")
 	action_minkan_possible = false
 	# 新ドラ表示牌を公開
 	if wall.size() >= 2 and dora_indicators.size() < 5:
@@ -1628,6 +2387,7 @@ func _do_minkan(player_idx: int, from_idx: int, tile: Dictionary, selected_hand_
 	else:
 		current_player = player_idx
 		phase = Phase.NPC_TURN
+	_assert_kyoku_invariants("after_minkan")
 	emit_signal("naki_done", player_idx)
 	emit_signal("tile_drawn", player_idx)
 	if player_idx == 0:
@@ -1764,10 +2524,17 @@ func _finish_kakan(player_idx: int) -> void:
 # ============================================================
 func debug_set_hand(hand_tiles_13: Array, draw_tile: Dictionary = {}, next_draw_tile: Dictionary = {}, target_player: int = 0) -> void:
 	var p: Dictionary = players[target_player]
+	var was_riichi: bool = p.get("is_riichi", false)
+	var was_daburi: bool = p.get("is_daburi", false)
+	var was_open_riichi: bool = p.get("is_open_riichi", false)
+	var was_ippatsu: bool = p.get("is_ippatsu", false)
+	var old_riichi_discard_idx: int = int(p.get("riichi_discard_idx", -1))
 	p.hand.clear()
 	p.naki.clear()
 	p.is_menzen = true
 	p.is_riichi = false
+	p.is_daburi = false
+	p.is_ippatsu = false
 	p.is_open_riichi = false
 	p.riichi_waiting_ids.clear()
 	p.riichi_discard_idx = -1
@@ -1787,12 +2554,23 @@ func debug_set_hand(hand_tiles_13: Array, draw_tile: Dictionary = {}, next_draw_
 			draw_tile.get("is_haku_pochi", false)
 		))
 	# 次順ツモのwall操作はプレイヤー0のみ
-	if target_player == 0:
+	if was_riichi:
+		var riichi_base_hand: Array = p.hand.duplicate()
+		if draw_id > 0 and not riichi_base_hand.is_empty():
+			riichi_base_hand.pop_back()
+		p.is_riichi = true
+		p.is_daburi = was_daburi
+		p.is_open_riichi = was_open_riichi
+		p.is_ippatsu = was_ippatsu
+		p.riichi_discard_idx = old_riichi_discard_idx
+		p.riichi_waiting_ids = MahjongLogic.find_waiting_tiles(MahjongLogic.get_ids(riichi_base_hand))
+		p.riichi_waiting_ids.sort()
+	if target_player >= 0:
 		var next_id: int = next_draw_tile.get("id", 0)
 		if next_id > 0:
 			# draw_id > 0 の場合：プレイヤーが捨てた後にNPC2人が引くので wall[2] が次順ツモ
 			# draw_id == 0 の場合：次にプレイヤーが引く位置は wall[0]
-			var wall_idx: int = 2 if draw_id > 0 else 0
+			var wall_idx: int = debug_next_draw_wall_index(target_player, draw_id > 0)
 			var next_tile := MahjongLogic.make_tile(
 				next_id,
 				next_draw_tile.get("is_red", false),
@@ -1803,6 +2581,18 @@ func debug_set_hand(hand_tiles_13: Array, draw_tile: Dictionary = {}, next_draw_
 				wall[wall_idx] = next_tile
 			elif wall_idx == wall.size():
 				wall.append(next_tile)
+
+func debug_next_draw_wall_index(target_player: int, has_current_draw_tile: bool = false) -> int:
+	if players.is_empty():
+		return 0
+	if has_current_draw_tile:
+		return max(players.size() - 1, 0)
+	if target_player == 0:
+		return 0
+	var distance: int = (target_player - current_player + players.size()) % players.size()
+	if distance == 0:
+		distance = players.size()
+	return max(distance - 1, 0)
 
 func debug_set_rinshan(tiles_1st_to_8th: Array) -> void:
 	# tiles_1st_to_8th[0] = 1st draw, [7] = 8th draw

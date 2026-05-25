@@ -1,0 +1,160 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://cutin_reach.gd" id="1"]
+
+[node name="CutinReach" type="CanvasLayer"]
+layer = 80
+script = ExtResource("1")
+
+[node name="BandRoot" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 0
+offset_left = 434.0
+offset_top = 0.0
+offset_right = 1486.0
+offset_bottom = 1080.0
+pivot_offset = Vector2(526, 540)
+
+[node name="RevealClip" type="Control" parent="BandRoot"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 1052.0
+offset_bottom = 1080.0
+clip_contents = true
+
+[node name="BaseBackground" type="TextureRect" parent="BandRoot/RevealClip"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 1052.0
+offset_bottom = 1080.0
+expand_mode = 1
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="ScrollRoot" type="Control" parent="BandRoot/RevealClip"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 1052.0
+offset_bottom = 8640.0
+
+[node name="KattoinScrollA" type="TextureRect" parent="BandRoot/RevealClip/ScrollRoot"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 1052.0
+offset_bottom = 1080.0
+expand_mode = 1
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="KattoinScrollB" type="TextureRect" parent="BandRoot/RevealClip/ScrollRoot"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 1080.0
+offset_right = 1052.0
+offset_bottom = 2160.0
+expand_mode = 1
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="KattoinScrollC" type="TextureRect" parent="BandRoot/RevealClip/ScrollRoot"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 2160.0
+offset_right = 1052.0
+offset_bottom = 3240.0
+expand_mode = 1
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="KattoinScrollD" type="TextureRect" parent="BandRoot/RevealClip/ScrollRoot"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 3240.0
+offset_right = 1052.0
+offset_bottom = 4320.0
+expand_mode = 1
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="KattoinScrollE" type="TextureRect" parent="BandRoot/RevealClip/ScrollRoot"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 4320.0
+offset_right = 1052.0
+offset_bottom = 5400.0
+expand_mode = 1
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="KattoinScrollF" type="TextureRect" parent="BandRoot/RevealClip/ScrollRoot"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 5400.0
+offset_right = 1052.0
+offset_bottom = 6480.0
+expand_mode = 1
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="KattoinScrollG" type="TextureRect" parent="BandRoot/RevealClip/ScrollRoot"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 6480.0
+offset_right = 1052.0
+offset_bottom = 7560.0
+expand_mode = 1
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="KattoinScrollH" type="TextureRect" parent="BandRoot/RevealClip/ScrollRoot"]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 7560.0
+offset_right = 1052.0
+offset_bottom = 8640.0
+expand_mode = 1
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="CharacterSprite" type="TextureRect" parent="BandRoot/RevealClip"]
+layout_mode = 0
+offset_left = -1114.0
+offset_top = -890.0
+offset_right = 2166.0
+offset_bottom = 3030.0
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
+
+[node name="WhiteFrameLeft" type="ColorRect" parent="BandRoot"]
+layout_mode = 0
+offset_left = -14.0
+offset_top = 0.0
+offset_right = 2.0
+offset_bottom = 1080.0
+color = Color(1, 1, 1, 0)
+visible = false
+mouse_filter = 2
+
+[node name="WhiteFrameRight" type="ColorRect" parent="BandRoot"]
+layout_mode = 0
+offset_left = 1050.0
+offset_top = 0.0
+offset_right = 1066.0
+offset_bottom = 1080.0
+color = Color(1, 1, 1, 0)
+visible = false
+mouse_filter = 2
+
+[node name="ReachStickSprite" type="Sprite2D" parent="."]
+z_index = 4
+position = Vector2(960, 540)
+centered = true
+modulate = Color(1, 1, 1, 0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+root_node = NodePath("..")

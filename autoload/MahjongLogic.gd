@@ -115,7 +115,7 @@ func get_dora_from_indicator(indicator_id: int) -> int:
 	if indicator_id == MAN_9: return MAN_1
 	if indicator_id == EAST:  return SOUTH
 	if indicator_id == SOUTH: return WEST
-	if indicator_id == WEST:  return EAST
+	if indicator_id == WEST:  return NORTH
 	if indicator_id == NORTH: return EAST
 	if indicator_id == HAKU:  return HATSU
 	if indicator_id == HATSU: return CHUN
@@ -568,7 +568,7 @@ func check_yaku(hand_ids: Array, context: Dictionary) -> Array:
 			break
 
 	# 役満チェック（先）
-	var yakuman: Array = _check_yakuman(hand_ids, context, is_open, open_melds)
+	var yakuman: Array = _check_yakuman_all(hand_ids, context, is_open, open_melds)
 	if not yakuman.is_empty():
 		return yakuman
 
@@ -584,6 +584,8 @@ func check_yaku(hand_ids: Array, context: Dictionary) -> Array:
 			yaku.append({"name": "ダブルリーチ", "han": 2})
 		else:
 			yaku.append({"name": "リーチ", "han": 1})
+		if context.get("is_open_riichi", false):
+			yaku.append({"name": "オープン立直", "han": 1})
 		if context.get("is_ippatsu", false):
 			yaku.append({"name": "一発", "han": 1})
 	if context.get("is_tsumo", false) and not is_open:
@@ -696,6 +698,37 @@ func _check_yakuman(hand_ids: Array, context: Dictionary, is_open: bool, open_me
 # ============================================================
 # 役判定ヘルパー
 # ============================================================
+
+func _check_yakuman_all(hand_ids: Array, context: Dictionary, is_open: bool, open_melds: Array) -> Array:
+	var yaku: Array = []
+	if context.get("is_tenhou", false): yaku.append({"name": "天和", "han": 13})
+	if context.get("is_chiihou", false): yaku.append({"name": "地和", "han": 13})
+	if context.get("is_renhou", false): yaku.append({"name": "人和", "han": 13})
+	if context.get("is_nagashi", false): yaku.append({"name": "流し満貫", "han": 13})
+	if _is_seven_pairs(hand_ids) and _check_chinitsu(hand_ids, []):
+		yaku.append({"name": "大車輪", "han": 13})
+	if _is_seven_pairs(hand_ids):
+		var cnt: Dictionary = count_tiles(hand_ids)
+		var q: int = 0
+		for t in cnt:
+			if cnt[t] == 4: q += 1
+		if q == 3:
+			yaku.append({"name": "12枚七対子", "han": 13})
+	if _check_kokushi(hand_ids): yaku.append({"name": "国士無双", "han": 13})
+	if _check_chinroutou(hand_ids, open_melds): yaku.append({"name": "清老頭", "han": 13})
+	if _check_tsuiso(hand_ids, open_melds): yaku.append({"name": "字一色", "han": 13})
+	if _check_ryuuiisou(hand_ids, open_melds): yaku.append({"name": "緑一色", "han": 13})
+	if _check_manzu_honitsu(hand_ids, open_melds): yaku.append({"name": "萬子混一色", "han": 13})
+	if _check_daisangen(hand_ids, open_melds): yaku.append({"name": "大三元", "han": 13})
+	if _check_daisuushii(hand_ids, open_melds): yaku.append({"name": "大四喜", "han": 13})
+	if _check_shousuushii(hand_ids, open_melds): yaku.append({"name": "小四喜", "han": 13})
+	if not is_open and _check_chuuren_poutou(hand_ids):
+		yaku.append({"name": "九蓮宝燈", "han": 13})
+	if not is_open and _check_suuankou(hand_ids, context):
+		yaku.append({"name": "四暗刻", "han": 13})
+	if _count_kantsu(open_melds) >= 4:
+		yaku.append({"name": "四槓子", "han": 13})
+	return yaku
 
 func _all_simples(hand_ids: Array, open_melds: Array) -> bool:
 	for id: int in hand_ids:

@@ -20,19 +20,31 @@ var total_chip: int = 0
 # プレイヤー設定
 var player_name: String = "あなた"
 var selected_player_character: String = "hachimi"
-var selected_npc: Array = ["npc_01", "npc_02"]
+var selected_npc: Array = ["kuma_def", "kuma_hiyake"]
+var selected_empty_seat: String = "top"
+var selected_npc_seats: Dictionary = {"bottom": "kuma_def", "right": "kuma_hiyake", "top": ""}
+
+const NPC_DEFS := {
+	"kuma_black": {"name": "ブラックくま", "path": "res://chara/kuma_black.webp"},
+	"kuma_def": {"name": "くまぱぱ", "path": "res://chara/kuma_def.webp"},
+	"kuma_hiyake": {"name": "日焼けくま", "path": "res://chara/kuma_hiyake.webp"},
+	"kuma_hokkyoku": {"name": "北極熊", "path": "res://chara/kuma_hokkyoku.webp"},
+	"kuma_megane": {"name": "眼鏡くま", "path": "res://chara/kuma_megane.webp"},
+	"kuma_saibo": {"name": "サイボーグくま", "path": "res://chara/kuma_saibo.webp"},
+}
 
 # NPC別対戦回数（NPC01〜06それぞれ）
 var npc_games: Dictionary = {
-	"npc_01": 0, "npc_02": 0, "npc_03": 0,
-	"npc_04": 0, "npc_05": 0, "npc_06": 0,
+	"kuma_black": 0, "kuma_def": 0, "kuma_hiyake": 0,
+	"kuma_hokkyoku": 0, "kuma_megane": 0, "kuma_saibo": 0,
 }
 
-var bgm_volume: float = 0.15
-var se_volume: float = 0.5
+var bgm_volume: float = AudioManager.DEFAULT_BGM_VOLUME
+var se_volume: float = AudioManager.DEFAULT_SE_VOLUME
 
 func _ready() -> void:
 	load_data()
+	AudioManager.set_volumes(bgm_volume, se_volume)
 
 func save_data() -> void:
 	var data := {
@@ -42,7 +54,8 @@ func save_data() -> void:
 		"total_agari_jun": total_agari_jun, "total_agari_han": total_agari_han,
 		"total_agari_chip": total_agari_chip, "total_score": total_score, "total_chip": total_chip,
 		"player_name": player_name, "selected_player_character": selected_player_character,
-		"selected_npc": selected_npc, "npc_games": npc_games,
+		"selected_npc": selected_npc, "selected_empty_seat": selected_empty_seat,
+		"selected_npc_seats": selected_npc_seats, "npc_games": npc_games,
 		"bgm_volume": bgm_volume, "se_volume": se_volume,
 	}
 	var f: FileAccess = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -77,10 +90,82 @@ func load_data() -> void:
 	total_chip     = d.get("total_chip", 0)
 	player_name               = d.get("player_name", "あなた")
 	selected_player_character = d.get("selected_player_character", "hachimi")
-	selected_npc              = d.get("selected_npc", ["npc_01", "npc_02"])
-	npc_games      = d.get("npc_games", {"npc_01": 0, "npc_02": 0, "npc_03": 0, "npc_04": 0, "npc_05": 0, "npc_06": 0})
-	bgm_volume     = d.get("bgm_volume", 0.15)
-	se_volume      = d.get("se_volume", 0.5)
+	selected_npc              = _normalize_npc_ids(d.get("selected_npc", ["kuma_def", "kuma_hiyake"]))
+	selected_empty_seat       = d.get("selected_empty_seat", "top")
+	selected_npc_seats        = _normalize_npc_seats(d.get("selected_npc_seats", selected_npc_seats))
+	npc_games      = d.get("npc_games", {"kuma_black": 0, "kuma_def": 0, "kuma_hiyake": 0, "kuma_hokkyoku": 0, "kuma_megane": 0, "kuma_saibo": 0})
+	for npc_id: String in NPC_DEFS.keys():
+		if not npc_games.has(npc_id):
+			npc_games[npc_id] = 0
+	bgm_volume     = d.get("bgm_volume", AudioManager.DEFAULT_BGM_VOLUME)
+	se_volume      = d.get("se_volume", AudioManager.DEFAULT_SE_VOLUME)
+	if is_equal_approx(bgm_volume, 0.15) and is_equal_approx(se_volume, 0.5):
+		bgm_volume = AudioManager.DEFAULT_BGM_VOLUME
+		se_volume = AudioManager.DEFAULT_SE_VOLUME
+
+func _normalize_npc_ids(ids: Array) -> Array:
+	var result: Array = []
+	for id in ids:
+		var npc_id := _legacy_npc_id(str(id))
+		if NPC_DEFS.has(npc_id) and npc_id not in result:
+			result.append(npc_id)
+	for fallback in ["kuma_def", "kuma_hiyake"]:
+		if result.size() >= 2:
+			break
+		if fallback not in result:
+			result.append(fallback)
+	return result.slice(0, 2)
+
+func _normalize_npc_seats(seats: Dictionary) -> Dictionary:
+	var result := {"bottom": "", "right": "", "top": ""}
+	for seat in result.keys():
+		var npc_id := _legacy_npc_id(str(seats.get(seat, "")))
+		result[seat] = npc_id if NPC_DEFS.has(npc_id) else ""
+	var filled := []
+	for seat in ["bottom", "right", "top"]:
+		if result[seat] != "":
+			filled.append(result[seat])
+	if filled.size() != 2:
+		result = {"bottom": "kuma_def", "right": "kuma_hiyake", "top": ""}
+	selected_empty_seat = _find_empty_seat(result)
+	selected_npc = _seat_npc_ids(result)
+	return result
+
+func _legacy_npc_id(id: String) -> String:
+	match id:
+		"npc_01": return "kuma_def"
+		"npc_02": return "kuma_hiyake"
+		"npc_03": return "kuma_black"
+		"npc_04": return "kuma_hokkyoku"
+		"npc_05": return "kuma_megane"
+		"npc_06": return "kuma_saibo"
+	return id
+
+func _find_empty_seat(seats: Dictionary) -> String:
+	for seat in ["bottom", "right", "top"]:
+		if str(seats.get(seat, "")) == "":
+			return seat
+	return "top"
+
+func _seat_npc_ids(seats: Dictionary) -> Array:
+	var ids: Array = []
+	for seat in ["bottom", "right", "top"]:
+		var npc_id := str(seats.get(seat, ""))
+		if npc_id != "":
+			ids.append(npc_id)
+	return ids
+
+func set_npc_seats(seats: Dictionary) -> void:
+	selected_npc_seats = _normalize_npc_seats(seats)
+	selected_empty_seat = _find_empty_seat(selected_npc_seats)
+	selected_npc = _seat_npc_ids(selected_npc_seats)
+	save_data()
+
+func get_npc_name(npc_id: String) -> String:
+	return NPC_DEFS.get(npc_id, {}).get("name", npc_id)
+
+func get_npc_path(npc_id: String) -> String:
+	return NPC_DEFS.get(npc_id, {}).get("path", "res://chara/kuma_def.webp")
 
 # ============================================================
 # 対局後の統計更新
