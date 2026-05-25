@@ -54,17 +54,28 @@
 
 - Platform: iOS
 - Export Project Only: 有効
+- Export Path: `../iOSBuild/mapapa.ipa`
 - Bundle Identifier: `com.nb0129.mapapa3`
 - Target Device Family: iPhone
-- Team ID / Code Sign Identity / Provisioning Profile: 未設定
+- Team ID: `J9PMYUQB9V`
+- Code Sign Identity / Provisioning Profile: 未設定
 
-Apple Developer Program未加入のため、署名情報は空にしている。Xcode側で無料Apple IDまたは加入後のTeamを選ぶ。
+Provisioning Profileは未設定のため、Xcode側で無料Apple IDまたは加入後のTeamを選ぶ。
+
+`Export Project` で書き出す場合、`export_path` のファイル名部分はXcodeプロジェクト名のベースとして使われる。`.xcodeproj` を含めると、Godotがアプリ本体フォルダを `mapapa.xcodeproj`、実際のXcodeプロジェクトを `mapapa.xcodeproj.xcodeproj` として生成してしまい、間違って前者を開くと `project.pbxproj` が無い壊れたプロジェクトに見える。
+
+正常な書き出し結果:
+
+- `../iOSBuild/mapapa/` ... アプリ本体用ファイル
+- `../iOSBuild/mapapa.xcodeproj/project.pbxproj` ... Xcodeで開くプロジェクト
+- `../iOSBuild/mapapa.pck`
+- `../iOSBuild/mapapa.xcframework`
 
 現在の確認結果:
 
-- Godotから `iOS` presetは認識される。
-- このPCには `C:/Users/hskst/AppData/Roaming/Godot/export_templates/4.6.2.stable/ios.zip` が未導入のため、現時点ではiOS export実行はテンプレート不足で止まる。
-- 実機テストへ進む前に、Godot 4.6.2 stable用のExport Templatesをインストールする。
+- Godot 4.6.3 stableから `iOS` presetは認識される。
+- このMacには `~/Library/Application Support/Godot/export_templates/4.6.3.stable/ios.zip` が導入済み。
+- `ios.zip` 内に `godot_apple_embedded.xcodeproj/project.pbxproj` が含まれていることを確認済み。
 
 ## 無料Apple IDで実機実行する流れ
 

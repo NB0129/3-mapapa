@@ -1,6 +1,11 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/26】iOS Xcodeプロジェクト書き出し設定修正（export_presets.cfg / README_IOS.md / 仕様書）
+  - iOS presetのExport Pathを ../iOSBuild/mapapa.ipa に変更し、Xcodeプロジェクト名のベースに .xcodeproj が混入しないよう修正。
+  - Export Project Onlyを有効化し、../iOSBuild/mapapa.xcodeproj/project.pbxproj が生成される設定へ戻した。
+  - README_IOS.mdに正常なiOS書き出し結果と、mapapa.xcodeproj.xcodeproj が生成される原因を追記。
+
 ?2026/05/25?iOS????????project.godot / export_presets.cfg / game.gd / menu.gd / README_IOS.md?
   - Project Settings?Stretch???canvas_items / keep??iPhone?????orientation??????
   - ??gui_input??????????????????????InputEventScreenTouch??????
