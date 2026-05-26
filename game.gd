@@ -1205,7 +1205,7 @@ func _check_tsumo_auto() -> void:
 	var can_kita: bool = GameState.can_player_kita()
 	var can_kan: bool = GameState.can_player_ankan() or GameState.can_player_kakan()
 	if GameState.phase == GameState.Phase.AFTER_PON:
-		_set_action_buttons_state(true, false, false, false, false, false, can_kita, false)
+		_set_action_buttons_state(true, false, false, false, false, false, false, false)
 	else:
 		_set_action_buttons_state(false, can_tsumo, false, can_tsumo, can_riichi, false, can_kita, can_kan)
 

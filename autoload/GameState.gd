@@ -1009,7 +1009,7 @@ func player_pon(selected_hand_idx: int = -1) -> void:
 	_do_pon(0, action_pon_from, last_discarded_tile, selected_hand_idx)
 
 func player_kita() -> void:
-	if phase != Phase.PLAYER_TURN and phase != Phase.AFTER_PON: return
+	if phase != Phase.PLAYER_TURN: return
 	_do_kita(0)
 
 func player_ankan(kan_id_override: int = -1) -> void:
