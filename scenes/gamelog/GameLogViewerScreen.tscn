@@ -1,0 +1,6 @@
+[gd_scene format=3 load_steps=2]
+
+[ext_resource type="Script" path="res://scripts/gamelog/GameLogViewerScreen.gd" id="1"]
+
+[node name="GameLogViewerScreen" type="Control"]
+script = ExtResource("1")

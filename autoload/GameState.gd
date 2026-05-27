@@ -61,6 +61,7 @@ var _ankan_tile: Dictionary = {}
 var _pending_kita_player: int = -1
 var _kita_tile: Dictionary = {}
 var _drew_from_rinshan: bool = false      # 嶺上ツモかどうか（役・点数計算用）
+var _recorder: GameLogRecorder = null
 var _is_chankan_ron: bool = false         # 槍槓ロン中かどうか（_finalize_ronでis_chankan=trueにするため）
 var _suukantsu_pending: int = -1         # 四槓子成立待ち（4つ目槓後の捨て牌でロンなければ成立）
 var _pending_npc_ron_after_skip: int = -1 # プレイヤーがロンを見逃した場合の次順位NPCロン候補
@@ -89,6 +90,7 @@ var last_discard_player: int = -1
 var junme: int = 0
 var kyoku_has_meld: bool = false   # 局開始後に誰かがポン/カンしたか（地和判定用）
 var action_winner_idx: int = -1
+var action_ron_candidates: Array = []
 var action_is_ron: bool = false
 var action_pon_from: int = -1
 
@@ -111,6 +113,8 @@ func _make_player(p_name: String, is_npc: bool, wind: int, npc_id: String = "") 
 		"pon_forbidden_id": -1,
 		"is_riichi_furiten": false,
 		"is_doujun_furiten": false,
+		"pao_daisangen_from": -1,
+		"pao_suukantsu_from": -1,
 	}
 
 # ============================================================
@@ -159,6 +163,8 @@ func start_match() -> void:
 		var fallback_id := "kuma_def" if players.size() == 1 else "kuma_hiyake"
 		players.append(_make_player(SaveData.get_npc_name(fallback_id), true, MahjongLogic.SOUTH if players.size() == 1 else MahjongLogic.WEST, fallback_id))
 	dealer = _find_dealer_index()
+	_recorder = GameLogRecorder.new()
+	_recorder.start_game(players)
 	_start_kyoku()
 
 # 後方互換エイリアス
@@ -182,6 +188,8 @@ func _start_kyoku() -> void:
 		p.pon_forbidden_id = -1
 		p.is_riichi_furiten = false
 		p.is_doujun_furiten = false
+		p.pao_daisangen_from = -1
+		p.pao_suukantsu_from = -1
 		p.npc_mode = ""
 	_setup_wall()
 	_deal_hands()
@@ -193,6 +201,7 @@ func _start_kyoku() -> void:
 	last_discarded_tile = {}
 	last_discard_player = -1
 	action_winner_idx = -1
+	action_ron_candidates = []
 	action_is_ron = false
 	action_pon_from = -1
 	action_minkan_possible = false
@@ -208,6 +217,9 @@ func _start_kyoku() -> void:
 	_pending_npc_ron_after_skip = -1
 	_pending_player_riichi_hand_idx = -1
 	emit_signal("game_started")
+	if _recorder:
+		_recorder.start_round(round_wind, kyoku, honba, dealer,
+			players.map(func(p: Dictionary): return p.score))
 	_start_turn(dealer)
 
 # 局結果確認後に呼び出し（ゲーム.gd から）
@@ -287,6 +299,9 @@ func _start_turn(player_idx: int) -> void:
 	players[player_idx].hand.append(drawn)
 	players[player_idx].is_doujun_furiten = false
 	_drew_from_rinshan = false  # 通常ツモなので嶺上フラグをリセット
+	if _recorder:
+		_recorder.record_draw(player_idx, drawn,
+			players[player_idx].hand.duplicate(true) if not players[player_idx].is_npc else [])
 
 	emit_signal("tile_drawn", player_idx)
 	emit_signal("wall_count_changed", wall.size())
@@ -1002,6 +1017,9 @@ func finish_player_riichi() -> bool:
 
 func player_ron() -> void:
 	if phase != Phase.ACTION_WAIT or not action_is_ron: return
+	if not action_ron_candidates.is_empty():
+		_finalize_ron_candidates(action_ron_candidates, last_discard_player)
+		return
 	_finalize_ron(0, last_discard_player)
 
 func player_pon(selected_hand_idx: int = -1) -> void:
@@ -1035,9 +1053,15 @@ func player_skip() -> void:
 		if players[0].is_riichi:
 			players[0].is_riichi_furiten = true
 		if _pending_npc_ron_after_skip >= 0:
-			var npc_winner: int = _pending_npc_ron_after_skip
+			var remaining: Array = []
+			if action_ron_candidates.is_empty():
+				remaining.append(_pending_npc_ron_after_skip)
+			else:
+				for idx: int in action_ron_candidates:
+					if idx != 0:
+						remaining.append(idx)
 			_pending_npc_ron_after_skip = -1
-			_finalize_ron(npc_winner, last_discard_player)
+			_finalize_ron_candidates(remaining, last_discard_player)
 			return
 	# チャンカン見逃し → 加槓を継続する
 	if _pending_kakan_player >= 0:
@@ -1110,6 +1134,8 @@ func _do_discard_internal(player_idx: int, hand_idx: int, forced_tsumogiri: bool
 	players[player_idx].pon_forbidden_id = -1  # 捨て牌後に食い変え禁止をリセット
 	last_discarded_tile = tile
 	last_discard_player = player_idx
+	if _recorder:
+		_recorder.record_discard(player_idx, tile, tile.get("is_riichi_tile", false))
 	phase = Phase.ACTION_WAIT
 	emit_signal("tile_discarded", player_idx, tile)
 	_assert_kyoku_invariants("after_discard")
@@ -1145,6 +1171,9 @@ func _finish_kita(player_idx: int, resume_npc: bool = false) -> void:
 		var new_tile: Dictionary = rinshan.pop_back()
 		p.hand.append(new_tile)
 	_drew_from_rinshan = true
+	if _recorder:
+		_recorder.record_kita(player_idx, _kita_tile,
+			players[player_idx].hand.duplicate(true) if not players[player_idx].is_npc else [])
 	if player_idx == 0:
 		phase = Phase.PLAYER_TURN
 	else:
@@ -1179,6 +1208,8 @@ func _do_ankan(player_idx: int, kan_id_override: int = -1) -> void:
 			kan_tiles.append(p.hand[i])
 			p.hand.remove_at(i)
 	p.naki.append({"type": "ankan", "tile_ids": [kan_id, kan_id, kan_id, kan_id], "tiles": kan_tiles})
+	if _recorder:
+		_recorder.record_meld(player_idx, "ankan", kan_id, -1)
 	_ankan_tile = MahjongLogic.make_tile(kan_id)
 	if player_idx != 0:
 		if _check_ankan_chankan_opportunity(player_idx, kan_id):
@@ -1195,6 +1226,11 @@ func _do_ankan(player_idx: int, kan_id_override: int = -1) -> void:
 	_drew_from_rinshan = true  # 嶺上ツモフラグ
 	if MahjongLogic._count_kantsu(p.naki) >= 4:
 		_suukantsu_pending = player_idx
+		if int(p.get("pao_suukantsu_from", -1)) < 0:
+			for m: Dictionary in p.naki:
+				if m.get("type", "") == "kakan":
+					p.pao_suukantsu_from = int(m.get("from_player", -1))
+					break
 	if player_idx == 0:
 		phase = Phase.PLAYER_TURN
 	else:
@@ -1355,6 +1391,9 @@ func _do_pon(player_idx: int, from_idx: int, tile: Dictionary, selected_hand_idx
 	var meld_tiles: Array = [tile] + removed_tiles
 	p.naki.append({"type": "pon", "tile_ids": [tile.id, tile.id, tile.id],
 				   "tiles": meld_tiles, "from_player": from_idx})
+	if _recorder:
+		_recorder.record_meld(player_idx, "pon", tile.id, from_idx)
+	_update_pao_after_meld(player_idx, from_idx)
 	p.is_menzen = false
 	p.pon_forbidden_id = tile.id  # 食い変え禁止: ポン直後に同種牌は切れない
 	# ポンされた捨て牌にフラグを立てる（河に残るが黒マスクで覆う）
@@ -1373,6 +1412,29 @@ func _npc_pon_discard(player_idx: int) -> void:
 	var p: Dictionary = players[player_idx]
 	if p.hand.is_empty(): return
 	_do_discard_internal(player_idx, _choose_npc_safe_discard_index(player_idx))
+
+func _update_pao_after_meld(player_idx: int, from_idx: int) -> void:
+	if from_idx < 0 or from_idx == player_idx:
+		return
+	var p: Dictionary = players[player_idx]
+	if int(p.get("pao_daisangen_from", -1)) < 0 and _dragon_triplet_count(p) >= 3:
+		p.pao_daisangen_from = from_idx
+	if int(p.get("pao_suukantsu_from", -1)) < 0 and MahjongLogic._count_kantsu(p.naki) >= 4:
+		p.pao_suukantsu_from = from_idx
+
+func _dragon_triplet_count(p: Dictionary) -> int:
+	var count := 0
+	var hand_counts := {}
+	for t: Dictionary in p.hand:
+		hand_counts[t.id] = hand_counts.get(t.id, 0) + 1
+	for id: int in [MahjongLogic.HAKU, MahjongLogic.HATSU, MahjongLogic.CHUN]:
+		if int(hand_counts.get(id, 0)) >= 3:
+			count += 1
+	for m: Dictionary in p.naki:
+		var ids: Array = m.get("tile_ids", [])
+		if ids.size() >= 3 and ids[0] in [MahjongLogic.HAKU, MahjongLogic.HATSU, MahjongLogic.CHUN]:
+			count += 1
+	return count
 
 func _mark_taken_discard(from_idx: int, tile: Dictionary, reason: String) -> void:
 	if from_idx < 0 or from_idx >= players.size():
@@ -1456,21 +1518,21 @@ func _check_actions_after_discard(discarder_idx: int, tile: Dictionary) -> void:
 		elif _npc_can_ron(candidate_idx, discarder_idx, tile):
 			ron_candidates.append(candidate_idx)
 	if not ron_candidates.is_empty():
-		var winner_idx: int = ron_candidates[0]  # 頭ハネ: 捨てた人から次順に近い和了者を優先
-		if winner_idx == 0:
+		if 0 in ron_candidates:
 			_pending_npc_ron_after_skip = -1
 			for idx: int in ron_candidates:
 				if idx != 0:
 					_pending_npc_ron_after_skip = idx
 					break
 			action_winner_idx = 0
+			action_ron_candidates = ron_candidates.duplicate()
 			action_is_ron = true
 			action_pon_from = -1
 			action_minkan_possible = false
 			phase = Phase.ACTION_WAIT
 			emit_signal("ron_opportunity", 0, discarder_idx, tile)
 		else:
-			_finalize_ron(winner_idx, discarder_idx)
+			_finalize_ron_candidates(ron_candidates, discarder_idx)
 		return
 
 	var player_can_pon: bool = false
@@ -1675,7 +1737,64 @@ func _is_player_furiten(player_idx: int) -> bool:
 	var hand_ids: Array = MahjongLogic.get_ids(p.hand)
 	return MahjongLogic.is_furiten(hand_ids, MahjongLogic.get_ids(p.discards))
 
+func _finalize_ron_candidates(winner_indices: Array, loser_idx: int) -> void:
+	action_ron_candidates = []
+	if winner_indices.is_empty():
+		_next_turn(loser_idx)
+		return
+	var results: Array = []
+	var head_winner: int = int(winner_indices[0])
+	var original_kyotaku: int = kyotaku
+	for wi in winner_indices:
+		var winner_idx: int = int(wi)
+		var winner: Dictionary = players[winner_idx]
+		winner.hand.append(last_discarded_tile)
+		var hand_ids: Array = MahjongLogic.get_ids(winner.hand)
+		if MahjongLogic.is_complete_hand(hand_ids):
+			var context: Dictionary = _build_context(winner_idx, false, last_discarded_tile.id)
+			if _is_chankan_ron:
+				context["is_chankan"] = true
+			var yaku: Array = MahjongLogic.check_yaku(hand_ids, context)
+			if not yaku.is_empty():
+				if winner.get("is_open_riichi", false) \
+						and last_discarded_tile.get("open_riichi_forced_houjuu", false) \
+						and not last_discarded_tile.get("is_forced_tsumogiri", false):
+					var actual_yakuman: Array = []
+					for y: Dictionary in yaku:
+						if int(y.get("han", 0)) >= 13:
+							actual_yakuman.append(y)
+					yaku = [{"name": "オープン立直（手詰まり放銃）", "han": 13, "no_yakuman_chip": true}]
+					yaku.append_array(actual_yakuman)
+				var result: Dictionary = _build_win_result(winner_idx, false, loser_idx, yaku)
+				if winner_idx != head_winner:
+					result["honba"] = 0
+					result["honba_bonus"] = 0
+					result["kyotaku_before_collection"] = 0
+				results.append(result)
+		winner.hand.pop_back()
+	if results.is_empty():
+		_is_chankan_ron = false
+		_next_turn(loser_idx)
+		return
+	_pending_kakan_player = -1
+	_pending_ankan_player = -1
+	_pending_kita_player = -1
+	_pending_npc_ron_after_skip = -1
+	_is_chankan_ron = false
+	for r: Dictionary in results:
+		if int(r.get("winner_idx", -1)) != head_winner:
+			kyotaku = 0
+		_apply_score(r)
+	kyotaku = 0
+	var main_result: Dictionary = results[0]
+	main_result["double_ron_results"] = results
+	main_result["is_double_ron"] = results.size() >= 2
+	main_result["kyotaku_before_collection"] = original_kyotaku
+	main_result["score_after"] = _snapshot_scores()
+	_process_kyoku_end(main_result)
+
 func _finalize_ron(winner_idx: int, loser_idx: int) -> void:
+	action_ron_candidates = []
 	_pending_npc_ron_after_skip = -1
 	_pending_ankan_player = -1
 	_pending_kita_player = -1
@@ -1828,6 +1947,7 @@ func _build_win_result(winner_idx: int, is_tsumo: bool, loser_idx: int, yaku: Ar
 
 	var chips_per: int = _calc_chips(winner, is_tsumo, winner.is_ippatsu, has_yakuman_chip_yaku, ura_count)
 	var score_data: Dictionary = MahjongLogic.calc_score(han, is_parent, is_tsumo)
+	var pao_player_idx: int = _get_pao_player_idx(winner, yaku)
 	var winning_display_tiles: Array = _build_winning_display_tiles(winner)
 	var winning_display_melds: Array = _build_winning_display_melds(winner)
 	return {
@@ -1844,8 +1964,18 @@ func _build_win_result(winner_idx: int, is_tsumo: bool, loser_idx: int, yaku: Ar
 		"chips_per_player": chips_per,
 		"ura_count": ura_count,
 		"is_yakuman": is_yakuman,
+		"pao_player_idx": pao_player_idx,
 		"score_before": _kyoku_start_scores.duplicate(),
 	}
+
+func _get_pao_player_idx(winner: Dictionary, yaku: Array) -> int:
+	for y: Dictionary in yaku:
+		var name := str(y.get("name", ""))
+		if name == "大三元" and int(winner.get("pao_daisangen_from", -1)) >= 0:
+			return int(winner.get("pao_daisangen_from", -1))
+		if name == "四槓子" and int(winner.get("pao_suukantsu_from", -1)) >= 0:
+			return int(winner.get("pao_suukantsu_from", -1))
+	return -1
 
 func _build_winning_display_tiles(winner: Dictionary) -> Array:
 	var concealed: Array = winner.hand.duplicate(true)
@@ -1871,7 +2001,26 @@ func _apply_score(result: Dictionary) -> void:
 	var is_tsumo: bool  = result.is_tsumo
 	var sd: Dictionary  = result.score_data
 	var honba_bonus: int = result.honba_bonus
-	if is_tsumo:
+	var pao_idx: int = int(result.get("pao_player_idx", -1))
+	if pao_idx >= 0 and pao_idx != winner_idx:
+		if is_tsumo:
+			var total_pay: int = int(sd.get("total", 0)) + honba * 2000
+			players[pao_idx].score -= total_pay
+			players[winner_idx].score += total_pay
+		else:
+			var total_ron: int = int(sd.get("total", 0)) + honba_bonus
+			var loser_idx: int = int(result.get("loser_idx", -1))
+			if loser_idx == pao_idx:
+				players[pao_idx].score -= total_ron
+				players[winner_idx].score += total_ron
+			else:
+				var pao_pay: int = int(ceil(float(total_ron) / 2.0 / 1000.0)) * 1000
+				var loser_pay: int = total_ron - pao_pay
+				players[pao_idx].score -= pao_pay
+				if loser_idx >= 0:
+					players[loser_idx].score -= loser_pay
+				players[winner_idx].score += total_ron
+	elif is_tsumo:
 		for i in range(players.size()):
 			if i == winner_idx: continue
 			var pay: int = sd.each
@@ -1945,13 +2094,18 @@ func _process_kyoku_end(result: Dictionary) -> void:
 		var bust_idx: int = bust_indices[0]
 		result["bust_player_idx"] = bust_idx
 		result["bust_player_indices"] = bust_indices
-		# 飛び賞チップ（和了で飛ばした場合のみ）
+		# 飛び賞チップ。和了以外で飛んだ場合は上家取り。
 		if not result.get("draw", false):
 			var w_idx: int = result.get("winner_idx", -1)
 			if w_idx >= 0:
 				for bi: int in bust_indices:
 					player_chips[w_idx] += 2
 					player_chips[bi] -= 2
+		else:
+			for bi: int in bust_indices:
+				var receiver: int = (bi - 1 + players.size()) % players.size()
+				player_chips[receiver] += 2
+				player_chips[bi] -= 2
 
 	if not _pending_match_end:
 		var winner_idx: int = result.get("winner_idx", -1)
@@ -1964,6 +2118,8 @@ func _process_kyoku_end(result: Dictionary) -> void:
 
 	result["match_will_end"] = _pending_match_end
 	result["oorasu_choice_required"] = _pending_oorasu_player_choice
+	if _recorder:
+		_recorder.end_round(result)
 	phase = Phase.GAME_OVER
 	emit_signal("game_ended", result)
 
@@ -2128,13 +2284,39 @@ func _compute_session_result() -> void:
 							   match_player_agari, match_player_houjuu,
 							   match_player_agari_jun, match_player_agari_han,
 							   match_player_agari_chip, player_score_delta)
+	if _recorder:
+		var final_scores: Array = players.map(func(p2: Dictionary) -> int: return p2.score)
+		_recorder.end_game(final_scores, player_chips.duplicate())
+		_recorder = null
 
 # ============================================================
 # 流局
 # ============================================================
 func _end_round_draw() -> void:
+	for i in range(players.size()):
+		if _is_nagashi_yakuman_player(i):
+			var result: Dictionary = _build_win_result(i, true, -1, [{"name": "流し役満", "han": 13}])
+			_apply_score(result)
+			emit_signal("tsumo_declared", i, result)
+			_process_kyoku_end(result)
+			return
 	var result: Dictionary = {"draw": true, "winner_idx": -1, "score_before": _kyoku_start_scores.duplicate()}
 	_process_kyoku_end(result)
+
+func _is_nagashi_yakuman_player(player_idx: int) -> bool:
+	var p: Dictionary = players[player_idx]
+	if p.get("is_riichi", false):
+		return false
+	if not p.get("naki", []).is_empty():
+		return false
+	if p.get("discards", []).is_empty():
+		return false
+	for d: Dictionary in p.discards:
+		if d.get("is_taken", false):
+			return false
+		if not MahjongLogic.is_yaochuupai(int(d.get("id", -1))):
+			return false
+	return true
 
 # ============================================================
 # ユーティリティ
@@ -2368,6 +2550,9 @@ func _do_minkan(player_idx: int, from_idx: int, tile: Dictionary, selected_hand_
 	var meld_tiles: Array = [tile] + removed_tiles
 	p.naki.append({"type": "minkan", "tile_ids": [tile.id, tile.id, tile.id, tile.id],
 				   "tiles": meld_tiles, "from_player": from_idx})
+	if _recorder:
+		_recorder.record_meld(player_idx, "minkan", tile.id, from_idx)
+	_update_pao_after_meld(player_idx, from_idx)
 	p.is_menzen = false
 	_mark_taken_discard(from_idx, tile, "minkan")
 	action_minkan_possible = false
@@ -2429,6 +2614,8 @@ func _do_kakan(player_idx: int, kan_id_override: int = -1) -> void:
 			p.naki[kakan_naki_idx]["tile_ids"].append(kakan_tile_id)
 			p.naki[kakan_naki_idx]["tiles"].append(added)
 			break
+	if _recorder:
+		_recorder.record_meld(player_idx, "kakan", kakan_tile_id, -1)
 	_kakan_tile = MahjongLogic.make_tile(kakan_tile_id)
 	# 加槓後チャンカン機会チェック
 	if player_idx != 0:

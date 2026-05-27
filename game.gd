@@ -73,8 +73,12 @@ var _wanpai_rinshan_rects: Array = []
 var _wanpai_use_count: int = 0
 var _btn_settings_icon: Button
 var _btn_home_icon: Button
+var _btn_rules_icon: Button
 var _settings_popup: Panel
 var _home_confirm_popup: Panel
+var _rules_popup: Panel
+var _rules_body_label: Label
+var _rules_tab_buttons: Array = []
 var _bgm_slider: HSlider
 var _bgm_title_label: Label
 var _se_slider: HSlider
@@ -104,6 +108,7 @@ const UPPER_IDX := 2
 const RIGHT_IDX := 1
 const LEFT_IDX  := -1
 const CUTIN_REACH_SCENE := preload("res://CutinReach.tscn")
+const RULE_BOOK := preload("res://rule_book_data.gd")
 const ACTION_IMAGE_BUTTON_SIZE := Vector2(480, 200)
 const SCREEN_SIZE := Vector2(1920, 1080)
 const RESULT_PANEL_RECT := Rect2(530, 20, 1370, 1040)
@@ -523,10 +528,16 @@ func _build_ui() -> void:
 
 	# --- アイコンボタン（ホーム・設定） ---
 	_btn_home_icon = _make_icon_button("res://assets/bg/icon_home.webp")
-	_btn_home_icon.position = Vector2(1682, 6)
+	_btn_home_icon.position = Vector2(1564, 6)
 	_btn_home_icon.size = Vector2(108, 108)
 	_btn_home_icon.pressed.connect(_on_home_icon_pressed)
 	add_child(_btn_home_icon)
+
+	_btn_rules_icon = _make_text_icon_button("ルール")
+	_btn_rules_icon.position = Vector2(1682, 6)
+	_btn_rules_icon.size = Vector2(108, 108)
+	_btn_rules_icon.pressed.connect(_on_rules_icon_pressed)
+	add_child(_btn_rules_icon)
 
 	_btn_settings_icon = _make_icon_button("res://assets/bg/icon_settei.webp")
 	_btn_settings_icon.position = Vector2(1800, 6)
@@ -543,6 +554,10 @@ func _build_ui() -> void:
 	_home_confirm_popup = _build_home_confirm_popup()
 	add_child(_home_confirm_popup)
 	_home_confirm_popup.visible = false
+
+	_rules_popup = _build_rules_popup()
+	add_child(_rules_popup)
+	_rules_popup.visible = false
 
 	# --- デバッグパネル ---
 	_debug_panel = _build_debug_panel()
@@ -2705,8 +2720,15 @@ func _show_result(result: Dictionary) -> void:
 		var winner: Dictionary = GameState.players[result.winner_idx]
 		var sd: Dictionary = result.score_data
 		var is_yakuman: bool = result.get("is_yakuman", false)
-		msg = ("【ツモ！】" if result.is_tsumo else "【ロン！】") + "\n\n"
+		msg = ("【ツモ！】" if result.is_tsumo else ("【ダブロン！】" if result.get("is_double_ron", false) else "【ロン！】")) + "\n\n"
 		msg += "和了: " + winner.name + " (" + MahjongLogic.get_wind_name(winner.wind) + "家)\n"
+		if result.get("is_double_ron", false):
+			var subs: Array = result.get("double_ron_results", [])
+			for sub: Dictionary in subs:
+				if int(sub.get("winner_idx", -1)) == int(result.get("winner_idx", -1)):
+					continue
+				var sp: Dictionary = GameState.players[int(sub.get("winner_idx", -1))]
+				msg += "和了: " + sp.name + " (" + MahjongLogic.get_wind_name(sp.wind) + "家)\n"
 		if result.has("yaku") and not result.yaku.is_empty():
 			if is_yakuman:
 				for y: Dictionary in result.yaku:
@@ -3599,6 +3621,13 @@ func _make_icon_button(icon_path: String) -> Button:
 	btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return btn
 
+func _make_text_icon_button(text: String) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.add_theme_font_size_override("font_size", 22)
+	btn.focus_mode = Control.FOCUS_NONE
+	return btn
+
 func _build_settings_popup() -> Panel:
 	var panel := Panel.new()
 	panel.custom_minimum_size = Vector2(500, 300)
@@ -3669,6 +3698,51 @@ func _build_home_confirm_popup() -> Panel:
 
 	return panel
 
+func _build_rules_popup() -> Panel:
+	var panel := _make_panel(Color(0.07, 0.08, 0.12, 0.96), Rect2(250, 90, 1420, 900))
+	panel.z_index = 120
+	var title := _make_label("ルール表", Vector2(36, 24), 42)
+	title.add_theme_color_override("font_color", Color(1.0, 0.92, 0.55))
+	panel.add_child(title)
+	var btn_close := _make_button("閉じる", Color(0.35, 0.25, 0.25))
+	btn_close.position = Vector2(1240, 28)
+	btn_close.custom_minimum_size = Vector2(130, 58)
+	btn_close.pressed.connect(func(): _rules_popup.visible = false)
+	panel.add_child(btn_close)
+	_rules_tab_buttons.clear()
+	var tab_x := 36.0
+	var tabs: Array = RULE_BOOK.tabs()
+	for i in range(tabs.size()):
+		var tab: Dictionary = tabs[i]
+		var btn := _make_button(str(tab.get("title", "")), Color(0.18, 0.24, 0.34))
+		btn.position = Vector2(tab_x, 104)
+		btn.custom_minimum_size = Vector2(150, 56)
+		btn.pressed.connect(func(idx := i): _select_rule_tab(idx))
+		panel.add_child(btn)
+		_rules_tab_buttons.append(btn)
+		tab_x += 158.0
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(36, 184)
+	scroll.size = Vector2(1348, 670)
+	panel.add_child(scroll)
+	_rules_body_label = Label.new()
+	_rules_body_label.size = Vector2(1290, 1200)
+	_rules_body_label.custom_minimum_size = Vector2(1290, 1200)
+	_rules_body_label.add_theme_font_size_override("font_size", 30)
+	_rules_body_label.add_theme_color_override("font_color", Color(0.96, 0.96, 0.90))
+	_rules_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	scroll.add_child(_rules_body_label)
+	_select_rule_tab(0)
+	return panel
+
+func _select_rule_tab(idx: int) -> void:
+	var tabs: Array = RULE_BOOK.tabs()
+	if idx < 0 or idx >= tabs.size() or _rules_body_label == null:
+		return
+	for i in range(_rules_tab_buttons.size()):
+		_rules_tab_buttons[i].modulate = Color(1.0, 0.92, 0.55) if i == idx else Color.WHITE
+	_rules_body_label.text = str(tabs[idx].get("body", ""))
+
 # ============================================================
 # 設定・ホームアイコン シグナルハンドラ
 # ============================================================
@@ -3676,6 +3750,10 @@ func _on_settings_icon_pressed() -> void:
 	_bgm_slider.value = AudioManager.bgm_volume
 	_se_slider.value  = AudioManager.se_volume
 	_settings_popup.visible = true
+
+func _on_rules_icon_pressed() -> void:
+	_rules_popup.visible = true
+	_select_rule_tab(0)
 
 func _on_bgm_slider_changed(value: float) -> void:
 	AudioManager.set_bgm_volume(value)

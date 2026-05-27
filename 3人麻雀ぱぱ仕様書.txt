@@ -624,6 +624,50 @@
   - MahjongLogic._check_chuuren_poutou() で判定
 
 --------------------------------------------------
+■ 2026/05/28 追加仕様：打牌シミュレーター・牌譜機能
+--------------------------------------------------
+  【シミュレーター（SimulatorScreen.gd）】
+  - メニュー右パネル「シミュレーター」ボタン（y=780）から起動。
+  - 手牌14枚を入力パレット（萬/筒/索/字牌タブ）から組み、解析ボタンで SanmaAnalyzer.evaluate_discards() を呼び出す。
+  - 入力パレット下部に「残り山」SpinBox（1〜61、デフォルト61）を配置する。
+  - 「▶ 見えている牌」折りたたみパネルで捨て牌・副露牌（dead_tiles）を入力する。
+    特殊牌（5p/8p/5s/8s/北）は通常枚数と赤/金枚数を個別入力。
+    その他牌は通常枚数のみ入力。
+    手牌内枚数を考慮した上限でボタンを無効化し、1枚以上の場合は赤字表示する。
+  - 牌譜ビューアの「検討」から起動した場合は、initial_hand / initial_dead_tiles / initial_total_wall の static var で状態を受け取る。
+
+  【SanmaAnalyzer（SanmaAnalyzer.gd）】
+  - evaluate_discards(hand, total_wall=61, dead_tiles={}) → Array
+  - dead_tiles 構造: {"counts":{game_id:枚数}, "red":{game_id:赤枚数}, "gold":{game_id:金枚数}}
+  - chip_value 廃止。代わりに expected_chip_value（期待チップ価値・点棒換算）を返す。
+    テンパイ：有効牌の枚数加重平均チップ価値 × 和了確率（手牌内チップも加算）
+    1シャンテン：各有効牌ツモ確率 × テンパイ後和了確率 × チップ価値の合計
+    2シャンテン以上：-1（計算不能）
+  - TILE_RED_TOTAL = {25:2, 35:2, 44:1}、TILE_GOLD_TOTAL = {28:1, 38:1} を定数として持つ。
+  - _calc_effective_tiles() で dead_tiles.counts を考慮してwall_countを算出する。
+  - 結果表示：expected_chip_value > 0 → "期待値 +N pt"（金色）、0 → 非表示、-1 → "—"（グレー）
+
+  【牌譜記録（GameLogRecorder.gd / GameLogStorage.gd）】
+  - GameState._recorder (GameLogRecorder) が局中のすべてのアクションを記録する。
+  - 保存先: user://gamelogs/YYYYMMDD_HHMMSS.json（JSON形式）
+  - GameLogStorage.list_logs() で日時降順一覧、load_log(path) で読み込み。
+
+  【牌譜一覧（GameLogListScreen.gd）】
+  - メニュー「牌　譜」ボタン（y=900）から起動。
+  - 保存済み牌譜を日時降順で一覧表示。「詳 細」ボタンで牌譜ビューアへ遷移。
+
+  【牌譜ビューア（GameLogViewerScreen.gd）】
+  - 局タブ切替・◀/▶ターン送り・スライダーで局内の全ターンをリプレイ。
+  - プレイヤー手牌：14枚ツモ時はタイルがボタンとなり、タップで検討パネルを開く（13枚時は非活性）。
+  - 3者捨て牌・副露をターンごとに再構築して表示。
+  - _build_dead_tiles_from_log(turns, up_to_turn_idx)：
+    max_t = mini(up_to_turn_idx, turns.size())（現在ターンの捨て牌は含めない）
+  - _calc_remaining_wall(turns, up_to_turn_idx)：
+    max_t = mini(up_to_turn_idx + 1, turns.size())（現在ターンのツモは含める）
+  - 「🔍 検討」ボタン（下部オーバーレイ）で dead_tiles・残り山を自動収集した上でシミュレーターパネルを開く。
+  - 実際の打牌と最善打牌をハイライト比較表示（★ベスト、→実際）。
+
+--------------------------------------------------
 ■ 未実装・今後の課題
 --------------------------------------------------
   - オープンリーチ（手牌全公開、リーチ+1ハン、供託2000点、放銃制限）

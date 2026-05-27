@@ -1,6 +1,38 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/28-2】牌譜ビューア手牌タイル対話化・期待チップ価値導入（GameLogViewerScreen.gd / SanmaAnalyzer.gd / SimulatorScreen.gd）
+  - GameLogViewerScreen: 手牌タイルを TextureRect → Button に変更。
+    14枚ツモ時はどのタイルをタップしても検討パネルが開くようになった。
+  - SanmaAnalyzer: chip_value 廃止、expected_chip_value（期待チップ価値）を導入。
+    dead_tiles（捨て牌/副露）と total_wall（残り山枚数）を考慮して期待値を計算。
+    テンパイ・1シャンテン時は点棒換算の期待値を表示、2シャンテン以上は「—」。
+  - SimulatorScreen: 残り山枚数入力（SpinBox）と見えている牌（捨て牌・副露）入力UIを追加。
+    特殊牌（5p/8p/5s/8s/北）は通常枚数と赤/金枚数を個別入力。
+    牌譜ビューアから検討起動時は dead_tiles を自動収集して初期値にセット。
+
+【2026/05/28】打牌シミュレーター・牌譜機能の実装（SimulatorScreen.gd / GameLogRecorder.gd / GameLogStorage.gd / GameLogListScreen.gd / GameLogViewerScreen.gd / GameState.gd / menu.gd）
+  - scripts/simulator/SimulatorScreen.gd・scenes/simulator/SimulatorScreen.tscn を新規作成。
+    手牌14枚を入力パレット（萬/筒/索/字牌タブ）から組み、SanmaAnalyzer.evaluate_discards() で解析。
+    結果一覧に★ベスト・→実際打牌のハイライト、向聴数・有効牌枚数・チップ価値を表示。
+    牌譜閲覧から呼ばれる場合は static var (initial_hand, actual_discard_id, log_context_label) で状態を受け取る。
+  - scripts/gamelog/GameLogRecorder.gd を新規作成。
+    start_game / start_round / record_draw / record_kita / record_discard / record_meld / end_round / end_game の各APIで局中のすべてのアクションを記録。
+  - scripts/gamelog/GameLogStorage.gd を新規作成。
+    user://gamelogs/YYYYMMDD_HHMMSS.json へ保存・読み込み・一覧取得・削除のAPIを提供。
+  - scripts/gamelog/GameLogListScreen.gd・scenes/gamelog/GameLogListScreen.tscn を新規作成。
+    保存済み牌譜を日時降順で一覧表示。各エントリから牌譜閲覧画面へ遷移。
+  - scripts/gamelog/GameLogViewerScreen.gd・scenes/gamelog/GameLogViewerScreen.tscn を新規作成。
+    局タブ切替・◀/▶ターン送り・スライダーで局内の全ターンをリプレイ。
+    プレイヤー手牌・3者捨て牌・副露をターンごとに再構築して表示。
+    プレイヤー14枚ツモ時に「🔍 検討」ボタンで下部オーバーレイのシミュレーターパネルを開き、実際の打牌と最善打牌を比較表示。
+  - GameState.gd：_recorder (GameLogRecorder) を組み込み。
+    start_match → start_game / _start_kyoku → start_round / _start_turn → record_draw /
+    _finish_kita → record_kita / _do_discard_internal → record_discard /
+    _do_pon・_do_ankan・_do_minkan・_do_kakan → record_meld /
+    _process_kyoku_end → end_round / _compute_session_result → end_game の各タイミングで記録。
+  - menu.gd：右パネルに「シミュレーター」ボタン（y=780）と「牌譜」ボタン（y=900）を追加。
+
 ?2026/05/25?iOS????????project.godot / export_presets.cfg / game.gd / menu.gd / README_IOS.md?
   - Project Settings?Stretch???canvas_items / keep??iPhone?????orientation??????
   - ??gui_input??????????????????????InputEventScreenTouch??????

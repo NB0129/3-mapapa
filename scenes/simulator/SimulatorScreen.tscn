@@ -1,0 +1,6 @@
+[gd_scene format=3 load_steps=2]
+
+[ext_resource type="Script" path="res://scripts/simulator/SimulatorScreen.gd" id="1"]
+
+[node name="SimulatorScreen" type="Control"]
+script = ExtResource("1")

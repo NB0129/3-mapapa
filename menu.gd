@@ -1,6 +1,7 @@
 extends Control
 
 const SCREEN_SIZE := Vector2(1920, 1080)
+const RULE_BOOK := preload("res://rule_book_data.gd")
 const LEFT_W := 512.0
 const MID_W := 768.0
 const RIGHT_W := 640.0
@@ -31,6 +32,9 @@ var _role_labels: Dictionary = {}
 var _intro_panel: Panel
 var _candidate_seat: String = ""
 var _candidate_npc: String = ""
+var _rules_popup: Panel
+var _rules_body_label: Label
+var _rules_tab_buttons: Array = []
 
 func _ready() -> void:
 	_seat_npcs = SaveData.selected_npc_seats.duplicate(true)
@@ -73,6 +77,10 @@ func _build_ui() -> void:
 	add_child(_left_panel)
 	add_child(_stats_panel)
 	add_child(_start_panel)
+	_rules_popup = _build_rules_popup()
+	_rules_popup.z_index = 50
+	_rules_popup.visible = false
+	add_child(_rules_popup)
 
 func _build_character_panel() -> Panel:
 	var panel := _make_panel(Color(0.02, 0.12, 0.28, 0.34), Rect2(0, 0, LEFT_W, 1080))
@@ -127,6 +135,18 @@ func _build_start_panel() -> Panel:
 	btn_title.position = Vector2(105, 540)
 	btn_title.pressed.connect(func(): get_tree().change_scene_to_file("res://Title.tscn"))
 	panel.add_child(btn_title)
+	var btn_rules := _make_button("ルール表", Color(0.20, 0.30, 0.46), Vector2(430, 76), 28)
+	btn_rules.position = Vector2(105, 660)
+	btn_rules.pressed.connect(_on_rules_pressed)
+	panel.add_child(btn_rules)
+	var btn_sim := _make_button("シミュレーター", Color(0.25, 0.20, 0.40), Vector2(430, 76), 28)
+	btn_sim.position = Vector2(105, 780)
+	btn_sim.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/simulator/SimulatorScreen.tscn"))
+	panel.add_child(btn_sim)
+	var btn_log := _make_button("牌  譜", Color(0.30, 0.20, 0.15), Vector2(430, 76), 28)
+	btn_log.position = Vector2(105, 900)
+	btn_log.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/gamelog/GameLogListScreen.tscn"))
+	panel.add_child(btn_log)
 	return panel
 
 func _play_entry_animation() -> void:
@@ -447,6 +467,50 @@ func _find_empty_seat() -> String:
 func _on_match_start_pressed() -> void:
 	SaveData.set_npc_seats(_seat_npcs)
 	get_tree().change_scene_to_file("res://Game.tscn")
+
+func _on_rules_pressed() -> void:
+	_rules_popup.visible = true
+	_select_rule_tab(0)
+
+func _build_rules_popup() -> Panel:
+	var panel := _make_panel(Color(0.07, 0.08, 0.12, 0.96), Rect2(250, 90, 1420, 900))
+	panel.add_child(_make_label("ルール表", Vector2(36, 24), 42, Color(1.0, 0.92, 0.55)))
+	var btn_close := _make_button("閉じる", Color(0.35, 0.25, 0.25), Vector2(130, 58), 24)
+	btn_close.position = Vector2(1240, 28)
+	btn_close.pressed.connect(func(): _rules_popup.visible = false)
+	panel.add_child(btn_close)
+	_rules_tab_buttons.clear()
+	var tabs: Array = RULE_BOOK.tabs()
+	var tab_x := 36.0
+	for i in range(tabs.size()):
+		var tab: Dictionary = tabs[i]
+		var btn := _make_button(str(tab.get("title", "")), Color(0.18, 0.24, 0.34), Vector2(150, 56), 22)
+		btn.position = Vector2(tab_x, 104)
+		btn.pressed.connect(func(idx := i): _select_rule_tab(idx))
+		panel.add_child(btn)
+		_rules_tab_buttons.append(btn)
+		tab_x += 158.0
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(36, 184)
+	scroll.size = Vector2(1348, 670)
+	panel.add_child(scroll)
+	_rules_body_label = Label.new()
+	_rules_body_label.size = Vector2(1290, 1200)
+	_rules_body_label.custom_minimum_size = Vector2(1290, 1200)
+	_rules_body_label.add_theme_font_size_override("font_size", 30)
+	_rules_body_label.add_theme_color_override("font_color", Color(0.96, 0.96, 0.90))
+	_rules_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	scroll.add_child(_rules_body_label)
+	_select_rule_tab(0)
+	return panel
+
+func _select_rule_tab(idx: int) -> void:
+	var tabs: Array = RULE_BOOK.tabs()
+	if idx < 0 or idx >= tabs.size() or _rules_body_label == null:
+		return
+	for i in range(_rules_tab_buttons.size()):
+		_rules_tab_buttons[i].modulate = Color(1.0, 0.92, 0.55) if i == idx else Color.WHITE
+	_rules_body_label.text = str(tabs[idx].get("body", ""))
 
 func _make_panel(color: Color, rect: Rect2) -> Panel:
 	var p := Panel.new()
