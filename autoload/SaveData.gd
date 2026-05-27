@@ -25,12 +25,12 @@ var selected_empty_seat: String = "top"
 var selected_npc_seats: Dictionary = {"bottom": "kuma_def", "right": "kuma_hiyake", "top": ""}
 
 const NPC_DEFS := {
-	"kuma_black": {"name": "ブラックくま", "path": "res://chara/kuma_black.webp"},
-	"kuma_def": {"name": "くまぱぱ", "path": "res://chara/kuma_def.webp"},
-	"kuma_hiyake": {"name": "日焼けくま", "path": "res://chara/kuma_hiyake.webp"},
-	"kuma_hokkyoku": {"name": "北極熊", "path": "res://chara/kuma_hokkyoku.webp"},
-	"kuma_megane": {"name": "眼鏡くま", "path": "res://chara/kuma_megane.webp"},
-	"kuma_saibo": {"name": "サイボーグくま", "path": "res://chara/kuma_saibo.webp"},
+	"kuma_black":    {"name": "ブラックくま",       "path": "res://chara/kuma_black.webp",    "path_game": "res://chara/kuma_black2a.webp",    "path_menu": "res://chara/kuma_black2b.webp"},
+	"kuma_def":      {"name": "くまぱぱ",           "path": "res://chara/kuma_def.webp",      "path_game": "res://chara/kuma_def2a.webp",      "path_menu": "res://chara/kuma_def2b.webp"},
+	"kuma_hiyake":   {"name": "日焼けくま",         "path": "res://chara/kuma_hiyake.webp",   "path_game": "res://chara/kuma_hiyake2a.webp",   "path_menu": "res://chara/kuma_hiyake2b.webp"},
+	"kuma_hokkyoku": {"name": "北極熊",             "path": "res://chara/kuma_hokkyoku.webp", "path_game": "res://chara/kuma_hokkyoku2a.webp", "path_menu": "res://chara/kuma_hokkyoku2b.webp"},
+	"kuma_megane":   {"name": "眼鏡くま",           "path": "res://chara/kuma_megane.webp",   "path_game": "res://chara/kuma_megane2a.webp",   "path_menu": "res://chara/kuma_megane2b.webp"},
+	"kuma_saibo":    {"name": "サイボーグくま",     "path": "res://chara/kuma_saibo.webp",    "path_game": "res://chara/kuma_saibo2a.webp",    "path_menu": "res://chara/kuma_saibo2b.webp"},
 }
 
 # NPC別対戦回数（NPC01〜06それぞれ）
@@ -166,6 +166,12 @@ func get_npc_name(npc_id: String) -> String:
 
 func get_npc_path(npc_id: String) -> String:
 	return NPC_DEFS.get(npc_id, {}).get("path", "res://chara/kuma_def.webp")
+
+func get_npc_path_game(npc_id: String) -> String:
+	return NPC_DEFS.get(npc_id, {}).get("path_game", "res://chara/kuma_def2a.webp")
+
+func get_npc_path_menu(npc_id: String) -> String:
+	return NPC_DEFS.get(npc_id, {}).get("path_menu", "res://chara/kuma_def2b.webp")
 
 # ============================================================
 # 対局後の統計更新

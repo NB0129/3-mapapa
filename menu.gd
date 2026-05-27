@@ -301,7 +301,7 @@ func _refresh_member_select() -> void:
 		else:
 			dash.visible = false
 			var npc_id := str(_seat_npcs[seat])
-			img.texture = load(SaveData.get_npc_path(npc_id))
+			img.texture = load(SaveData.get_npc_path_menu(npc_id))
 			label.text = SaveData.get_npc_name(npc_id)
 		panel.add_theme_stylebox_override("panel", style)
 	_refresh_role_labels()
@@ -372,7 +372,12 @@ func _update_intro() -> void:
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if npc_id != "":
-		img.texture = load(SaveData.get_npc_path(npc_id))
+		var intro_path: String
+		if npc_id == "kuma_hokkyoku":
+			intro_path = SaveData.get_npc_path_menu(npc_id)
+		else:
+			intro_path = SaveData.get_npc_path(npc_id)
+		img.texture = load(intro_path)
 	clip.add_child(img)
 	var prev_btn := _make_button("←", Color(0.22, 0.34, 0.56), Vector2(74, 52), 28)
 	prev_btn.position = Vector2(58, 455)

@@ -1,6 +1,15 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/28-3】NPC立ち絵差し替え（chara/ / SaveData.gd / game.gd / menu.gd）
+  - 各NPCの立ち絵PNGを WebP に変換し、元PNGを削除。
+  - kuma_*2a.webp（ゲーム画面用）・kuma_*2b.webp（メンツ選択中央用）を追加。
+  - kuma_saibo.webp を新画像で置き換え。
+  - SaveData.NPC_DEFS に path_game / path_menu キーを追加。get_npc_path_game() / get_npc_path_menu() を追加。
+  - game.gd（対局中立ち絵・リザルト演出）: get_npc_path_game() に切替（2aバージョン使用）。
+  - menu.gd メンツ選択中央: get_npc_path_menu() に切替（2bバージョン使用）。
+  - menu.gd キャラ紹介エリア: kuma_hokkyoku のみ2b、kuma_saibo は新kuma_saibo.webp、他は据え置き。
+
 【2026/05/28-2】牌譜ビューア手牌タイル対話化・期待チップ価値導入（GameLogViewerScreen.gd / SanmaAnalyzer.gd / SimulatorScreen.gd）
   - GameLogViewerScreen: 手牌タイルを TextureRect → Button に変更。
     14枚ツモ時はどのタイルをタップしても検討パネルが開くようになった。

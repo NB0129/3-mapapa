@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bfp68i0l1r6bi"
-path="res://.godot/imported/kuma_saibo.webp-37a821012c4e243a15f095198236594c.ctex"
+uid="uid://c1r7xwcb0qvqt"
+path="res://.godot/imported/kuma_hiyake2a.webp-354139eaa2f652de8967a7bcd27ef71f.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://chara/kuma_saibo.webp"
-dest_files=["res://.godot/imported/kuma_saibo.webp-37a821012c4e243a15f095198236594c.ctex"]
+source_file="res://chara/kuma_hiyake2a.webp"
+dest_files=["res://.godot/imported/kuma_hiyake2a.webp-354139eaa2f652de8967a7bcd27ef71f.ctex"]
 
 [params]
 

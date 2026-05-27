@@ -582,8 +582,8 @@ func _build_npc_standing_art() -> void:
 	var standing_ids: Dictionary = _get_standing_npc_ids()
 	var left_id: String = standing_ids.left
 	var right_id: String = standing_ids.right
-	_npc_left_chara = _make_standing_texture(SaveData.get_npc_path(left_id), Vector2(-70, 95), Vector2(520, 960))
-	_npc_right_chara = _make_standing_texture(SaveData.get_npc_path(right_id), Vector2(1470, -70), Vector2(520, 960))
+	_npc_left_chara = _make_standing_texture(SaveData.get_npc_path_game(left_id), Vector2(-70, 95), Vector2(520, 960))
+	_npc_right_chara = _make_standing_texture(SaveData.get_npc_path_game(right_id), Vector2(1470, -70), Vector2(520, 960))
 	add_child(_npc_left_chara)
 	add_child(_npc_right_chara)
 
@@ -2684,8 +2684,8 @@ func _get_result_chara_path(winner_idx: int) -> String:
 	if winner_idx >= 0 and winner_idx < GameState.players.size():
 		var npc_id := str(GameState.players[winner_idx].get("npc_id", ""))
 		if npc_id != "":
-			return SaveData.get_npc_path(npc_id)
-	return "res://chara/kuma_def.webp"
+			return SaveData.get_npc_path_game(npc_id)
+	return "res://chara/kuma_def2a.webp"
 
 func _clear_result_dynamic_nodes() -> void:
 	for node in _result_dynamic_nodes:
