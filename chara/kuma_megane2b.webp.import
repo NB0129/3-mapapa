@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bbauq5dc4l7h7"
-path="res://.godot/imported/kuma_megane2b.webp-29f6173ae394ad01a32eaf1dbfb39b8f.ctex"
+path="res://.godot/imported/kuma_megane2b.webp-4ddd6e0fcf13d6d4927cbfe43cfeb97e.ctex"
 metadata={
 "vram_texture": false
 }
@@ -11,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://chara/kuma_megane2b.webp"
-dest_files=["res://.godot/imported/kuma_megane2b.webp-29f6173ae394ad01a32eaf1dbfb39b8f.ctex"]
+dest_files=["res://.godot/imported/kuma_megane2b.webp-4ddd6e0fcf13d6d4927cbfe43cfeb97e.ctex"]
 
 [params]
 

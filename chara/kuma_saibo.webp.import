@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bfp68i0l1r6bi"
-path="res://.godot/imported/kuma_saibo.webp-37a821012c4e243a15f095198236594c.ctex"
+path="res://.godot/imported/kuma_saibo.webp-c23cf9c739f6a721f3dcacaa01e6f79e.ctex"
 metadata={
 "vram_texture": false
 }
@@ -11,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://chara/kuma_saibo.webp"
-dest_files=["res://.godot/imported/kuma_saibo.webp-37a821012c4e243a15f095198236594c.ctex"]
+dest_files=["res://.godot/imported/kuma_saibo.webp-c23cf9c739f6a721f3dcacaa01e6f79e.ctex"]
 
 [params]
 

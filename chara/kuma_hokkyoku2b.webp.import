@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dqur6uucholil"
-path="res://.godot/imported/kuma_hokkyoku2b.webp-73acd7c1d1f96f0e46be9ed088995f98.ctex"
+path="res://.godot/imported/kuma_hokkyoku2b.webp-61b1fe0ffb55b18eaceeb505991993de.ctex"
 metadata={
 "vram_texture": false
 }
@@ -11,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://chara/kuma_hokkyoku2b.webp"
-dest_files=["res://.godot/imported/kuma_hokkyoku2b.webp-73acd7c1d1f96f0e46be9ed088995f98.ctex"]
+dest_files=["res://.godot/imported/kuma_hokkyoku2b.webp-61b1fe0ffb55b18eaceeb505991993de.ctex"]
 
 [params]
 

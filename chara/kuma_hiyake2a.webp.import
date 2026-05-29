@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c1r7xwcb0qvqt"
-path="res://.godot/imported/kuma_hiyake2a.webp-354139eaa2f652de8967a7bcd27ef71f.ctex"
+path="res://.godot/imported/kuma_hiyake2a.webp-27e3a0b985351dd17f153cb55ef091bd.ctex"
 metadata={
 "vram_texture": false
 }
@@ -11,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://chara/kuma_hiyake2a.webp"
-dest_files=["res://.godot/imported/kuma_hiyake2a.webp-354139eaa2f652de8967a7bcd27ef71f.ctex"]
+dest_files=["res://.godot/imported/kuma_hiyake2a.webp-27e3a0b985351dd17f153cb55ef091bd.ctex"]
 
 [params]
 
