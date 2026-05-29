@@ -1,6 +1,19 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/29-3】breakdown表示レイアウト全面刷新・確率値精度改善（SanmaAnalyzer.gd / GameLogViewerScreen.gd / SimulatorScreen.gd）
+  - SanmaAnalyzer:
+    - effective_count_expected を int → float に変更。
+    - tile_breakdown の expected を個別期待値 → 均等割り（per_tile_expected）に統一。
+    - tenpai / agari / reach_1shan を minf(..., 1.0) でクランプ。
+    - _calc_agari_rate() の return を minf(1.0 - p_not, 1.0) に変更。
+  - 表示2ファイル共通:
+    - フォントサイズ変更：メイン情報35 / 有効牌枚数28 / breakdown行24。
+    - 有効牌枚数表示を「有効N枚（期待X.X枚）」（float %.1f 形式）に変更。
+    - 有効牌グリッド表示を廃止。
+    - breakdown を1行ずつ「牌画像＋×N（期待X.X枚）＋引く確率X.XX%＋テンパイ率/繰り上げ率X.XX%」形式に変更。
+    - 行高計算を 90 + breakdown行数×68 + 8 に変更。
+
 【2026/05/29-2】SanmaAnalyzer 確率モデル精緻化・表示強化（SanmaAnalyzer.gd / GameLogViewerScreen.gd / SimulatorScreen.gd）
   - _calc_effective_tiles() の total_wall パラメータを削除し、生の枚数（補正なし）を返すよう変更。
     wall_count = DECK_SIZE - 手牌 - 死牌（山確率補正はevaluate_discards側で実施）

@@ -95,8 +95,8 @@ func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary
 		var eff_count_raw := 0
 		for cnt: int in effective.values():
 			eff_count_raw += cnt
-		var in_wall_prob := float(total_wall) / float(total_wall + 34.0)
-		var eff_count_expected := int(float(eff_count_raw) * in_wall_prob)
+		var in_wall_prob_val := float(total_wall) / float(total_wall + 34.0)
+		var eff_count_expected: float = float(eff_count_raw) * in_wall_prob_val
 		var rates := _calc_rates(counts, shanten, effective, total_wall, dead_tiles)
 
 		results.append({
@@ -295,6 +295,8 @@ func _calc_rates(
 		var tenpai := _calc_agari_rate(float(eff_capped) * in_wall_prob, float(total_wall))
 		var agari := 0.0
 		var tile_breakdown := {}
+		var num_tile_types := float(effective.size())
+		var per_tile_expected: float = (float(eff_total) * in_wall_prob) / num_tile_types if num_tile_types > 0 else 0.0
 		for game_id: int in effective:
 			var w_tile: int = int(effective[game_id])
 			if w_tile <= 0:
@@ -318,20 +320,24 @@ func _calc_rates(
 			agari += p_draw * tile_agari
 			tile_breakdown[game_id] = {
 				"wall_count" : w_tile,
-				"expected"   : int(w_tile_expected),
+				"expected"   : per_tile_expected,
 				"tenpai_rate": p_draw,
 				"agari_rate" : tile_agari,
 			}
 			counts[idx] -= 1
+		tenpai = minf(tenpai, 1.0)
+		agari  = minf(agari, 1.0)
 		return {"tenpai_rate": tenpai, "agari_rate": agari, "tile_breakdown": tile_breakdown}
 
 	if shanten == 2:
 		if eff_total == 0:
 			return {"tenpai_rate": -1.0, "agari_rate": -1.0, "tile_breakdown": {}}
 		var eff_capped := mini(eff_total, total_wall)
-		var reach_1shan := _calc_agari_rate(float(eff_capped) * in_wall_prob, float(total_wall))
+		var reach_1shan := minf(_calc_agari_rate(float(eff_capped) * in_wall_prob, float(total_wall)), 1.0)
 		var tenpai := 0.0
 		var tile_breakdown := {}
+		var num_tile_types := float(effective.size())
+		var per_tile_expected: float = (float(eff_total) * in_wall_prob) / num_tile_types if num_tile_types > 0 else 0.0
 		for game_id: int in effective:
 			var w_tile: int = int(effective[game_id])
 			if w_tile <= 0:
@@ -354,11 +360,12 @@ func _calc_rates(
 				tenpai += p_draw * tile_tenpai
 				tile_breakdown[game_id] = {
 					"wall_count" : w_tile,
-					"expected"   : int(w_tile_expected),
+					"expected"   : per_tile_expected,
 					"tenpai_rate": p_draw,
 					"agari_rate" : -1.0,
 				}
 			counts[idx] -= 1
+		tenpai = minf(tenpai, 1.0)
 		return {"tenpai_rate": reach_1shan, "agari_rate": tenpai, "tile_breakdown": tile_breakdown}
 
 	# shanten >= 3
@@ -385,7 +392,7 @@ func _calc_agari_rate(e: float, w: float) -> float:
 		ev = maxf(0.0, ev)
 		p_not *= 1.0 - ev / wv
 		wv -= 3.0
-	return 1.0 - p_not
+	return minf(1.0 - p_not, 1.0)
 
 
 # ==================================================

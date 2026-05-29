@@ -330,14 +330,10 @@ func _rebuild_sim_list(actual_discard_id: int) -> void:
 		var r: Dictionary = _sim_results[i]
 		var is_best: bool = (i == 0)
 		var is_actual: bool = (actual_discard_id >= 0 and int(r.get("tile_id", -1)) == actual_discard_id)
-		var eff: Dictionary = r.get("effective_tiles", {})
-		var eff_keys: Array = eff.keys()
-		var eff_cols := 9
-		var eff_rows_n := ceili(float(eff_keys.size()) / float(eff_cols)) if eff_keys.size() > 0 else 0
 		var shanten_val: int = int(r.get("shanten", 99))
 		var breakdown: Dictionary = r.get("tile_breakdown", {})
 		var breakdown_rows: int = breakdown.size() if shanten_val <= 2 else 0
-		var row_h := 58 + eff_rows_n * (int(EFF_H) + 6) + 6 + breakdown_rows * 18
+		var row_h := 90.0 + float(breakdown_rows) * 68.0 + 8.0
 
 		var row := Panel.new()
 		row.custom_minimum_size = Vector2(LEFT_W - 20, row_h)
@@ -358,108 +354,96 @@ func _rebuild_sim_list(actual_discard_id: int) -> void:
 
 		var tile_d := {"id": int(r.get("tile_id", -1)), "is_red": false, "is_gold": false, "is_haku_pochi": false}
 		var img := TextureRect.new()
-		img.position = Vector2(6, 4)
-		img.size = Vector2(34, 48)
+		img.position = Vector2(6, 8)
+		img.size = Vector2(44, 60)
 		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		img.texture = _get_tile_texture(tile_d)
 		row.add_child(img)
 
-		var text_x := 46.0
+		var text_x := 56.0
 		if is_best:
-			var star := _make_label("★", Vector2(text_x, 4), 16)
+			var star := _make_label("★", Vector2(text_x, 8), 22)
 			star.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
 			row.add_child(star)
-			text_x += 22.0
+			text_x += 24.0
 		elif is_actual:
-			var act := _make_label("→実", Vector2(text_x, 4), 14)
+			var act := _make_label("→実", Vector2(text_x, 8), 18)
 			act.add_theme_color_override("font_color", Color(1.0, 0.75, 0.1))
 			row.add_child(act)
-			text_x += 30.0
+			text_x += 32.0
 
-		row.add_child(_make_label(str(r.get("tile_name", "")), Vector2(text_x, 4), 17))
+		var name_lbl := _make_label(str(r.get("tile_name", "")), Vector2(text_x, 4), 35)
+		row.add_child(name_lbl)
 
-		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(text_x, 24), 14)
+		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(text_x + 200, 4), 35)
 		shan_lbl.add_theme_color_override("font_color",
-			Color(0.4, 1.0, 0.5) if r.get("shanten", 99) == 0 else Color(0.80, 0.80, 0.65))
+			Color(0.4, 1.0, 0.5) if shanten_val == 0 else Color(0.80, 0.80, 0.65))
 		row.add_child(shan_lbl)
+
+		var eff_cnt_lbl := _make_label("有効 %d枚（期待%.1f枚）" % [r.get("effective_count", 0), float(r.get("effective_count_expected", 0.0))], Vector2(400, 8), 28)
+		eff_cnt_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
+		row.add_child(eff_cnt_lbl)
 
 		var tenpai_r: float = float(r.get("tenpai_rate", -1.0))
 		var agari_r: float  = float(r.get("agari_rate",  -1.0))
 		if tenpai_r < 0.0:
-			var dash := _make_label("—", Vector2(220, 16), 16)
+			var dash := _make_label("—", Vector2(text_x + 200, 56), 28)
 			dash.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
 			row.add_child(dash)
 		elif shanten_val == 0:
-			var al := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(210, 10), 15)
+			var al := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(text_x, 50), 35)
 			al.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 			row.add_child(al)
 		elif shanten_val == 1:
-			var tl := _make_label("テンパイ率 %.2f%%" % (tenpai_r * 100.0), Vector2(210, 4), 14)
+			var tl := _make_label("テンパイ率 %.2f%%" % (tenpai_r * 100.0), Vector2(text_x, 50), 35)
 			tl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
 			row.add_child(tl)
-			var al := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(210, 22), 14)
+			var al := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(text_x + 290, 50), 28)
 			al.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 			row.add_child(al)
 		elif shanten_val == 2:
-			var tl := _make_label("1シャンテン率 %.2f%%" % (tenpai_r * 100.0), Vector2(205, 4), 13)
+			var tl := _make_label("1シャンテン率 %.2f%%" % (tenpai_r * 100.0), Vector2(text_x, 50), 35)
 			tl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
 			row.add_child(tl)
 			if agari_r >= 0.0:
-				var al := _make_label("テンパイ率 %.2f%%" % (agari_r * 100.0), Vector2(205, 22), 13)
+				var al := _make_label("テンパイ率 %.2f%%" % (agari_r * 100.0), Vector2(text_x + 310, 50), 28)
 				al.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 				row.add_child(al)
 		else:
-			var tl := _make_label("1シャンテン率 %.2f%%" % (tenpai_r * 100.0), Vector2(205, 10), 14)
+			var tl := _make_label("1シャンテン率 %.2f%%" % (tenpai_r * 100.0), Vector2(text_x, 50), 35)
 			tl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
 			row.add_child(tl)
 
-		var eff_cnt_lbl := _make_label("有効 %d枚（期待%d枚）" % [r.get("effective_count", 0), r.get("effective_count_expected", 0)], Vector2(390, 10), 13)
-		eff_cnt_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
-		row.add_child(eff_cnt_lbl)
-
-		var ex := 6.0
-		var ey := 56.0
-		var col := 0
-		for gid: int in eff_keys:
-			var tex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
+		var bd_y := 90.0
+		for gid: int in breakdown:
+			var bd: Dictionary = breakdown[gid]
+			var dummy_t := {"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false}
+			var tex := _get_tile_texture(dummy_t)
 			if tex:
 				var ti := TextureRect.new()
-				ti.position = Vector2(ex, ey)
-				ti.size = Vector2(EFF_W, EFF_H)
+				ti.position = Vector2(10, bd_y)
+				ti.size = Vector2(44, 60)
 				ti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 				ti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 				ti.texture = tex
 				row.add_child(ti)
-			var cnt_lbl := _make_label("×%d" % int(eff[gid]), Vector2(ex + EFF_W + 1, ey + int(EFF_H) - 16), 13)
-			cnt_lbl.add_theme_color_override("font_color", Color(0.65, 0.80, 0.65))
+			var w_cnt: int = int(bd.get("wall_count", 0))
+			var exp_f: float = float(bd.get("expected", 0.0))
+			var cnt_lbl := _make_label("×%d（期待%.1f枚）" % [w_cnt, exp_f], Vector2(60, bd_y + 16), 24)
+			cnt_lbl.add_theme_color_override("font_color", Color(0.85, 0.85, 0.75))
 			row.add_child(cnt_lbl)
-			ex += EFF_W + 26
-			col += 1
-			if col >= eff_cols:
-				col = 0
-				ex = 6.0
-				ey += EFF_H + 6
-
-		if not breakdown.is_empty():
-			var bd_y := ey + 4
-			for gid: int in breakdown:
-				var bd: Dictionary = breakdown[gid]
-				var dummy_t := {"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false}
-				var tname := MahjongLogic.get_tile_name(dummy_t)
-				var w_cnt: int = int(bd.get("wall_count", 0))
-				var exp_cnt: int = int(bd.get("expected", 0))
-				var tr_pct: float = float(bd.get("tenpai_rate", 0.0)) * 100.0
-				var ar_v: float = float(bd.get("agari_rate", -1.0))
-				var bd_txt: String
-				if ar_v >= 0.0:
-					bd_txt = "%s×%d（期待%d）  寄与%.1f%%  和了%.1f%%" % [tname, w_cnt, exp_cnt, tr_pct, ar_v * 100.0]
-				else:
-					bd_txt = "%s×%d（期待%d）  寄与%.1f%%" % [tname, w_cnt, exp_cnt, tr_pct]
-				var bd_lbl := _make_label(bd_txt, Vector2(6, bd_y), 12)
-				bd_lbl.add_theme_color_override("font_color", Color(0.70, 0.82, 0.70))
-				row.add_child(bd_lbl)
-				bd_y += 18
+			var draw_pct: float = float(bd.get("tenpai_rate", 0.0)) * 100.0
+			var draw_lbl := _make_label("引く確率%.2f%%" % draw_pct, Vector2(260, bd_y + 16), 24)
+			draw_lbl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
+			row.add_child(draw_lbl)
+			var ar_v: float = float(bd.get("agari_rate", -1.0))
+			if ar_v >= 0.0:
+				var rate_label: String = "テンパイ率" if shanten_val == 1 else "繰り上げ率"
+				var rate_lbl := _make_label("%s%.2f%%" % [rate_label, minf(ar_v, 1.0) * 100.0], Vector2(460, bd_y + 16), 24)
+				rate_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+				row.add_child(rate_lbl)
+			bd_y += 68.0
 
 		_result_list.add_child(row)
 
