@@ -3,44 +3,48 @@ extends Control
 
 static var log_path: String = ""
 
-const SCREEN_SIZE := Vector2(1920, 1080)
-const TILE_W_HAND := 52.0
-const TILE_H_HAND := 72.0
-const TILE_W_DISC := 30.0
-const TILE_H_DISC := 42.0
-const TILE_W_MELD := 34.0
-const TILE_H_MELD := 48.0
-const TILE_GAP := 3.0
+const SCREEN_SIZE  := Vector2(1920, 1080)
+const TILE_W_HAND  := 56.0
+const TILE_H_HAND  := 78.0
+const TILE_W_DISC  := 28.0
+const TILE_H_DISC  := 40.0
+const TILE_W_MELD  := 32.0
+const TILE_H_MELD  := 44.0
+const TILE_GAP     := 3.0
+const EFF_W        := 30.0
+const EFF_H        := 42.0
+const LEFT_W       := 620.0
+const RIGHT_X      := 1300.0
+const RIGHT_W      := 620.0
+const CONTENT_Y    := 148.0
+const BOTTOM_Y     := 680.0
 
 var _log: Dictionary = {}
 var _round_idx: int = 0
-var _turn_idx: int = -1  # -1 = start of round state
-var _sim_visible: bool = false
+var _turn_idx: int = -1
 var _sim_results: Array = []
-var _sim_selected: int = -1
 var _tile_texture_cache: Dictionary = {}
 
-# UI refs
 var _info_bar_lbl: Label
+var _result_info_lbl: Label
 var _hand_area: Control
 var _discard_area: Control
 var _meld_area: Control
-var _result_info_lbl: Label
 var _slider: HSlider
 var _nav_prev_btn: Button
 var _nav_next_btn: Button
 var _study_btn: Button
 var _tab_btns: Array = []
-var _sim_panel: Control
-var _sim_context_lbl: Label
-var _sim_result_list: VBoxContainer
-var _sim_detail_lbl: Label
-var _sim_detail_tiles: Control
+var _result_list: VBoxContainer
+var _wall_lbl: Label
+var _dead_info_vbox: VBoxContainer
+
 
 func _ready() -> void:
 	_load_log()
 	_build_ui()
 	_select_round(0)
+
 
 func _load_log() -> void:
 	if log_path == "":
@@ -48,24 +52,36 @@ func _load_log() -> void:
 	var storage := GameLogStorage.new()
 	_log = storage.load_log(log_path)
 
+
 func _build_ui() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	size = SCREEN_SIZE
 
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color = Color(0.05, 0.08, 0.12, 1.0)
+	bg.color = Color(0.08, 0.28, 0.12, 1.0)
+	bg.z_index = -30
 	add_child(bg)
+
+	if ResourceLoader.exists("res://assets/bg/bg_takujou.webp"):
+		var table_tex := TextureRect.new()
+		table_tex.texture = load("res://assets/bg/bg_takujou.webp")
+		table_tex.position = Vector2(-288, -202)
+		table_tex.size = Vector2(2496, 1404)
+		table_tex.z_index = -20
+		add_child(table_tex)
 
 	_build_header()
 	_build_tabs()
 	_build_info_bar()
-	_build_replay_area()
-	_build_nav_bar()
-	_build_sim_panel()
+	_build_left_panel()
+	_build_center_area()
+	_build_right_panel()
+	_build_bottom_area()
+
 
 func _build_header() -> void:
-	var header := _make_panel(Color(0.08, 0.12, 0.20, 0.95), Rect2(0, 0, 1920, 58))
+	var header := _make_panel(Color(0.04, 0.10, 0.06, 0.92), Rect2(0, 0, 1920, 60))
 	add_child(header)
 
 	var date_str := str(_log.get("date", ""))
@@ -74,18 +90,19 @@ func _build_header() -> void:
 	var names: Array = []
 	for p: Dictionary in players_arr:
 		names.append(str(p.get("name", "?")))
-	var title_lbl := _make_label("牌譜: " + disp + "  " + " vs ".join(names), Vector2(24, 10), 26)
+	var title_lbl := _make_label("牌譜: " + disp + "  " + " vs ".join(names), Vector2(24, 12), 24)
 	title_lbl.add_theme_color_override("font_color", Color(0.90, 0.88, 0.70))
 	header.add_child(title_lbl)
 
-	var back_btn := _make_button("← 戻る", Color(0.22, 0.22, 0.30))
-	back_btn.position = Vector2(1730, 4)
-	back_btn.custom_minimum_size = Vector2(150, 50)
+	var back_btn := _make_button("← 戻る", Color(0.15, 0.22, 0.15))
+	back_btn.position = Vector2(1740, 6)
+	back_btn.custom_minimum_size = Vector2(150, 48)
 	back_btn.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/gamelog/GameLogListScreen.tscn"))
 	header.add_child(back_btn)
 
+
 func _build_tabs() -> void:
-	var tab_bar := _make_panel(Color(0.06, 0.10, 0.16, 0.90), Rect2(0, 58, 1920, 50))
+	var tab_bar := _make_panel(Color(0.05, 0.14, 0.07, 0.88), Rect2(0, 60, 1920, 50))
 	add_child(tab_bar)
 	_tab_btns.clear()
 
@@ -94,7 +111,7 @@ func _build_tabs() -> void:
 	for i in range(rounds.size()):
 		var r: Dictionary = rounds[i]
 		var label := _round_label(int(r.get("wind", 0)), int(r.get("kyoku", 1)))
-		var tbtn := _make_button(label, Color(0.14, 0.22, 0.36))
+		var tbtn := _make_button(label, Color(0.10, 0.25, 0.12))
 		tbtn.position = Vector2(x, 4)
 		tbtn.custom_minimum_size = Vector2(110, 42)
 		tbtn.add_theme_font_size_override("font_size", 18)
@@ -103,65 +120,111 @@ func _build_tabs() -> void:
 		_tab_btns.append(tbtn)
 		x += 118.0
 
+
 func _build_info_bar() -> void:
-	var bar := _make_panel(Color(0.07, 0.11, 0.18, 0.80), Rect2(0, 108, 1920, 40))
+	var bar := _make_panel(Color(0.04, 0.12, 0.05, 0.78), Rect2(0, 110, 1920, 38))
 	add_child(bar)
-	_info_bar_lbl = _make_label("", Vector2(20, 8), 22)
-	_info_bar_lbl.add_theme_color_override("font_color", Color(0.80, 0.90, 1.0))
+	_info_bar_lbl = _make_label("", Vector2(20, 6), 20)
+	_info_bar_lbl.add_theme_color_override("font_color", Color(0.80, 0.95, 1.0))
 	bar.add_child(_info_bar_lbl)
-	_result_info_lbl = _make_label("", Vector2(900, 8), 22)
+	_result_info_lbl = _make_label("", Vector2(900, 6), 20)
 	_result_info_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 	bar.add_child(_result_info_lbl)
 
-func _build_replay_area() -> void:
-	# Player 0 hand (left, x=0..720, y=148..348)
-	var hand_panel := _make_panel(Color(0.07, 0.12, 0.10, 0.70), Rect2(0, 148, 720, 200))
-	add_child(hand_panel)
-	hand_panel.add_child(_make_label("手 牌（プレイヤー）", Vector2(14, 8), 20))
-	_hand_area = Control.new()
-	_hand_area.position = Vector2(14, 36)
-	_hand_area.size = Vector2(700, 160)
-	hand_panel.add_child(_hand_area)
 
-	# Meld area (x=0..720, y=348..438)
-	var meld_panel := _make_panel(Color(0.07, 0.10, 0.16, 0.70), Rect2(0, 348, 720, 90))
-	add_child(meld_panel)
-	meld_panel.add_child(_make_label("副露", Vector2(14, 6), 18))
-	_meld_area = Control.new()
-	_meld_area.position = Vector2(14, 30)
-	_meld_area.size = Vector2(700, 56)
-	meld_panel.add_child(_meld_area)
+func _build_left_panel() -> void:
+	var panel := _make_panel(Color(0.02, 0.08, 0.03, 0.82), Rect2(0, CONTENT_Y, LEFT_W, BOTTOM_Y - CONTENT_Y))
+	add_child(panel)
+	panel.add_child(_make_label("打牌候補", Vector2(14, 8), 18))
 
-	# Discard area (x=720..1920, y=148..440)
-	var disc_panel := _make_panel(Color(0.08, 0.10, 0.14, 0.70), Rect2(720, 148, 1200, 292))
-	add_child(disc_panel)
-	disc_panel.add_child(_make_label("捨て牌", Vector2(14, 8), 20))
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(6, 32)
+	scroll.size = Vector2(LEFT_W - 12, BOTTOM_Y - CONTENT_Y - 36)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(scroll)
+
+	_result_list = VBoxContainer.new()
+	_result_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_result_list.add_theme_constant_override("separation", 4)
+	scroll.add_child(_result_list)
+
+
+func _build_center_area() -> void:
+	var cx := LEFT_W
+	var cw := RIGHT_X - LEFT_W
+	var panel := _make_panel(Color(0.03, 0.09, 0.04, 0.65), Rect2(cx, CONTENT_Y, cw, BOTTOM_Y - CONTENT_Y))
+	add_child(panel)
+	panel.add_child(_make_label("捨て牌", Vector2(12, 6), 17))
+
 	_discard_area = Control.new()
-	_discard_area.position = Vector2(14, 36)
-	_discard_area.size = Vector2(1180, 250)
-	disc_panel.add_child(_discard_area)
+	_discard_area.position = Vector2(10, 28)
+	_discard_area.size = Vector2(cw - 20, BOTTOM_Y - CONTENT_Y - 32)
+	panel.add_child(_discard_area)
 
-func _build_nav_bar() -> void:
-	var nav := _make_panel(Color(0.06, 0.10, 0.16, 0.90), Rect2(0, 442, 1920, 66))
+
+func _build_right_panel() -> void:
+	var panel := _make_panel(Color(0.02, 0.08, 0.03, 0.82), Rect2(RIGHT_X, CONTENT_Y, RIGHT_W, BOTTOM_Y - CONTENT_Y))
+	add_child(panel)
+	panel.add_child(_make_label("局情報", Vector2(14, 8), 18))
+
+	_wall_lbl = _make_label("残り山: —", Vector2(14, 36), 20)
+	_wall_lbl.add_theme_color_override("font_color", Color(0.7, 0.95, 1.0))
+	panel.add_child(_wall_lbl)
+
+	panel.add_child(_make_label("見えている牌", Vector2(14, 68), 16))
+
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(6, 90)
+	scroll.size = Vector2(RIGHT_W - 12, BOTTOM_Y - CONTENT_Y - 94)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(scroll)
+
+	_dead_info_vbox = VBoxContainer.new()
+	_dead_info_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_dead_info_vbox.add_theme_constant_override("separation", 3)
+	scroll.add_child(_dead_info_vbox)
+
+
+func _build_bottom_area() -> void:
+	var hand_mask := _make_panel(Color(0.0, 0.0, 0.0, 0.50), Rect2(0, BOTTOM_Y, 1920, 1080.0 - BOTTOM_Y))
+	add_child(hand_mask)
+
+	var meld_bg := _make_panel(Color(0.04, 0.10, 0.05, 0.55), Rect2(10, BOTTOM_Y + 4, 1900, 52))
+	add_child(meld_bg)
+	meld_bg.add_child(_make_label("副露:", Vector2(8, 8), 15))
+	_meld_area = Control.new()
+	_meld_area.position = Vector2(64, 4)
+	_meld_area.size = Vector2(1828, 44)
+	meld_bg.add_child(_meld_area)
+
+	var hand_bg := _make_panel(Color(0.04, 0.12, 0.05, 0.55), Rect2(10, BOTTOM_Y + 60, 1900, int(TILE_H_HAND) + 14))
+	add_child(hand_bg)
+	_hand_area = Control.new()
+	_hand_area.position = Vector2(10, 7)
+	_hand_area.size = Vector2(1880, TILE_H_HAND)
+	hand_bg.add_child(_hand_area)
+
+	var nav_y := BOTTOM_Y + 60 + int(TILE_H_HAND) + 18
+	var nav := _make_panel(Color(0.04, 0.12, 0.05, 0.80), Rect2(10, nav_y, 1900, 56))
 	add_child(nav)
 
-	_nav_prev_btn = _make_button("◀", Color(0.20, 0.25, 0.38))
-	_nav_prev_btn.position = Vector2(20, 8)
-	_nav_prev_btn.custom_minimum_size = Vector2(80, 50)
-	_nav_prev_btn.add_theme_font_size_override("font_size", 28)
+	_nav_prev_btn = _make_button("◀", Color(0.15, 0.28, 0.15))
+	_nav_prev_btn.position = Vector2(10, 4)
+	_nav_prev_btn.custom_minimum_size = Vector2(70, 48)
+	_nav_prev_btn.add_theme_font_size_override("font_size", 26)
 	_nav_prev_btn.pressed.connect(_on_prev_turn)
 	nav.add_child(_nav_prev_btn)
 
-	_nav_next_btn = _make_button("▶", Color(0.20, 0.25, 0.38))
-	_nav_next_btn.position = Vector2(114, 8)
-	_nav_next_btn.custom_minimum_size = Vector2(80, 50)
-	_nav_next_btn.add_theme_font_size_override("font_size", 28)
+	_nav_next_btn = _make_button("▶", Color(0.15, 0.28, 0.15))
+	_nav_next_btn.position = Vector2(86, 4)
+	_nav_next_btn.custom_minimum_size = Vector2(70, 48)
+	_nav_next_btn.add_theme_font_size_override("font_size", 26)
 	_nav_next_btn.pressed.connect(_on_next_turn)
 	nav.add_child(_nav_next_btn)
 
 	_slider = HSlider.new()
-	_slider.position = Vector2(210, 16)
-	_slider.size = Vector2(1360, 34)
+	_slider.position = Vector2(168, 14)
+	_slider.size = Vector2(1280, 30)
 	_slider.min_value = -1
 	_slider.max_value = 0
 	_slider.step = 1
@@ -169,74 +232,30 @@ func _build_nav_bar() -> void:
 	_slider.value_changed.connect(_on_slider_changed)
 	nav.add_child(_slider)
 
-	_study_btn = _make_button("🔍 検討", Color(0.30, 0.20, 0.10))
-	_study_btn.position = Vector2(1600, 8)
-	_study_btn.custom_minimum_size = Vector2(280, 50)
-	_study_btn.add_theme_font_size_override("font_size", 24)
-	_study_btn.pressed.connect(_toggle_sim_panel)
+	_study_btn = _make_button("🔍 検討", Color(0.28, 0.18, 0.06))
+	_study_btn.position = Vector2(1462, 4)
+	_study_btn.custom_minimum_size = Vector2(428, 48)
+	_study_btn.add_theme_font_size_override("font_size", 22)
+	_study_btn.pressed.connect(_run_sim_analysis)
 	nav.add_child(_study_btn)
 
-func _build_sim_panel() -> void:
-	_sim_panel = _make_panel(Color(0.06, 0.10, 0.18, 0.97), Rect2(0, 508, 1920, 572))
-	add_child(_sim_panel)
-	_sim_panel.visible = false
-	_sim_panel.z_index = 20
-
-	var close_btn := _make_button("✕ 閉じる", Color(0.30, 0.15, 0.15))
-	close_btn.position = Vector2(1740, 8)
-	close_btn.custom_minimum_size = Vector2(150, 46)
-	close_btn.pressed.connect(func(): _sim_panel.visible = false; _sim_visible = false)
-	_sim_panel.add_child(close_btn)
-
-	_sim_context_lbl = _make_label("", Vector2(20, 14), 24)
-	_sim_context_lbl.add_theme_color_override("font_color", Color(0.80, 0.90, 1.0))
-	_sim_panel.add_child(_sim_context_lbl)
-
-	var divider := ColorRect.new()
-	divider.position = Vector2(0, 56)
-	divider.size = Vector2(1920, 2)
-	divider.color = Color(0.3, 0.4, 0.6, 0.4)
-	_sim_panel.add_child(divider)
-
-	# Left: result list
-	var result_scroll := ScrollContainer.new()
-	result_scroll.position = Vector2(10, 62)
-	result_scroll.size = Vector2(960, 480)
-	result_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_sim_panel.add_child(result_scroll)
-	_sim_result_list = VBoxContainer.new()
-	_sim_result_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	result_scroll.add_child(_sim_result_list)
-
-	# Right: detail
-	var detail_bg := _make_panel(Color(0.05, 0.09, 0.16, 0.90), Rect2(984, 62, 930, 480))
-	_sim_panel.add_child(detail_bg)
-	detail_bg.add_child(_make_label("有効牌:", Vector2(14, 10), 22))
-	_sim_detail_lbl = _make_label("", Vector2(120, 12), 22)
-	_sim_detail_lbl.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5))
-	detail_bg.add_child(_sim_detail_lbl)
-	var detail_scroll := ScrollContainer.new()
-	detail_scroll.position = Vector2(8, 44)
-	detail_scroll.size = Vector2(912, 430)
-	detail_bg.add_child(detail_scroll)
-	_sim_detail_tiles = Control.new()
-	_sim_detail_tiles.size = Vector2(4000, 400)
-	detail_scroll.add_child(_sim_detail_tiles)
 
 # ============================================================
 # Round / Turn navigation
 # ============================================================
+
 func _select_round(idx: int) -> void:
 	_round_idx = idx
 	_turn_idx = -1
-	_sim_visible = false
-	_sim_panel.visible = false
 	_sim_results.clear()
+	for ch in _result_list.get_children():
+		ch.queue_free()
 	_update_tab_highlight()
 	var turns: Array = _current_turns()
 	_slider.max_value = turns.size() - 1
 	_slider.value = -1
 	_refresh_display()
+
 
 func _current_turns() -> Array:
 	var rounds: Array = _log.get("rounds", [])
@@ -244,32 +263,35 @@ func _current_turns() -> Array:
 		return []
 	return rounds[_round_idx].get("turns", [])
 
+
 func _on_prev_turn() -> void:
 	_go_to_turn(_turn_idx - 1)
 
+
 func _on_next_turn() -> void:
 	_go_to_turn(_turn_idx + 1)
+
 
 func _on_slider_changed(val: float) -> void:
 	var t := int(val)
 	if t != _turn_idx:
 		_go_to_turn(t)
 
+
 func _go_to_turn(idx: int) -> void:
 	var turns: Array = _current_turns()
 	idx = clampi(idx, -1, turns.size() - 1)
 	_turn_idx = idx
 	_slider.set_value_no_signal(float(_turn_idx))
-	_sim_visible = false
-	_sim_panel.visible = false
+	_sim_results.clear()
+	for ch in _result_list.get_children():
+		ch.queue_free()
 	_refresh_display()
 
-func _toggle_sim_panel() -> void:
-	if _sim_visible:
-		_sim_visible = false
-		_sim_panel.visible = false
-	else:
-		_run_sim_analysis()
+
+# ============================================================
+# Analysis
+# ============================================================
 
 func _run_sim_analysis() -> void:
 	var turns: Array = _current_turns()
@@ -296,106 +318,164 @@ func _run_sim_analysis() -> void:
 
 	var analyzer := SanmaAnalyzer.new()
 	_sim_results = analyzer.evaluate_discards(hand_typed, remaining_wall, dead_tiles)
-	_sim_selected = -1
-
-	var round_data: Dictionary = _log.get("rounds", [])[_round_idx]
-	var wind_str := _round_label(int(round_data.get("wind", 0)), int(round_data.get("kyoku", 1)))
-	var draw_id: int = int(turn.get("draw", -1))
-	var draw_name := MahjongLogic.get_tile_name({"id": draw_id, "is_red": bool(turn.get("draw_is_red", false)), "is_gold": bool(turn.get("draw_is_gold", false)), "is_haku_pochi": false}) if draw_id >= 0 else "（初手）"
-	_sim_context_lbl.text = "%s  %d巡目  ツモ: %s" % [wind_str, _turn_idx + 1, draw_name]
 
 	_rebuild_sim_list(int(turn.get("discard", -1)))
 
-	_sim_visible = true
-	_sim_panel.visible = true
 
 func _rebuild_sim_list(actual_discard_id: int) -> void:
-	for ch in _sim_result_list.get_children():
+	for ch in _result_list.get_children():
 		ch.queue_free()
 
 	for i in range(_sim_results.size()):
 		var r: Dictionary = _sim_results[i]
 		var is_best: bool = (i == 0)
 		var is_actual: bool = (actual_discard_id >= 0 and int(r.get("tile_id", -1)) == actual_discard_id)
+		var eff: Dictionary = r.get("effective_tiles", {})
+		var eff_keys: Array = eff.keys()
+		var eff_cols := 9
+		var eff_rows_n := ceili(float(eff_keys.size()) / float(eff_cols)) if eff_keys.size() > 0 else 0
+		var shanten_val: int = int(r.get("shanten", 99))
+		var breakdown: Dictionary = r.get("tile_breakdown", {})
+		var breakdown_rows: int = breakdown.size() if shanten_val <= 2 else 0
+		var row_h := 58 + eff_rows_n * (int(EFF_H) + 6) + 6 + breakdown_rows * 18
+
 		var row := Panel.new()
-		row.custom_minimum_size = Vector2(950, 72)
+		row.custom_minimum_size = Vector2(LEFT_W - 20, row_h)
+
 		var s := StyleBoxFlat.new()
 		if is_best:
-			s.bg_color = Color(0.10, 0.22, 0.12, 0.9)
+			s.bg_color = Color(0.08, 0.20, 0.10, 0.92)
 			s.set_border_width_all(2)
-			s.border_color = Color(0.4, 0.8, 0.4, 0.7)
+			s.border_color = Color(0.4, 0.9, 0.4, 0.8)
 		elif is_actual:
-			s.bg_color = Color(0.22, 0.17, 0.06, 0.9)
+			s.bg_color = Color(0.20, 0.16, 0.05, 0.92)
 			s.set_border_width_all(2)
-			s.border_color = Color(0.9, 0.7, 0.2, 0.7)
+			s.border_color = Color(0.9, 0.7, 0.2, 0.8)
 		else:
-			s.bg_color = Color(0.09, 0.12, 0.17, 0.85)
+			s.bg_color = Color(0.06, 0.10, 0.07, 0.85)
 		s.set_corner_radius_all(5)
 		row.add_theme_stylebox_override("panel", s)
-		var captured_i := i
 
-		if is_best:
-			var star := _make_label("★", Vector2(8, 20), 24)
-			star.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
-			row.add_child(star)
-		if is_actual:
-			var act := _make_label("→", Vector2(8, 20), 24)
-			act.add_theme_color_override("font_color", Color(1.0, 0.75, 0.1))
-			row.add_child(act)
-
-		var tile_d := {"id": r.get("tile_id", -1), "is_red": false, "is_gold": false, "is_haku_pochi": false}
+		var tile_d := {"id": int(r.get("tile_id", -1)), "is_red": false, "is_gold": false, "is_haku_pochi": false}
 		var img := TextureRect.new()
-		img.position = Vector2(36, 2)
-		img.size = Vector2(46, 64)
+		img.position = Vector2(6, 4)
+		img.size = Vector2(34, 48)
 		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		img.texture = _get_tile_texture(tile_d)
 		row.add_child(img)
 
-		row.add_child(_make_label(str(r.get("tile_name", "")), Vector2(90, 18), 20))
-		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(260, 18), 20)
-		shan_lbl.add_theme_color_override("font_color", Color(0.4, 1.0, 0.5) if r.get("shanten", 99) == 0 else Color(0.9, 0.9, 0.7))
+		var text_x := 46.0
+		if is_best:
+			var star := _make_label("★", Vector2(text_x, 4), 16)
+			star.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
+			row.add_child(star)
+			text_x += 22.0
+		elif is_actual:
+			var act := _make_label("→実", Vector2(text_x, 4), 14)
+			act.add_theme_color_override("font_color", Color(1.0, 0.75, 0.1))
+			row.add_child(act)
+			text_x += 30.0
+
+		row.add_child(_make_label(str(r.get("tile_name", "")), Vector2(text_x, 4), 17))
+
+		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(text_x, 24), 14)
+		shan_lbl.add_theme_color_override("font_color",
+			Color(0.4, 1.0, 0.5) if r.get("shanten", 99) == 0 else Color(0.80, 0.80, 0.65))
 		row.add_child(shan_lbl)
-		var eff_lbl := _make_label("有効牌 %d枚" % r.get("effective_count", 0), Vector2(420, 18), 20)
-		eff_lbl.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-		row.add_child(eff_lbl)
-		var exp_chip: int = int(r.get("expected_chip_value", -1))
-		if exp_chip > 0:
-			var chip_lbl := _make_label("期待値 +%d pt" % exp_chip, Vector2(590, 18), 18)
-			chip_lbl.add_theme_color_override("font_color", Color(1.0, 0.8, 0.3))
-			row.add_child(chip_lbl)
-		elif exp_chip == -1:
-			var chip_lbl := _make_label("—", Vector2(620, 18), 18)
-			chip_lbl.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-			row.add_child(chip_lbl)
-		if is_actual:
-			var act_tag := _make_label("←実際", Vector2(760, 18), 18)
-			act_tag.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
-			row.add_child(act_tag)
 
-		var hit_btn := Button.new()
-		hit_btn.set_anchors_preset(Control.PRESET_FULL_RECT)
-		hit_btn.flat = true
-		hit_btn.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
-		hit_btn.add_theme_stylebox_override("hover", StyleBoxEmpty.new())
-		hit_btn.add_theme_stylebox_override("pressed", StyleBoxEmpty.new())
-		hit_btn.pressed.connect(func(): _on_sim_row_pressed(captured_i))
-		row.add_child(hit_btn)
-		_sim_result_list.add_child(row)
+		var tenpai_r: float = float(r.get("tenpai_rate", -1.0))
+		var agari_r: float  = float(r.get("agari_rate",  -1.0))
+		if tenpai_r < 0.0:
+			var dash := _make_label("—", Vector2(220, 16), 16)
+			dash.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+			row.add_child(dash)
+		elif shanten_val == 0:
+			var al := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(210, 10), 15)
+			al.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+			row.add_child(al)
+		elif shanten_val == 1:
+			var tl := _make_label("テンパイ率 %.2f%%" % (tenpai_r * 100.0), Vector2(210, 4), 14)
+			tl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
+			row.add_child(tl)
+			var al := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(210, 22), 14)
+			al.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+			row.add_child(al)
+		elif shanten_val == 2:
+			var tl := _make_label("1シャンテン率 %.2f%%" % (tenpai_r * 100.0), Vector2(205, 4), 13)
+			tl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
+			row.add_child(tl)
+			if agari_r >= 0.0:
+				var al := _make_label("テンパイ率 %.2f%%" % (agari_r * 100.0), Vector2(205, 22), 13)
+				al.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+				row.add_child(al)
+		else:
+			var tl := _make_label("1シャンテン率 %.2f%%" % (tenpai_r * 100.0), Vector2(205, 10), 14)
+			tl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
+			row.add_child(tl)
 
-	# 比較行
+		var eff_cnt_lbl := _make_label("有効 %d枚（期待%d枚）" % [r.get("effective_count", 0), r.get("effective_count_expected", 0)], Vector2(390, 10), 13)
+		eff_cnt_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
+		row.add_child(eff_cnt_lbl)
+
+		var ex := 6.0
+		var ey := 56.0
+		var col := 0
+		for gid: int in eff_keys:
+			var tex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
+			if tex:
+				var ti := TextureRect.new()
+				ti.position = Vector2(ex, ey)
+				ti.size = Vector2(EFF_W, EFF_H)
+				ti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+				ti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				ti.texture = tex
+				row.add_child(ti)
+			var cnt_lbl := _make_label("×%d" % int(eff[gid]), Vector2(ex + EFF_W + 1, ey + int(EFF_H) - 16), 13)
+			cnt_lbl.add_theme_color_override("font_color", Color(0.65, 0.80, 0.65))
+			row.add_child(cnt_lbl)
+			ex += EFF_W + 26
+			col += 1
+			if col >= eff_cols:
+				col = 0
+				ex = 6.0
+				ey += EFF_H + 6
+
+		if not breakdown.is_empty():
+			var bd_y := ey + 4
+			for gid: int in breakdown:
+				var bd: Dictionary = breakdown[gid]
+				var dummy_t := {"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false}
+				var tname := MahjongLogic.get_tile_name(dummy_t)
+				var w_cnt: int = int(bd.get("wall_count", 0))
+				var exp_cnt: int = int(bd.get("expected", 0))
+				var tr_pct: float = float(bd.get("tenpai_rate", 0.0)) * 100.0
+				var ar_v: float = float(bd.get("agari_rate", -1.0))
+				var bd_txt: String
+				if ar_v >= 0.0:
+					bd_txt = "%s×%d（期待%d）  寄与%.1f%%  和了%.1f%%" % [tname, w_cnt, exp_cnt, tr_pct, ar_v * 100.0]
+				else:
+					bd_txt = "%s×%d（期待%d）  寄与%.1f%%" % [tname, w_cnt, exp_cnt, tr_pct]
+				var bd_lbl := _make_label(bd_txt, Vector2(6, bd_y), 12)
+				bd_lbl.add_theme_color_override("font_color", Color(0.70, 0.82, 0.70))
+				row.add_child(bd_lbl)
+				bd_y += 18
+
+		_result_list.add_child(row)
+
 	if actual_discard_id >= 0 and _sim_results.size() > 1:
 		var best: Dictionary = _sim_results[0]
 		var actual: Dictionary = {}
 		for r2: Dictionary in _sim_results:
 			if r2.get("tile_id", -1) == actual_discard_id:
-				actual = r2; break
+				actual = r2
+				break
 		if not actual.is_empty() and actual.get("tile_id", -1) != best.get("tile_id", -1):
 			var diff: int = best.get("effective_count", 0) - actual.get("effective_count", 0)
 			var cmp := Panel.new()
-			cmp.custom_minimum_size = Vector2(950, 46)
+			cmp.custom_minimum_size = Vector2(LEFT_W - 20, 44)
 			var cs := StyleBoxFlat.new()
-			cs.bg_color = Color(0.18, 0.10, 0.04, 0.9)
+			cs.bg_color = Color(0.18, 0.12, 0.04, 0.9)
 			cs.set_corner_radius_all(5)
 			cmp.add_theme_stylebox_override("panel", cs)
 			var txt := "実際: %s（%s・%d枚）　最善: %s（%s・%d枚）　差 -%d枚" % [
@@ -403,46 +483,21 @@ func _rebuild_sim_list(actual_discard_id: int) -> void:
 				best.get("tile_name", "?"), best.get("shanten_text", "?"), best.get("effective_count", 0),
 				diff,
 			]
-			var cl := _make_label(txt, Vector2(12, 12), 18)
+			var cl := _make_label(txt, Vector2(10, 10), 15)
 			cl.add_theme_color_override("font_color", Color(1.0, 0.75, 0.3))
 			cmp.add_child(cl)
-			_sim_result_list.add_child(cmp)
+			_result_list.add_child(cmp)
 
-func _on_sim_row_pressed(idx: int) -> void:
-	_sim_selected = idx
-	if idx < 0 or idx >= _sim_results.size():
-		return
-	var r: Dictionary = _sim_results[idx]
-	_sim_detail_lbl.text = "%s を切った場合 (%s・%d枚)" % [r.get("tile_name", ""), r.get("shanten_text", ""), r.get("effective_count", 0)]
-	for ch in _sim_detail_tiles.get_children():
-		ch.queue_free()
-	var x := 0.0
-	var eff: Dictionary = r.get("effective_tiles", {})
-	for gid: int in eff:
-		var tex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
-		if tex:
-			var ti := TextureRect.new()
-			ti.position = Vector2(x, 0)
-			ti.size = Vector2(40, 56)
-			ti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			ti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			ti.texture = tex
-			_sim_detail_tiles.add_child(ti)
-			x += 44
-		var cl := _make_label("×" + str(eff[gid]), Vector2(x, 16), 16)
-		cl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.7))
-		_sim_detail_tiles.add_child(cl)
-		x += 34
 
 # ============================================================
 # Display refresh
 # ============================================================
+
 func _refresh_display() -> void:
 	var turns: Array = _current_turns()
 	_nav_prev_btn.disabled = (_turn_idx <= -1)
 	_nav_next_btn.disabled = (_turn_idx >= turns.size() - 1)
 
-	# InfoBar
 	var rounds: Array = _log.get("rounds", [])
 	if _round_idx < rounds.size():
 		var rd: Dictionary = rounds[_round_idx]
@@ -454,44 +509,100 @@ func _refresh_display() -> void:
 		elif _turn_idx < turns.size():
 			var t: Dictionary = turns[_turn_idx]
 			var p_name := _player_name(int(t.get("player", 0)))
-			var draw_id: int = int(t.get("draw", -1))
 			var info_txt := "%s%s  %d巡目  %s" % [wind_str, honba_str, _turn_idx + 1, p_name]
 			if int(t.get("is_kita", false)):
 				info_txt += " 北抜き"
-			elif draw_id >= 0:
-				var draw_tile := {"id": draw_id, "is_red": bool(t.get("draw_is_red", false)), "is_gold": bool(t.get("draw_is_gold", false)), "is_haku_pochi": false}
+			elif int(t.get("draw", -1)) >= 0:
+				var draw_tile := {
+					"id": int(t.get("draw", -1)),
+					"is_red": bool(t.get("draw_is_red", false)),
+					"is_gold": bool(t.get("draw_is_gold", false)),
+					"is_haku_pochi": false
+				}
 				info_txt += " ツモ: " + MahjongLogic.get_tile_name(draw_tile)
 			var disc_id: int = int(t.get("discard", -1))
 			if disc_id >= 0:
-				var disc_tile := {"id": disc_id, "is_red": bool(t.get("discard_is_red", false)), "is_gold": bool(t.get("discard_is_gold", false)), "is_haku_pochi": false}
+				var disc_tile := {
+					"id": disc_id,
+					"is_red": bool(t.get("discard_is_red", false)),
+					"is_gold": bool(t.get("discard_is_gold", false)),
+					"is_haku_pochi": false
+				}
 				info_txt += "  打: " + MahjongLogic.get_tile_name(disc_tile)
 				if bool(t.get("is_riichi", false)):
 					info_txt += " [立直]"
 			_info_bar_lbl.text = info_txt
 
-		# Round result at last turn
 		if _turn_idx == turns.size() - 1:
 			var result: Dictionary = rd.get("result", {})
 			_result_info_lbl.text = _format_round_result(result, _log.get("players", []))
 		else:
 			_result_info_lbl.text = ""
 
-	# Study button enabled only when player 0 draw with 14 tiles
 	var can_study := false
 	if _turn_idx >= 0 and _turn_idx < turns.size():
 		var t: Dictionary = turns[_turn_idx]
-		can_study = (int(t.get("player", -1)) == 0 and (t.get("hand_after_draw", []) as Array).size() == 14)
+		var hand_size := (t.get("hand_after_draw", []) as Array).size()
+		can_study = (int(t.get("player", -1)) == 0 and hand_size >= 1 and hand_size % 3 == 2)
 	_study_btn.disabled = not can_study
 
-	# Rebuild hand/discard/meld areas
 	_rebuild_hand_view(turns)
 	_rebuild_discard_view(turns)
 	_rebuild_meld_view(turns)
+	_rebuild_right_info(turns)
+
+
+func _rebuild_right_info(turns: Array) -> void:
+	var remaining := _calc_remaining_wall(turns, _turn_idx)
+	_wall_lbl.text = "残り山: %d枚" % remaining
+
+	for ch in _dead_info_vbox.get_children():
+		ch.queue_free()
+
+	if _turn_idx < 0:
+		return
+
+	var dead := _build_dead_tiles_from_log(turns, _turn_idx)
+	var counts: Dictionary = dead.get("counts", {})
+	if counts.is_empty():
+		return
+
+	var sorted_ids: Array = counts.keys()
+	sorted_ids.sort()
+	var row_ctrl: Control = null
+	var ex := 0.0
+	var col := 0
+	for gid: int in sorted_ids:
+		var cnt: int = int(counts[gid])
+		if cnt <= 0:
+			continue
+		if col == 0 or row_ctrl == null:
+			row_ctrl = Control.new()
+			row_ctrl.custom_minimum_size = Vector2(RIGHT_W - 12, 32)
+			_dead_info_vbox.add_child(row_ctrl)
+			ex = 0.0
+		var tex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
+		if tex:
+			var ti := TextureRect.new()
+			ti.position = Vector2(ex, 0)
+			ti.size = Vector2(22, 30)
+			ti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			ti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			ti.texture = tex
+			row_ctrl.add_child(ti)
+		var cl := _make_label("×%d" % cnt, Vector2(ex + 23, 6), 13)
+		cl.add_theme_color_override("font_color", Color(0.7, 0.8, 0.7))
+		row_ctrl.add_child(cl)
+		ex += 46.0
+		col += 1
+		if col >= 12:
+			col = 0
+
 
 func _rebuild_hand_view(turns: Array) -> void:
 	for ch in _hand_area.get_children():
 		ch.queue_free()
-	# Find last turn where player 0 drew (hand_after_draw has data)
+
 	var hand_tiles: Array = []
 	var t_idx_found := -1
 	for i in range(mini(_turn_idx + 1, turns.size()) - 1, -1, -1):
@@ -505,15 +616,9 @@ func _rebuild_hand_view(turns: Array) -> void:
 	if hand_tiles.is_empty():
 		return
 
-	# If t_idx_found == _turn_idx: show hand after draw (before discard)
-	# Otherwise we're past that turn, show hand minus discarded tile
 	var discard_id_to_hide := -1
-	if t_idx_found == _turn_idx:
-		discard_id_to_hide = -1  # show full 14
-	else:
-		# show 13 tiles (after discard): remove discard tile from hand
-		if t_idx_found >= 0 and t_idx_found < turns.size():
-			discard_id_to_hide = int(turns[t_idx_found].get("discard", -1))
+	if t_idx_found != _turn_idx and t_idx_found >= 0 and t_idx_found < turns.size():
+		discard_id_to_hide = int(turns[t_idx_found].get("discard", -1))
 
 	var display_hand: Array = []
 	var removed := false
@@ -524,48 +629,33 @@ func _rebuild_hand_view(turns: Array) -> void:
 			continue
 		display_hand.append(td)
 
-	display_hand.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("id", 0)) < int(b.get("id", 0)))
-	var can_tap := (display_hand.size() == 14)
+	display_hand.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a.get("id", 0)) < int(b.get("id", 0)))
+
 	var x := 0.0
 	for tile_d in display_hand:
 		var td: Dictionary = tile_d as Dictionary
-		var tex := _get_tile_texture({"id": int(td.get("id", -1)), "is_red": bool(td.get("is_red", false)), "is_gold": bool(td.get("is_gold", false)), "is_haku_pochi": bool(td.get("is_haku_pochi", false))})
-		var btn := Button.new()
-		btn.flat = true
-		btn.position = Vector2(x, 0)
-		btn.custom_minimum_size = Vector2(TILE_W_HAND, TILE_H_HAND)
-		var style_normal := StyleBoxFlat.new()
-		style_normal.bg_color = Color(0, 0, 0, 0)
-		style_normal.set_corner_radius_all(3)
-		var style_hover := StyleBoxFlat.new()
-		style_hover.bg_color = Color(1.0, 0.95, 0.4, 0.25)
-		style_hover.set_corner_radius_all(3)
-		var style_pressed := StyleBoxFlat.new()
-		style_pressed.bg_color = Color(1.0, 0.85, 0.2, 0.45)
-		style_pressed.set_corner_radius_all(3)
-		btn.add_theme_stylebox_override("normal", style_normal)
-		btn.add_theme_stylebox_override("hover", style_hover)
-		btn.add_theme_stylebox_override("pressed", style_pressed)
-		if can_tap:
-			btn.pressed.connect(_toggle_sim_panel)
-		else:
-			btn.disabled = true
+		var tex := _get_tile_texture({
+			"id": int(td.get("id", -1)),
+			"is_red": bool(td.get("is_red", false)),
+			"is_gold": bool(td.get("is_gold", false)),
+			"is_haku_pochi": bool(td.get("is_haku_pochi", false))
+		})
 		var trect := TextureRect.new()
-		trect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		trect.position = Vector2(x, 0)
+		trect.size = Vector2(TILE_W_HAND, TILE_H_HAND)
 		trect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		trect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		trect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		if tex:
 			trect.texture = tex
-		btn.add_child(trect)
-		_hand_area.add_child(btn)
+		_hand_area.add_child(trect)
 		x += TILE_W_HAND + TILE_GAP
+
 
 func _rebuild_discard_view(turns: Array) -> void:
 	for ch in _discard_area.get_children():
 		ch.queue_free()
 	var max_t := mini(_turn_idx + 1, turns.size())
-	# Accumulate discards per player
 	var discards: Array = [[], [], []]
 	for i in range(max_t):
 		var t: Dictionary = turns[i]
@@ -582,14 +672,13 @@ func _rebuild_discard_view(turns: Array) -> void:
 				"is_haku_pochi": false,
 			})
 
-	var players_arr: Array = _log.get("players", [])
 	var row_y := 0.0
 	for p in range(3):
 		var pname := _player_name(p)
-		var lbl := _make_label(pname + ":", Vector2(0, row_y + 2), 16)
-		lbl.add_theme_color_override("font_color", Color(0.65, 0.75, 0.85))
+		var lbl := _make_label(pname + ":", Vector2(0, row_y + 2), 15)
+		lbl.add_theme_color_override("font_color", Color(0.65, 0.80, 0.65))
 		_discard_area.add_child(lbl)
-		var x := 80.0
+		var x := 74.0
 		var col := 0
 		var local_y := row_y
 		for td: Dictionary in discards[p]:
@@ -605,10 +694,11 @@ func _rebuild_discard_view(turns: Array) -> void:
 				trect.modulate = Color(1.0, 0.85, 0.3)
 			_discard_area.add_child(trect)
 			col += 1
-			if col >= 18:
+			if col >= 16:
 				col = 0
 				local_y += TILE_H_DISC + TILE_GAP
-		row_y += TILE_H_DISC * 2.5 + 10
+		row_y += TILE_H_DISC * 2.5 + 8
+
 
 func _rebuild_meld_view(turns: Array) -> void:
 	for ch in _meld_area.get_children():
@@ -629,18 +719,18 @@ func _rebuild_meld_view(turns: Array) -> void:
 		if melds[p].is_empty():
 			continue
 		var pname := _player_name(p)
-		var lbl := _make_label(pname + ":", Vector2(x, 0), 15)
-		lbl.add_theme_color_override("font_color", Color(0.65, 0.75, 0.85))
+		var lbl := _make_label(pname + ":", Vector2(x, 0), 14)
+		lbl.add_theme_color_override("font_color", Color(0.65, 0.80, 0.65))
 		_meld_area.add_child(lbl)
-		x += 60.0
+		x += 58.0
 		for meld: Dictionary in melds[p]:
 			var tile_id: int = int(meld.get("tile_id", -1))
 			var type_str: String = str(meld.get("type", ""))
-			var count := 3 if (type_str == "pon") else (4 if type_str in ["ankan", "minkan", "kakan"] else 3)
+			var count := 4 if type_str in ["ankan", "minkan", "kakan"] else 3
 			for _j in range(count):
 				var tex := _get_tile_texture({"id": tile_id, "is_red": false, "is_gold": false, "is_haku_pochi": false})
 				var trect := TextureRect.new()
-				trect.position = Vector2(x, 4)
+				trect.position = Vector2(x, 0)
 				trect.size = Vector2(TILE_W_MELD, TILE_H_MELD)
 				trect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 				trect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -650,9 +740,11 @@ func _rebuild_meld_view(turns: Array) -> void:
 				x += TILE_W_MELD + 2
 			x += 8
 
+
 # ============================================================
 # Helpers
 # ============================================================
+
 func _build_dead_tiles_from_log(turns: Array, up_to_turn_idx: int) -> Dictionary:
 	var counts: Dictionary = {}
 	var red: Dictionary = {}
@@ -674,6 +766,7 @@ func _build_dead_tiles_from_log(turns: Array, up_to_turn_idx: int) -> Dictionary
 				counts[mid] = counts.get(mid, 0) + 1
 	return {"counts": counts, "red": red, "gold": gold}
 
+
 func _calc_remaining_wall(turns: Array, up_to_turn_idx: int) -> int:
 	var draws := 0
 	var max_t := mini(up_to_turn_idx + 1, turns.size())
@@ -683,19 +776,23 @@ func _calc_remaining_wall(turns: Array, up_to_turn_idx: int) -> int:
 			draws += 1
 	return maxi(1, 61 - draws)
 
+
 func _update_tab_highlight() -> void:
 	for i in range(_tab_btns.size()):
 		(_tab_btns[i] as Button).modulate = Color(1.0, 0.85, 0.2) if i == _round_idx else Color(1, 1, 1)
 
+
 func _round_label(wind: int, kyoku: int) -> String:
 	var w: String = "東" if wind == MahjongLogic.EAST else "南"
 	return "%s%d局" % [w, kyoku]
+
 
 func _player_name(idx: int) -> String:
 	var players_arr: Array = _log.get("players", [])
 	if idx < players_arr.size():
 		return str((players_arr[idx] as Dictionary).get("name", "P%d" % idx))
 	return "P%d" % idx
+
 
 func _format_round_result(result: Dictionary, players_arr: Array) -> String:
 	var type_str: String = str(result.get("type", ""))
@@ -708,15 +805,18 @@ func _format_round_result(result: Dictionary, players_arr: Array) -> String:
 	var yaku_str := ", ".join(yaku_arr) if not yaku_arr.is_empty() else ""
 	return "%s %s和了 %s %d翻" % [w_name, "ツモ" if type_str == "tsumo" else "ロン", yaku_str, han]
 
+
 func _format_date(raw: String) -> String:
 	if raw.length() < 16:
 		return raw
 	var d := raw.replace("T", " ")
 	return d.substr(0, 4) + "/" + d.substr(5, 2) + "/" + d.substr(8, 2) + " " + d.substr(11, 5)
 
+
 # ============================================================
 # UI helpers
 # ============================================================
+
 func _make_panel(color: Color, rect: Rect2) -> Panel:
 	var p := Panel.new()
 	p.position = rect.position
@@ -727,6 +827,7 @@ func _make_panel(color: Color, rect: Rect2) -> Panel:
 	p.add_theme_stylebox_override("panel", style)
 	return p
 
+
 func _make_label(text: String, pos: Vector2, font_size: int = 18) -> Label:
 	var l := Label.new()
 	l.text = text
@@ -735,10 +836,11 @@ func _make_label(text: String, pos: Vector2, font_size: int = 18) -> Label:
 	l.add_theme_color_override("font_color", Color(0.95, 0.95, 0.90))
 	return l
 
+
 func _make_button(text: String, bg_color: Color) -> Button:
 	var btn := Button.new()
 	btn.text = text
-	btn.add_theme_font_size_override("font_size", 20)
+	btn.add_theme_font_size_override("font_size", 18)
 	var style := StyleBoxFlat.new()
 	style.bg_color = bg_color
 	style.set_corner_radius_all(5)
@@ -755,9 +857,11 @@ func _make_button(text: String, bg_color: Color) -> Button:
 	btn.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.35))
 	return btn
 
+
 # ============================================================
 # Tile texture
 # ============================================================
+
 func _get_tile_texture_path(tile: Dictionary) -> String:
 	var id: int = tile.id
 	var is_red: bool = tile.get("is_red", false)
@@ -792,6 +896,7 @@ func _get_tile_texture_path(tile: Dictionary) -> String:
 		46: return "res://assets/tiles/hai_ji_hatu.webp"
 		47: return "res://assets/tiles/hai_ji_tyun.webp"
 	return ""
+
 
 func _get_tile_texture(tile: Dictionary) -> Texture2D:
 	var path := _get_tile_texture_path(tile)

@@ -1,6 +1,76 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/29-2】SanmaAnalyzer 確率モデル精緻化・表示強化（SanmaAnalyzer.gd / GameLogViewerScreen.gd / SimulatorScreen.gd）
+  - _calc_effective_tiles() の total_wall パラメータを削除し、生の枚数（補正なし）を返すよう変更。
+    wall_count = DECK_SIZE - 手牌 - 死牌（山確率補正はevaluate_discards側で実施）
+  - evaluate_discards() の for ループを range(14) → range(hand.size()) に修正（11枚以下の正確対応）。
+  - evaluate_discards() 返り値に effective_count_expected（期待値枚数=raw×山確率）と tile_breakdown を追加。
+  - _calc_rates() を全面書き直し。シャンテン数ごとに意味を分離:
+      shanten==0: tenpai_rate=1.0, agari_rate=ツモ和了率
+      shanten==1: tenpai_rate=テンパイ到達率, agari_rate=和了期待値, tile_breakdown=有効牌ごとの寄与・和了率
+      shanten==2: tenpai_rate=1シャンテン到達率, agari_rate=テンパイ到達率, tile_breakdown=有効牌ごとの1シャンテン寄与
+      shanten>=3: tenpai_rate=1シャンテン到達率, agari_rate=-1.0
+  - _calc_agari_rate(e, w) ヘルパー関数を追加（逐次計算を共通化）。
+  - 表示ラベルをシャンテン数に応じて変更（和了率 / テンパイ率+和了率 / 1シャンテン率+テンパイ率 / 1シャンテン率 / —）。
+  - 有効牌枚数表示を「有効N枚（期待M枚）」形式に変更。
+  - shanten<=2 時、有効牌ごとの内訳（tile_breakdown）をテキスト行として表示。
+
+【2026/05/29-1】有効牌確率モデルを山確率ベースに改良（SanmaAnalyzer.gd）
+  - _calc_effective_tiles() に total_wall パラメータ追加。
+    wall_count = int((DECK_SIZE - 手牌 - 死牌) × total_wall / (total_wall + 34))
+    34 = 相手手牌26枚 + 王牌8枚（見えていない牌の推定数）
+  - evaluate_discards() → _calc_effective_tiles() 呼び出しに total_wall を追加。
+  - _calc_rates() の逐次ループを改良。
+    毎ターン、他家2枚ツモによる有効牌の期待減少を反映：
+      e -= e × 2 / (w + 34)　（w: 残山、34: 見えていない牌）
+    shanten==0の agari_rate、shanten==1の tenpai_rate・p_win（テンパイ後和了率）の計3ループを修正。
+    1シャンテン内側の new_eff 計算にも remaining を渡すよう更新。
+
+【2026/05/28-9】テンパイ率・和了率の表示条件をshanten基準に修正（SimulatorScreen.gd / GameLogViewerScreen.gd）
+  - tenpai_r < 1.0 での判定を廃止し、shanten == 0 で分岐するよう変更。
+    shanten==0（テンパイ）: 和了率のみ表示
+    shanten>=1（向聴）: テンパイ率と和了率を両方表示
+    tenpai_r < 0.0（2シャンテン以上）: 「—」表示
+
+【2026/05/28-8】副露後の検討ボタン対応（GameLogViewerScreen.gd / SanmaAnalyzer.gd）
+  - GameLogViewerScreen: 検討ボタンの有効化条件を hand_after_draw.size() == 14 から
+    hand_size >= 1 && hand_size % 3 == 2 に変更。副露後（11枚・8枚等）でも検討可能になった。
+  - SanmaAnalyzer: evaluate_discards() のアサーションを
+    hand.size() >= 2 and hand.size() % 3 == 2 に変更（14・11・8・5・2枚を許容）。
+
+【2026/05/28-7】和了率・テンパイ率の計算を逐次方式に修正（SanmaAnalyzer.gd）
+  - _calc_rates() 内の pow() による近似計算を逐次ループに置き換え。
+    各巡目でツモ山が 3 枚ずつ減る（自分1+他家2）ことを正確に反映。
+  - テンパイ時 agari_rate、1シャンテン時 tenpai_rate、
+    1シャンテン時の内側 p_win（テンパイ後の和了率）の計 3 箇所を修正。
+
+【2026/05/28-6】牌譜ビューアUI全面刷新（GameLogViewerScreen.gd）
+  - game.gd の緑卓背景（ColorRect + bg_takujou.webp）を流用してUI作り直し。
+  - 左620px: 打牌候補パネル（ScrollContainer）。解析結果を常に全展開で表示（有効牌画像を各行にインライン展開）。
+  - 中央680px: 捨て牌エリア（3者分をターンごと再構築）。
+  - 右620px: 局情報パネル（残り山枚数 + 見えている牌一覧）。
+  - 下部y=680〜: 手牌背景マスク + 副露行 + 手牌行 + ナビバー（◀ ▶ スライダー [🔍 検討]）。
+  - クマ立ち絵を廃止。
+  - 手牌タイルは TextureRect のみ（タップ操作廃止）。検討ボタン押下で解析を実行。
+  - _build_dead_tiles_from_log の max_t を mini(up_to_turn_idx, turns.size()) に修正（現ターン捨て牌を dead_tiles に含めない）。
+  - チップ期待値表示を完全削除し、テンパイ率・和了率（小数2桁%）表示に置換。
+
+【2026/05/28-5】テンパイ率・和了率導入＋シミュレーターUI刷新（SanmaAnalyzer.gd / SimulatorScreen.gd / GameLogViewerScreen.gd）
+  - SanmaAnalyzer: expected_chip_value とチップ関連計算（CHIP_RED/GOLD/TILE_RED_TOTAL/TILE_GOLD_TOTAL/_chip_per_draw/_calc_expected_chip）を完全削除。
+    代わりに tenpai_rate / agari_rate (float) を追加。
+    テンパイ時 agari_rate = 1-pow((山-有効)/山, ceil(山/3))、1シャンテン時は有効牌ごとに P(ツモ)×P(テンパイ後和了) を合算。
+    2シャンテン以上は -1.0 を返し UI では「—」表示。表示は小数2桁（例: 34.18%）。
+  - SimulatorScreen: game.gd の背景・スタイルを流用してUI全面刷新。
+    左700px=解析結果（全候補＋有効牌を常に展開）、中央600px=パレット+手牌+ボタン、右620px=設定。
+    アクションボタン行に [▶ 解析] [クリア] [🔍 検討] を追加（検討=見えている牌トグル）。
+    クマ立ち絵を廃止。
+  - GameLogViewerScreen: シミュレーターパネルの chip 表示を tenpai_rate / agari_rate 表示に変更。
+
+【2026/05/28-4】Claude Code用指示書ファイルを削除
+  - CLAUDE_CODE_SPEC.md（実装仕様書）を削除。全タスク実装済みのため不要。
+  - CLAUDE_CODE_DIFF.md（修正指示書：chip_value→expected_chip_value等）を削除。実装済みのため不要。
+
 【2026/05/28-3】NPC立ち絵差し替え（chara/ / SaveData.gd / game.gd / menu.gd）
   - 各NPCの立ち絵PNGを WebP に変換し、元PNGを削除。
   - kuma_*2a.webp（ゲーム画面用）・kuma_*2b.webp（メンツ選択中央用）を追加。

@@ -47,14 +47,6 @@ const _IDX_TO_GAME_ID: Array[int] = [
 const NUM_TYPES := 27
 const DECK_SIZE := 4
 
-# チップ価値（点棒換算・ツモ両者払い）
-# is_red=true なら +10000、is_gold=true なら +20000
-const CHIP_RED  := 10000
-const CHIP_GOLD := 20000
-
-# デッキ内の赤・金の総枚数
-const TILE_RED_TOTAL: Dictionary  = {25: 2, 35: 2, 44: 1}  # 5p赤×2, 5s赤×2, 北赤×1
-const TILE_GOLD_TOTAL: Dictionary = {28: 1, 38: 1}          # 8p金×1, 8s金×1
 
 # --------------------------------------------------
 # 内部変数
@@ -67,60 +59,66 @@ var _best: int
 # ==================================================
 
 ## 14枚手牌（Dictionary配列）を受け取り、各打牌の評価結果を返す。
-## 返り値はソート済み（向聴数 → 有効牌枚数 → 期待チップ価値の優先順）。
+## 返り値はソート済み（向聴数 → 有効牌枚数 → 和了率の優先順）。
 ##
 ## [return] 辞書の配列。各辞書のキー：
-##   tile_id              : 打牌する牌のゲームID（例: 25 = 5p）
-##   tile_name            : 表示名（例: "5筒(赤)"）
-##   shanten              : 打牌後の向聴数（0=テンパイ）
-##   shanten_text         : 向聴数テキスト（例: "テンパイ"）
-##   effective_tiles      : 有効牌 { ゲームID: 残り枚数上限 }
-##   effective_count      : 有効牌の総枚数
-##   expected_chip_value  : チップ込み期待値（点棒換算）。計算不能時は -1
+##   tile_id        : 打牌する牌のゲームID（例: 25 = 5p）
+##   tile_name      : 表示名（例: "5筒(赤)"）
+##   shanten        : 打牌後の向聴数（0=テンパイ）
+##   shanten_text   : 向聴数テキスト（例: "テンパイ"）
+##   effective_tiles: 有効牌 { ゲームID: 残り枚数上限 }
+##   effective_count         : 有効牌の総枚数（生の枚数）
+##   effective_count_expected: 有効牌の期待値枚数（山確率補正後）
+##   tenpai_rate    : テンパイ率 / 1シャンテン到達率。計算不能時は -1.0
+##   agari_rate     : 和了率 / テンパイ到達率。計算不能時は -1.0
+##   tile_breakdown : 有効牌ごとの内訳 { game_id: {wall_count, expected, tenpai_rate, agari_rate} }
 func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary = {}) -> Array:
-	assert(hand.size() == 14, "手牌は14枚である必要があります")
+	assert(hand.size() >= 2 and hand.size() % 3 == 2, "手牌は14枚・11枚・8枚・5枚・2枚のいずれかである必要があります")
 
 	var results: Array = []
-	var evaluated: Dictionary = {}  # 同じIDの重複打牌を省略
+	var evaluated: Dictionary = {}
 
-	for i in range(14):
+	for i in range(hand.size()):
 		var tile: Dictionary = hand[i]
 		var tile_id: int = tile.id
 
-		# 同じIDの牌は代表1枚だけ評価
 		if evaluated.has(tile_id):
 			continue
 		evaluated[tile_id] = true
 
-		# i枚目を除いた13枚を解析
 		var remaining := hand.duplicate()
 		remaining.remove_at(i)
 
-		var counts        := _to_counts(remaining)
-		var shanten       := calc_shanten(counts)
-		var effective     := _calc_effective_tiles(counts, shanten, dead_tiles)
-		var eff_count     := 0
+		var counts    := _to_counts(remaining)
+		var shanten   := calc_shanten(counts)
+		var effective := _calc_effective_tiles(counts, shanten, dead_tiles)
+		var eff_count_raw := 0
 		for cnt: int in effective.values():
-			eff_count += cnt
-		var expected_chip := _calc_expected_chip(counts, shanten, effective, total_wall, dead_tiles)
+			eff_count_raw += cnt
+		var in_wall_prob := float(total_wall) / float(total_wall + 34.0)
+		var eff_count_expected := int(float(eff_count_raw) * in_wall_prob)
+		var rates := _calc_rates(counts, shanten, effective, total_wall, dead_tiles)
 
 		results.append({
-			"tile_id"            : tile_id,
-			"tile_name"          : MahjongLogic.get_tile_name(tile),
-			"shanten"            : shanten,
-			"shanten_text"       : _shanten_to_text(shanten),
-			"effective_tiles"    : effective,
-			"effective_count"    : eff_count,
-			"expected_chip_value": expected_chip,
+			"tile_id"                : tile_id,
+			"tile_name"              : MahjongLogic.get_tile_name(tile),
+			"shanten"                : shanten,
+			"shanten_text"           : _shanten_to_text(shanten),
+			"effective_tiles"        : effective,
+			"effective_count"        : eff_count_raw,
+			"effective_count_expected": eff_count_expected,
+			"tenpai_rate"            : rates.tenpai_rate,
+			"agari_rate"             : rates.agari_rate,
+			"tile_breakdown"         : rates.tile_breakdown,
 		})
 
-	# ソート：向聴数（昇順）→ 有効牌枚数（降順）→ 期待チップ価値（降順）
+	# ソート：向聴数（昇順）→ 有効牌枚数（降順）→ 和了率（降順）
 	results.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		if a.shanten != b.shanten:
 			return a.shanten < b.shanten
 		if a.effective_count != b.effective_count:
 			return a.effective_count > b.effective_count
-		return a.expected_chip_value > b.expected_chip_value
+		return float(a.agari_rate) > float(b.agari_rate)
 	)
 	return results
 
@@ -240,14 +238,15 @@ func _shanten_chiitoi(counts: Array) -> int:
 # 有効牌計算
 # ==================================================
 
-## 現在の向聴数を下げる牌と残り枚数（dead_tiles考慮）を返す。
+## 現在の向聴数を下げる牌と山の生の枚数（補正なし）を返す。
+## wall_count = DECK_SIZE - 手牌 - 死牌
 func _calc_effective_tiles(counts: Array, shanten: int, dead_tiles: Dictionary = {}) -> Dictionary:
 	var dead_counts: Dictionary = dead_tiles.get("counts", {})
 	var effective: Dictionary = {}
 	for idx in range(NUM_TYPES):
 		var game_id: int = _IDX_TO_GAME_ID[idx]
 		var dead: int = int(dead_counts.get(game_id, 0))
-		var wall_count: int = DECK_SIZE - int(counts[idx]) - dead
+		var wall_count: int = DECK_SIZE - counts[idx] - dead
 		if wall_count <= 0:
 			continue
 		counts[idx] += 1
@@ -258,94 +257,135 @@ func _calc_effective_tiles(counts: Array, shanten: int, dead_tiles: Dictionary =
 
 
 # ==================================================
-# チップ期待値計算
+# テンパイ率・和了率計算
 # ==================================================
 
-## ある有効牌を1枚引いたときの「チップ牌である確率×チップ価値」の期待値
-func _chip_per_draw(game_id: int, counts_idx: int, dead_tiles: Dictionary) -> float:
-	var dead_counts: Dictionary = dead_tiles.get("counts", {})
-	var dead_red: Dictionary    = dead_tiles.get("red", {})
-	var dead_gold: Dictionary   = dead_tiles.get("gold", {})
-	var total_remaining: int = DECK_SIZE - counts_idx - int(dead_counts.get(game_id, 0))
-	if total_remaining <= 0:
-		return 0.0
-	var value := 0.0
-	if TILE_RED_TOTAL.has(game_id):
-		var red_remaining: int = int(TILE_RED_TOTAL[game_id]) - int(dead_red.get(game_id, 0))
-		value += (float(maxi(0, red_remaining)) / total_remaining) * CHIP_RED
-	if TILE_GOLD_TOTAL.has(game_id):
-		var gold_remaining: int = int(TILE_GOLD_TOTAL[game_id]) - int(dead_gold.get(game_id, 0))
-		value += (float(maxi(0, gold_remaining)) / total_remaining) * CHIP_GOLD
-	return value
-
-
-## 打牌後の手牌に対するチップ込み期待値を計算する。
-## テンパイ・1シャンテンのみ計算、2シャンテン以上は -1 を返す。
-func _calc_expected_chip(
+## テンパイ率・和了率・有効牌内訳を返す。
+## shanten==0: tenpai_rate=1.0, agari_rate=ツモ和了確率
+## shanten==1: tenpai_rate=テンパイ到達確率, agari_rate=和了期待値, tile_breakdown=各有効牌内訳
+## shanten==2: tenpai_rate=1シャンテン到達率, agari_rate=テンパイ到達率, tile_breakdown=各有効牌内訳
+## shanten>=3: tenpai_rate=1シャンテン到達率, agari_rate=-1.0
+func _calc_rates(
 		counts    : Array,
 		shanten   : int,
 		effective : Dictionary,
 		total_wall: int,
 		dead_tiles: Dictionary
-) -> int:
+) -> Dictionary:
 	if total_wall <= 0:
-		return -1
+		return {"tenpai_rate": -1.0, "agari_rate": -1.0, "tile_breakdown": {}}
 
-	# テンパイ時
+	var eff_total := 0
+	for cnt in effective.values():
+		eff_total += int(cnt)
+
+	var in_wall_prob := float(total_wall) / float(total_wall + 34.0)
+
 	if shanten == 0:
-		var chip_sum := 0.0
-		var eff_total := 0
-		for cnt in effective.values():
-			eff_total += int(cnt)
 		if eff_total == 0:
-			return 0
-		for game_id: int in effective:
-			var w: int = int(effective[game_id])
-			var idx: int = _GAME_ID_TO_IDX.get(game_id, -1)
-			if idx < 0:
-				continue
-			chip_sum += float(w) * _chip_per_draw(game_id, int(counts[idx]), dead_tiles)
-		var avg_chip := chip_sum / eff_total
-		var hand_chip := 0.0
-		for i in range(NUM_TYPES):
-			if int(counts[i]) <= 0:
-				continue
-			var gid: int = _IDX_TO_GAME_ID[i]
-			if TILE_RED_TOTAL.has(gid) or TILE_GOLD_TOTAL.has(gid):
-				hand_chip += _chip_per_draw(gid, int(counts[i]), dead_tiles) * int(counts[i])
-		var turns: int = ceili(float(total_wall) / 3.0)
-		var p_win := 1.0 - pow(float(total_wall - eff_total) / float(total_wall), turns)
-		return int((hand_chip + avg_chip) * p_win)
+			return {"tenpai_rate": 1.0, "agari_rate": 0.0, "tile_breakdown": {}}
+		var eff_capped := mini(eff_total, total_wall)
+		var agari := _calc_agari_rate(float(eff_capped) * in_wall_prob, float(total_wall))
+		return {"tenpai_rate": 1.0, "agari_rate": agari, "tile_breakdown": {}}
 
-	# 1シャンテン時
 	if shanten == 1:
-		var p_chip_total := 0.0
+		if eff_total == 0:
+			return {"tenpai_rate": 0.0, "agari_rate": 0.0, "tile_breakdown": {}}
+		var eff_capped := mini(eff_total, total_wall)
+		var tenpai := _calc_agari_rate(float(eff_capped) * in_wall_prob, float(total_wall))
+		var agari := 0.0
+		var tile_breakdown := {}
 		for game_id: int in effective:
-			var w_t: int = int(effective[game_id])
-			if w_t <= 0 or total_wall <= 0:
+			var w_tile: int = int(effective[game_id])
+			if w_tile <= 0:
 				continue
-			var p_draw := float(w_t) / float(total_wall)
+			var w_tile_expected := float(w_tile) * in_wall_prob
+			var p_draw := w_tile_expected / float(total_wall)
 			var idx: int = _GAME_ID_TO_IDX.get(game_id, -1)
 			if idx < 0:
 				continue
 			counts[idx] += 1
 			var new_shanten := calc_shanten(counts)
-			var remaining_wall := total_wall - 1
-			if new_shanten == 0 and remaining_wall > 0:
+			var remaining := total_wall - 1
+			var tile_agari := 0.0
+			if new_shanten == 0 and remaining > 0:
 				var new_eff := _calc_effective_tiles(counts, 0, dead_tiles)
-				var e2 := 0
+				var e2 := 0.0
 				for cnt in new_eff.values():
-					e2 += int(cnt)
-				e2 = mini(e2, remaining_wall)
-				var turns2: int = ceili(float(remaining_wall) / 3.0)
-				var p_tsumo := 1.0 - pow(float(remaining_wall - e2) / float(remaining_wall), turns2)
-				var chip_val := _chip_per_draw(game_id, int(counts[idx]) - 1, dead_tiles)
-				p_chip_total += p_draw * p_tsumo * chip_val
+					e2 += float(cnt)
+				var remaining_in_wall_prob := float(remaining) / float(remaining + 34.0)
+				tile_agari = _calc_agari_rate(e2 * remaining_in_wall_prob, float(remaining))
+			agari += p_draw * tile_agari
+			tile_breakdown[game_id] = {
+				"wall_count" : w_tile,
+				"expected"   : int(w_tile_expected),
+				"tenpai_rate": p_draw,
+				"agari_rate" : tile_agari,
+			}
 			counts[idx] -= 1
-		return int(p_chip_total)
+		return {"tenpai_rate": tenpai, "agari_rate": agari, "tile_breakdown": tile_breakdown}
 
-	# 2シャンテン以上は計算不能
-	return -1
+	if shanten == 2:
+		if eff_total == 0:
+			return {"tenpai_rate": -1.0, "agari_rate": -1.0, "tile_breakdown": {}}
+		var eff_capped := mini(eff_total, total_wall)
+		var reach_1shan := _calc_agari_rate(float(eff_capped) * in_wall_prob, float(total_wall))
+		var tenpai := 0.0
+		var tile_breakdown := {}
+		for game_id: int in effective:
+			var w_tile: int = int(effective[game_id])
+			if w_tile <= 0:
+				continue
+			var w_tile_expected := float(w_tile) * in_wall_prob
+			var p_draw := w_tile_expected / float(total_wall)
+			var idx: int = _GAME_ID_TO_IDX.get(game_id, -1)
+			if idx < 0:
+				continue
+			counts[idx] += 1
+			var new_shanten := calc_shanten(counts)
+			var remaining := total_wall - 1
+			if new_shanten == 1 and remaining > 0:
+				var new_eff := _calc_effective_tiles(counts, 1, dead_tiles)
+				var e2 := 0.0
+				for cnt in new_eff.values():
+					e2 += float(cnt)
+				var remaining_in_wall_prob := float(remaining) / float(remaining + 34.0)
+				var tile_tenpai := _calc_agari_rate(e2 * remaining_in_wall_prob, float(remaining))
+				tenpai += p_draw * tile_tenpai
+				tile_breakdown[game_id] = {
+					"wall_count" : w_tile,
+					"expected"   : int(w_tile_expected),
+					"tenpai_rate": p_draw,
+					"agari_rate" : -1.0,
+				}
+			counts[idx] -= 1
+		return {"tenpai_rate": reach_1shan, "agari_rate": tenpai, "tile_breakdown": tile_breakdown}
+
+	# shanten >= 3
+	if eff_total == 0:
+		return {"tenpai_rate": -1.0, "agari_rate": -1.0, "tile_breakdown": {}}
+	var eff_capped := mini(eff_total, total_wall)
+	var reach_1shan := _calc_agari_rate(float(eff_capped) * in_wall_prob, float(total_wall))
+	return {"tenpai_rate": reach_1shan, "agari_rate": -1.0, "tile_breakdown": {}}
+
+
+## 逐次計算で和了率（または到達率）を返す。
+## e: 初期有効牌期待枚数（補正済み）  w: 残り山枚数
+func _calc_agari_rate(e: float, w: float) -> float:
+	if w <= 0.0 or e <= 0.0:
+		return 0.0
+	var turns: int = ceili(w / 3.0)
+	var p_not := 1.0
+	var ev := e
+	var wv := w
+	for k in range(turns):
+		if wv <= 0.0:
+			break
+		ev -= ev * (2.0 / (wv + 34.0))
+		ev = maxf(0.0, ev)
+		p_not *= 1.0 - ev / wv
+		wv -= 3.0
+	return 1.0 - p_not
 
 
 # ==================================================
