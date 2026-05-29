@@ -688,12 +688,16 @@ func _rebuild_result_list() -> void:
 		var is_best: bool = (i == 0)
 		var is_actual: bool = (actual_discard_id >= 0 and int(r.get("tile_id", -1)) == actual_discard_id)
 		var shanten_val: int = int(r.get("shanten", 99))
-		var breakdown: Dictionary = r.get("tile_breakdown", {})
-		var breakdown_rows: int = breakdown.size() if shanten_val <= 2 else 0
-		var row_h := 90.0 + float(breakdown_rows) * 68.0 + 8.0
+		var eff: Dictionary = r.get("effective_tiles", {})
+		var eff_keys: Array = eff.keys()
+		var panel_w := LEFT_W - 16.0
+		var tile_slot := EFF_IMG_W + 30.0
+		var eff_cols := maxi(1, int(panel_w / tile_slot))
+		var eff_rows_n := ceili(float(eff_keys.size()) / float(eff_cols)) if eff_keys.size() > 0 else 0
+		var row_h := 90.0 + float(eff_rows_n) * (EFF_IMG_H + 6.0) + 8.0
 
 		var row_panel := Panel.new()
-		row_panel.custom_minimum_size = Vector2(LEFT_W - 16, row_h)
+		row_panel.custom_minimum_size = Vector2(panel_w, row_h)
 		var s := StyleBoxFlat.new()
 		if is_best:
 			s.bg_color = Color(0.08, 0.22, 0.10, 0.95)
@@ -710,107 +714,72 @@ func _rebuild_result_list() -> void:
 
 		# ★ マーク
 		if is_best:
-			var star := _make_label("★", Vector2(6, 8), 22)
+			var star := _make_label("★", Vector2(6, 6), 22)
 			star.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
 			row_panel.add_child(star)
 		if is_actual:
-			var act := _make_label("→", Vector2(6, 8), 22)
+			var act := _make_label("→", Vector2(6, 6), 22)
 			act.add_theme_color_override("font_color", Color(1.0, 0.75, 0.1))
 			row_panel.add_child(act)
 
-		# 牌画像
+		# 1行目: 牌画像 + 打牌名 + 向聴テキスト
 		var tile_dict := {"id": int(r.get("tile_id", -1)), "is_red": false, "is_gold": false, "is_haku_pochi": false}
 		for ht: Dictionary in _hand:
 			if ht.id == tile_dict.id:
 				tile_dict = ht.duplicate(); break
 		var tile_img := TextureRect.new()
-		tile_img.position = Vector2(32, 8)
-		tile_img.size = Vector2(44, 60)
+		tile_img.position = Vector2(30, 6)
+		tile_img.size = Vector2(38, 52)
 		tile_img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tile_img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		tile_img.texture = _get_tile_texture(tile_dict)
 		row_panel.add_child(tile_img)
 
-		# 牌名
-		var name_lbl := _make_label(str(r.get("tile_name", "")), Vector2(82, 4), 35)
+		var name_lbl := _make_label(str(r.get("tile_name", "")), Vector2(74, 2), 35)
 		row_panel.add_child(name_lbl)
 
-		# 向聴テキスト
-		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(250, 4), 35)
+		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(260, 2), 35)
 		shan_lbl.add_theme_color_override("font_color", Color(0.35, 1.0, 0.45) if shanten_val == 0 else Color(0.9, 0.9, 0.7))
 		row_panel.add_child(shan_lbl)
 
-		# 有効牌枚数
-		var eff_lbl := _make_label("有効牌 %d枚（期待%.1f枚）" % [r.get("effective_count", 0), float(r.get("effective_count_expected", 0.0))], Vector2(450, 8), 28)
-		eff_lbl.add_theme_color_override("font_color", Color(0.7, 0.88, 1.0))
-		row_panel.add_child(eff_lbl)
-
-		# テンパイ率・和了率
-		var tenpai_r: float = float(r.get("tenpai_rate", -1.0))
-		var agari_r: float  = float(r.get("agari_rate",  -1.0))
-		if tenpai_r < 0.0:
-			var dash := _make_label("—", Vector2(82, 52), 28)
-			dash.add_theme_color_override("font_color", Color(0.45, 0.45, 0.45))
-			row_panel.add_child(dash)
-		elif shanten_val == 0:
-			var a_lbl := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(82, 50), 35)
-			a_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.4))
-			row_panel.add_child(a_lbl)
-		elif shanten_val == 1:
-			var t_lbl := _make_label("テンパイ率 %.2f%%" % (tenpai_r * 100.0), Vector2(82, 50), 35)
-			t_lbl.add_theme_color_override("font_color", Color(0.55, 0.88, 1.0))
-			row_panel.add_child(t_lbl)
-			var a_lbl := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(380, 50), 28)
-			a_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.4))
-			row_panel.add_child(a_lbl)
-		elif shanten_val == 2:
-			var t_lbl := _make_label("1シャンテン率 %.2f%%" % (tenpai_r * 100.0), Vector2(82, 50), 35)
-			t_lbl.add_theme_color_override("font_color", Color(0.55, 0.88, 1.0))
-			row_panel.add_child(t_lbl)
-			if agari_r >= 0.0:
-				var a_lbl := _make_label("テンパイ率 %.2f%%" % (agari_r * 100.0), Vector2(390, 50), 28)
-				a_lbl.add_theme_color_override("font_color", Color(1.0, 0.88, 0.4))
-				row_panel.add_child(a_lbl)
-		else:
-			var t_lbl := _make_label("1シャンテン率 %.2f%%" % (tenpai_r * 100.0), Vector2(82, 50), 35)
-			t_lbl.add_theme_color_override("font_color", Color(0.55, 0.88, 1.0))
-			row_panel.add_child(t_lbl)
-
 		if is_actual:
-			var act_tag := _make_label("←実際", Vector2(620, 8), 22)
+			var act_tag := _make_label("←実際", Vector2(560, 4), 22)
 			act_tag.add_theme_color_override("font_color", Color(1.0, 0.78, 0.2))
 			row_panel.add_child(act_tag)
 
-		# breakdown 行（牌画像＋テキスト横並び）
-		var bd_y := 90.0
-		for gid: int in breakdown:
-			var bd: Dictionary = breakdown[gid]
-			var dummy_t := {"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false}
-			var tex := _get_tile_texture(dummy_t)
+		# 2行目: 有効牌枚数 + 次巡聴牌確率
+		var stat_txt := "有効牌%d枚（期待%.1f枚）　次巡聴牌確率%.2f%%" % [
+			int(r.get("effective_count", 0)),
+			float(r.get("effective_count_expected", 0.0)),
+			float(r.get("next_tenpai_rate", 0.0)) * 100.0,
+		]
+		var stat_lbl := _make_label(stat_txt, Vector2(8, 50), 28)
+		stat_lbl.add_theme_color_override("font_color", Color(0.65, 0.90, 1.0))
+		row_panel.add_child(stat_lbl)
+
+		# 3行目以降: 有効牌グリッド（画像 + ×枚数、折り返しあり）
+		var ex := 8.0
+		var ey := 90.0
+		var col := 0
+		for gid: int in eff_keys:
+			if col >= eff_cols:
+				col = 0
+				ex = 8.0
+				ey += EFF_IMG_H + 6.0
+			var tex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
 			if tex:
 				var ti := TextureRect.new()
-				ti.position = Vector2(10, bd_y)
-				ti.size = Vector2(44, 60)
+				ti.position = Vector2(ex, ey)
+				ti.size = Vector2(EFF_IMG_W, EFF_IMG_H)
 				ti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 				ti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 				ti.texture = tex
 				row_panel.add_child(ti)
-			var w_cnt: int = int(bd.get("wall_count", 0))
-			var exp_f: float = float(bd.get("expected", 0.0))
-			var cnt_lbl := _make_label("×%d（期待%.1f枚）" % [w_cnt, exp_f], Vector2(60, bd_y + 16), 24)
-			cnt_lbl.add_theme_color_override("font_color", Color(0.85, 0.85, 0.75))
+			var cnt_lbl := _make_label("×%d" % int(eff[gid]), Vector2(ex + EFF_IMG_W + 2, ey + int(EFF_IMG_H) - 20), 24)
+			cnt_lbl.add_theme_color_override("font_color", Color(0.65, 0.80, 0.65))
 			row_panel.add_child(cnt_lbl)
-			var draw_pct: float = float(bd.get("tenpai_rate", 0.0)) * 100.0
-			var draw_lbl := _make_label("引く確率%.2f%%" % draw_pct, Vector2(260, bd_y + 16), 24)
-			draw_lbl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
-			row_panel.add_child(draw_lbl)
-			var ar_v: float = float(bd.get("agari_rate", -1.0))
-			if ar_v >= 0.0:
-				var rate_label: String = "テンパイ率" if shanten_val == 1 else "繰り上げ率"
-				var rate_lbl := _make_label("%s%.2f%%" % [rate_label, minf(ar_v, 1.0) * 100.0], Vector2(460, bd_y + 16), 24)
-				rate_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-				row_panel.add_child(rate_lbl)
-			bd_y += 68.0
+			ex += tile_slot
+			col += 1
 
 		_result_list.add_child(row_panel)
 

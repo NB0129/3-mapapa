@@ -4,20 +4,20 @@ extends Control
 static var log_path: String = ""
 
 const SCREEN_SIZE  := Vector2(1920, 1080)
-const TILE_W_HAND  := 56.0
-const TILE_H_HAND  := 78.0
-const TILE_W_DISC  := 28.0
-const TILE_H_DISC  := 40.0
-const TILE_W_MELD  := 32.0
-const TILE_H_MELD  := 44.0
+const TILE_W_HAND  := 90.0
+const TILE_H_HAND  := 123.0
+const TILE_W_DISC  := 44.0
+const TILE_H_DISC  := 61.0
+const TILE_W_MELD  := 44.0
+const TILE_H_MELD  := 61.0
 const TILE_GAP     := 3.0
 const EFF_W        := 30.0
 const EFF_H        := 42.0
-const LEFT_W       := 620.0
-const RIGHT_X      := 1300.0
-const RIGHT_W      := 620.0
+const LEFT_W       := 750.0
+const RIGHT_X      := 1410.0
+const RIGHT_W      := 498.0
 const CONTENT_Y    := 148.0
-const BOTTOM_Y     := 680.0
+const BOTTOM_Y     := 750.0
 
 var _log: Dictionary = {}
 var _round_idx: int = 0
@@ -28,7 +28,9 @@ var _tile_texture_cache: Dictionary = {}
 var _info_bar_lbl: Label
 var _result_info_lbl: Label
 var _hand_area: Control
-var _discard_area: Control
+var _upper_discard_area: Control
+var _right_discard_area: Control
+var _player_discard_area: Control
 var _meld_area: Control
 var _slider: HSlider
 var _nav_prev_btn: Button
@@ -38,6 +40,9 @@ var _tab_btns: Array = []
 var _result_list: VBoxContainer
 var _wall_lbl: Label
 var _dead_info_vbox: VBoxContainer
+var _center_round_lbl: Label
+var _center_wall_lbl: Label
+var _center_turn_lbl: Label
 
 
 func _ready() -> void:
@@ -133,13 +138,13 @@ func _build_info_bar() -> void:
 
 
 func _build_left_panel() -> void:
-	var panel := _make_panel(Color(0.02, 0.08, 0.03, 0.82), Rect2(0, CONTENT_Y, LEFT_W, BOTTOM_Y - CONTENT_Y))
+	var panel := _make_panel(Color(0.02, 0.08, 0.03, 0.74), Rect2(12, CONTENT_Y, LEFT_W, 560))
 	add_child(panel)
 	panel.add_child(_make_label("打牌候補", Vector2(14, 8), 18))
 
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(6, 32)
-	scroll.size = Vector2(LEFT_W - 12, BOTTOM_Y - CONTENT_Y - 36)
+	scroll.size = Vector2(LEFT_W - 12, 520)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	panel.add_child(scroll)
 
@@ -150,20 +155,61 @@ func _build_left_panel() -> void:
 
 
 func _build_center_area() -> void:
-	var cx := LEFT_W
-	var cw := RIGHT_X - LEFT_W
-	var panel := _make_panel(Color(0.03, 0.09, 0.04, 0.65), Rect2(cx, CONTENT_Y, cw, BOTTOM_Y - CONTENT_Y))
+	var panel := Control.new()
+	panel.position = Vector2.ZERO
+	panel.size = SCREEN_SIZE
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(panel)
-	panel.add_child(_make_label("捨て牌", Vector2(12, 6), 17))
+	var upper_discard_panel := Control.new()
+	upper_discard_panel.position = Vector2(820, 220)
+	upper_discard_panel.size = Vector2(400, 170)
+	panel.add_child(upper_discard_panel)
+	_upper_discard_area = Control.new()
+	_upper_discard_area.position = Vector2.ZERO
+	_upper_discard_area.size = upper_discard_panel.size
+	upper_discard_panel.add_child(_upper_discard_area)
 
-	_discard_area = Control.new()
-	_discard_area.position = Vector2(10, 28)
-	_discard_area.size = Vector2(cw - 20, BOTTOM_Y - CONTENT_Y - 32)
-	panel.add_child(_discard_area)
+	var right_discard_panel := Control.new()
+	right_discard_panel.position = Vector2(1124, 366)
+	right_discard_panel.size = Vector2(490, 260)
+	panel.add_child(right_discard_panel)
+	_right_discard_area = Control.new()
+	_right_discard_area.position = Vector2.ZERO
+	_right_discard_area.size = right_discard_panel.size
+	right_discard_panel.add_child(_right_discard_area)
+
+	var center := _make_panel(Color(0.0, 0.05, 0.15, 0.80), Rect2(830, 370, 260, 260))
+	panel.add_child(center)
+	_center_round_lbl = _make_label("", Vector2(20, 82), 38)
+	_center_round_lbl.size = Vector2(220, 54)
+	_center_round_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_center_round_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_center_round_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
+	center.add_child(_center_round_lbl)
+	_center_wall_lbl = _make_label("", Vector2(20, 140), 22)
+	_center_wall_lbl.size = Vector2(220, 36)
+	_center_wall_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_center_wall_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	center.add_child(_center_wall_lbl)
+	_center_turn_lbl = _make_label("", Vector2(20, 198), 18)
+	_center_turn_lbl.size = Vector2(220, 32)
+	_center_turn_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_center_turn_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_center_turn_lbl.add_theme_color_override("font_color", Color(0.80, 0.95, 1.0))
+	center.add_child(_center_turn_lbl)
+
+	var player_discard_panel := Control.new()
+	player_discard_panel.position = Vector2(820, 655)
+	player_discard_panel.size = Vector2(400, 175)
+	panel.add_child(player_discard_panel)
+	_player_discard_area = Control.new()
+	_player_discard_area.position = Vector2.ZERO
+	_player_discard_area.size = player_discard_panel.size
+	player_discard_panel.add_child(_player_discard_area)
 
 
 func _build_right_panel() -> void:
-	var panel := _make_panel(Color(0.02, 0.08, 0.03, 0.82), Rect2(RIGHT_X, CONTENT_Y, RIGHT_W, BOTTOM_Y - CONTENT_Y))
+	var panel := _make_panel(Color(0.02, 0.08, 0.03, 0.74), Rect2(RIGHT_X, CONTENT_Y, RIGHT_W, 560))
 	add_child(panel)
 	panel.add_child(_make_label("局情報", Vector2(14, 8), 18))
 
@@ -175,7 +221,7 @@ func _build_right_panel() -> void:
 
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(6, 90)
-	scroll.size = Vector2(RIGHT_W - 12, BOTTOM_Y - CONTENT_Y - 94)
+	scroll.size = Vector2(RIGHT_W - 12, 466)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	panel.add_child(scroll)
 
@@ -186,26 +232,27 @@ func _build_right_panel() -> void:
 
 
 func _build_bottom_area() -> void:
-	var hand_mask := _make_panel(Color(0.0, 0.0, 0.0, 0.50), Rect2(0, BOTTOM_Y, 1920, 1080.0 - BOTTOM_Y))
+	var hand_mask := _make_panel(Color(0.0, 0.0, 0.0, 0.50), Rect2(10, 881, 1900, 199))
 	add_child(hand_mask)
 
-	var meld_bg := _make_panel(Color(0.04, 0.10, 0.05, 0.55), Rect2(10, BOTTOM_Y + 4, 1900, 52))
+	var meld_bg := _make_panel(Color(0.04, 0.10, 0.05, 0.55), Rect2(20, 802, 1060, 72))
 	add_child(meld_bg)
 	meld_bg.add_child(_make_label("副露:", Vector2(8, 8), 15))
 	_meld_area = Control.new()
-	_meld_area.position = Vector2(64, 4)
-	_meld_area.size = Vector2(1828, 44)
+	_meld_area.position = Vector2(64, 6)
+	_meld_area.size = Vector2(988, 61)
 	meld_bg.add_child(_meld_area)
 
-	var hand_bg := _make_panel(Color(0.04, 0.12, 0.05, 0.55), Rect2(10, BOTTOM_Y + 60, 1900, int(TILE_H_HAND) + 14))
+	var hand_bg := Control.new()
+	hand_bg.position = Vector2(10, 750)
+	hand_bg.size = Vector2(1900, 330)
 	add_child(hand_bg)
 	_hand_area = Control.new()
-	_hand_area.position = Vector2(10, 7)
+	_hand_area.position = Vector2(10, 136)
 	_hand_area.size = Vector2(1880, TILE_H_HAND)
 	hand_bg.add_child(_hand_area)
 
-	var nav_y := BOTTOM_Y + 60 + int(TILE_H_HAND) + 18
-	var nav := _make_panel(Color(0.04, 0.12, 0.05, 0.80), Rect2(10, nav_y, 1900, 56))
+	var nav := _make_panel(Color(0.04, 0.12, 0.05, 0.80), Rect2(530, 732, 860, 56))
 	add_child(nav)
 
 	_nav_prev_btn = _make_button("◀", Color(0.15, 0.28, 0.15))
@@ -224,7 +271,7 @@ func _build_bottom_area() -> void:
 
 	_slider = HSlider.new()
 	_slider.position = Vector2(168, 14)
-	_slider.size = Vector2(1280, 30)
+	_slider.size = Vector2(420, 30)
 	_slider.min_value = -1
 	_slider.max_value = 0
 	_slider.step = 1
@@ -233,8 +280,8 @@ func _build_bottom_area() -> void:
 	nav.add_child(_slider)
 
 	_study_btn = _make_button("🔍 検討", Color(0.28, 0.18, 0.06))
-	_study_btn.position = Vector2(1462, 4)
-	_study_btn.custom_minimum_size = Vector2(428, 48)
+	_study_btn.position = Vector2(602, 4)
+	_study_btn.custom_minimum_size = Vector2(248, 48)
 	_study_btn.add_theme_font_size_override("font_size", 22)
 	_study_btn.pressed.connect(_run_sim_analysis)
 	nav.add_child(_study_btn)
@@ -331,12 +378,16 @@ func _rebuild_sim_list(actual_discard_id: int) -> void:
 		var is_best: bool = (i == 0)
 		var is_actual: bool = (actual_discard_id >= 0 and int(r.get("tile_id", -1)) == actual_discard_id)
 		var shanten_val: int = int(r.get("shanten", 99))
-		var breakdown: Dictionary = r.get("tile_breakdown", {})
-		var breakdown_rows: int = breakdown.size() if shanten_val <= 2 else 0
-		var row_h := 90.0 + float(breakdown_rows) * 68.0 + 8.0
+		var eff: Dictionary = r.get("effective_tiles", {})
+		var eff_keys: Array = eff.keys()
+		var panel_w := LEFT_W - 20.0
+		var tile_slot := EFF_W + 28.0
+		var eff_cols := maxi(1, int(panel_w / tile_slot))
+		var eff_rows_n := ceili(float(eff_keys.size()) / float(eff_cols)) if eff_keys.size() > 0 else 0
+		var row_h := 90.0 + float(eff_rows_n) * (EFF_H + 6.0) + 8.0
 
 		var row := Panel.new()
-		row.custom_minimum_size = Vector2(LEFT_W - 20, row_h)
+		row.custom_minimum_size = Vector2(panel_w, row_h)
 
 		var s := StyleBoxFlat.new()
 		if is_best:
@@ -352,98 +403,69 @@ func _rebuild_sim_list(actual_discard_id: int) -> void:
 		s.set_corner_radius_all(5)
 		row.add_theme_stylebox_override("panel", s)
 
+		# 1行目: 牌画像 + マーカー + 打牌名 + 向聴テキスト
 		var tile_d := {"id": int(r.get("tile_id", -1)), "is_red": false, "is_gold": false, "is_haku_pochi": false}
 		var img := TextureRect.new()
-		img.position = Vector2(6, 8)
-		img.size = Vector2(44, 60)
+		img.position = Vector2(6, 6)
+		img.size = Vector2(34, 48)
 		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		img.texture = _get_tile_texture(tile_d)
 		row.add_child(img)
 
-		var text_x := 56.0
+		var text_x := 46.0
 		if is_best:
-			var star := _make_label("★", Vector2(text_x, 8), 22)
+			var star := _make_label("★", Vector2(text_x, 6), 22)
 			star.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
 			row.add_child(star)
 			text_x += 24.0
 		elif is_actual:
-			var act := _make_label("→実", Vector2(text_x, 8), 18)
+			var act := _make_label("→実", Vector2(text_x, 6), 18)
 			act.add_theme_color_override("font_color", Color(1.0, 0.75, 0.1))
 			row.add_child(act)
 			text_x += 32.0
 
-		var name_lbl := _make_label(str(r.get("tile_name", "")), Vector2(text_x, 4), 35)
+		var name_lbl := _make_label(str(r.get("tile_name", "")), Vector2(text_x, 2), 35)
 		row.add_child(name_lbl)
 
-		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(text_x + 200, 4), 35)
+		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(text_x + 200, 2), 35)
 		shan_lbl.add_theme_color_override("font_color",
 			Color(0.4, 1.0, 0.5) if shanten_val == 0 else Color(0.80, 0.80, 0.65))
 		row.add_child(shan_lbl)
 
-		var eff_cnt_lbl := _make_label("有効 %d枚（期待%.1f枚）" % [r.get("effective_count", 0), float(r.get("effective_count_expected", 0.0))], Vector2(400, 8), 28)
-		eff_cnt_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
-		row.add_child(eff_cnt_lbl)
+		# 2行目: 有効牌枚数 + 次巡聴牌確率
+		var stat_txt := "有効牌%d枚（期待%.1f枚）　次巡聴牌確率%.2f%%" % [
+			int(r.get("effective_count", 0)),
+			float(r.get("effective_count_expected", 0.0)),
+			float(r.get("next_tenpai_rate", 0.0)) * 100.0,
+		]
+		var stat_lbl := _make_label(stat_txt, Vector2(8, 50), 28)
+		stat_lbl.add_theme_color_override("font_color", Color(0.65, 0.90, 1.0))
+		row.add_child(stat_lbl)
 
-		var tenpai_r: float = float(r.get("tenpai_rate", -1.0))
-		var agari_r: float  = float(r.get("agari_rate",  -1.0))
-		if tenpai_r < 0.0:
-			var dash := _make_label("—", Vector2(text_x + 200, 56), 28)
-			dash.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-			row.add_child(dash)
-		elif shanten_val == 0:
-			var al := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(text_x, 50), 35)
-			al.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-			row.add_child(al)
-		elif shanten_val == 1:
-			var tl := _make_label("テンパイ率 %.2f%%" % (tenpai_r * 100.0), Vector2(text_x, 50), 35)
-			tl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
-			row.add_child(tl)
-			var al := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(text_x + 290, 50), 28)
-			al.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-			row.add_child(al)
-		elif shanten_val == 2:
-			var tl := _make_label("1シャンテン率 %.2f%%" % (tenpai_r * 100.0), Vector2(text_x, 50), 35)
-			tl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
-			row.add_child(tl)
-			if agari_r >= 0.0:
-				var al := _make_label("テンパイ率 %.2f%%" % (agari_r * 100.0), Vector2(text_x + 310, 50), 28)
-				al.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-				row.add_child(al)
-		else:
-			var tl := _make_label("1シャンテン率 %.2f%%" % (tenpai_r * 100.0), Vector2(text_x, 50), 35)
-			tl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
-			row.add_child(tl)
-
-		var bd_y := 90.0
-		for gid: int in breakdown:
-			var bd: Dictionary = breakdown[gid]
-			var dummy_t := {"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false}
-			var tex := _get_tile_texture(dummy_t)
+		# 3行目以降: 有効牌グリッド（画像 + ×枚数、折り返しあり）
+		var ex := 6.0
+		var ey := 90.0
+		var col := 0
+		for gid: int in eff_keys:
+			if col >= eff_cols:
+				col = 0
+				ex = 6.0
+				ey += EFF_H + 6.0
+			var tex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
 			if tex:
 				var ti := TextureRect.new()
-				ti.position = Vector2(10, bd_y)
-				ti.size = Vector2(44, 60)
+				ti.position = Vector2(ex, ey)
+				ti.size = Vector2(EFF_W, EFF_H)
 				ti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 				ti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 				ti.texture = tex
 				row.add_child(ti)
-			var w_cnt: int = int(bd.get("wall_count", 0))
-			var exp_f: float = float(bd.get("expected", 0.0))
-			var cnt_lbl := _make_label("×%d（期待%.1f枚）" % [w_cnt, exp_f], Vector2(60, bd_y + 16), 24)
-			cnt_lbl.add_theme_color_override("font_color", Color(0.85, 0.85, 0.75))
+			var cnt_lbl := _make_label("×%d" % int(eff[gid]), Vector2(ex + EFF_W + 2, ey + int(EFF_H) - 18), 24)
+			cnt_lbl.add_theme_color_override("font_color", Color(0.65, 0.80, 0.65))
 			row.add_child(cnt_lbl)
-			var draw_pct: float = float(bd.get("tenpai_rate", 0.0)) * 100.0
-			var draw_lbl := _make_label("引く確率%.2f%%" % draw_pct, Vector2(260, bd_y + 16), 24)
-			draw_lbl.add_theme_color_override("font_color", Color(0.6, 0.9, 1.0))
-			row.add_child(draw_lbl)
-			var ar_v: float = float(bd.get("agari_rate", -1.0))
-			if ar_v >= 0.0:
-				var rate_label: String = "テンパイ率" if shanten_val == 1 else "繰り上げ率"
-				var rate_lbl := _make_label("%s%.2f%%" % [rate_label, minf(ar_v, 1.0) * 100.0], Vector2(460, bd_y + 16), 24)
-				rate_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-				row.add_child(rate_lbl)
-			bd_y += 68.0
+			ex += tile_slot
+			col += 1
 
 		_result_list.add_child(row)
 
@@ -530,10 +552,30 @@ func _refresh_display() -> void:
 		can_study = (int(t.get("player", -1)) == 0 and hand_size >= 1 and hand_size % 3 == 2)
 	_study_btn.disabled = not can_study
 
+	_rebuild_center_info(turns)
 	_rebuild_hand_view(turns)
 	_rebuild_discard_view(turns)
 	_rebuild_meld_view(turns)
 	_rebuild_right_info(turns)
+
+
+func _rebuild_center_info(turns: Array) -> void:
+	if _center_round_lbl == null:
+		return
+	var rounds: Array = _log.get("rounds", [])
+	if _round_idx >= rounds.size():
+		return
+	var rd: Dictionary = rounds[_round_idx]
+	var honba: int = int(rd.get("honba", 0))
+	_center_round_lbl.text = _round_label(int(rd.get("wind", 0)), int(rd.get("kyoku", 1)))
+	_center_wall_lbl.text = "%dH  wall %d" % [honba, _calc_remaining_wall(turns, _turn_idx)]
+	if _turn_idx < 0:
+		_center_turn_lbl.text = "START"
+	elif _turn_idx < turns.size():
+		var t: Dictionary = turns[_turn_idx]
+		_center_turn_lbl.text = "%d  %s" % [_turn_idx + 1, _player_name(int(t.get("player", 0)))]
+	else:
+		_center_turn_lbl.text = ""
 
 
 func _rebuild_right_info(turns: Array) -> void:
@@ -637,8 +679,11 @@ func _rebuild_hand_view(turns: Array) -> void:
 
 
 func _rebuild_discard_view(turns: Array) -> void:
-	for ch in _discard_area.get_children():
-		ch.queue_free()
+	for area in [_player_discard_area, _right_discard_area, _upper_discard_area]:
+		if area == null:
+			continue
+		for ch in area.get_children():
+			ch.queue_free()
 	var max_t := mini(_turn_idx + 1, turns.size())
 	var discards: Array = [[], [], []]
 	for i in range(max_t):
@@ -656,32 +701,56 @@ func _rebuild_discard_view(turns: Array) -> void:
 				"is_haku_pochi": false,
 			})
 
-	var row_y := 0.0
-	for p in range(3):
-		var pname := _player_name(p)
-		var lbl := _make_label(pname + ":", Vector2(0, row_y + 2), 15)
-		lbl.add_theme_color_override("font_color", Color(0.65, 0.80, 0.65))
-		_discard_area.add_child(lbl)
-		var x := 74.0
-		var col := 0
-		var local_y := row_y
-		for td: Dictionary in discards[p]:
-			var tex := _get_tile_texture(td)
-			var trect := TextureRect.new()
-			trect.position = Vector2(x + col * (TILE_W_DISC + TILE_GAP), local_y)
-			trect.size = Vector2(TILE_W_DISC, TILE_H_DISC)
-			trect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			trect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-			if tex:
-				trect.texture = tex
-			if bool(td.get("is_riichi", false)):
-				trect.modulate = Color(1.0, 0.85, 0.3)
-			_discard_area.add_child(trect)
+	_draw_discard_grid(_player_discard_area, discards[0], 0.0, false, false, false, false)
+	_draw_discard_grid(_right_discard_area, discards[1], -90.0, true, false, false, true)
+	_draw_discard_grid(_upper_discard_area, discards[2], 180.0, false, true, true, false)
+
+
+func _draw_discard_grid(area: Control, discards: Array, rotation_deg: float, vertical_first: bool, bottom_up: bool, reverse_x: bool, reverse_y: bool) -> void:
+	if area == null:
+		return
+	var max_per_stripe := 6
+	var tile_w := TILE_W_DISC
+	var tile_h := TILE_H_DISC
+	var x_step := tile_w + TILE_GAP
+	var y_step := tile_h + TILE_GAP
+	if vertical_first:
+		x_step = tile_h + TILE_GAP
+		y_step = tile_w + TILE_GAP
+	var total_stripes := maxi(1, int(ceil(discards.size() / float(max_per_stripe))))
+	var col := 0
+	var row := 0
+	for td: Dictionary in discards:
+		var display_row := row
+		var display_col := col
+		if bottom_up:
+			display_row = 2 - row
+		if reverse_y:
+			display_row = max_per_stripe - 1 - row
+		if reverse_x:
+			display_col = (total_stripes - 1 - col) if vertical_first else (max_per_stripe - 1 - col)
+		var center := Vector2(display_col * x_step + tile_w / 2.0, display_row * y_step + tile_h / 2.0)
+		var trect := TextureRect.new()
+		trect.position = center - Vector2(tile_w, tile_h) / 2.0
+		trect.size = Vector2(tile_w, tile_h)
+		trect.pivot_offset = Vector2(tile_w / 2.0, tile_h / 2.0)
+		trect.rotation_degrees = rotation_deg + (90.0 if bool(td.get("is_riichi", false)) else 0.0)
+		trect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		trect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		trect.texture = _get_tile_texture(td)
+		if bool(td.get("is_riichi", false)):
+			trect.modulate = Color(1.0, 0.85, 0.3)
+		area.add_child(trect)
+		if vertical_first:
+			row += 1
+			if row >= max_per_stripe:
+				row = 0
+				col += 1
+		else:
 			col += 1
-			if col >= 16:
+			if col >= max_per_stripe:
 				col = 0
-				local_y += TILE_H_DISC + TILE_GAP
-		row_y += TILE_H_DISC * 2.5 + 8
+				row += 1
 
 
 func _rebuild_meld_view(turns: Array) -> void:

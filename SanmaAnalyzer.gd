@@ -52,6 +52,7 @@ const DECK_SIZE := 4
 # 内部変数
 # --------------------------------------------------
 var _best: int
+var _shanten_cache: Dictionary = {}
 
 
 # ==================================================
@@ -62,22 +63,23 @@ var _best: int
 ## 返り値はソート済み（向聴数 → 有効牌枚数 → 和了率の優先順）。
 ##
 ## [return] 辞書の配列。各辞書のキー：
-##   tile_id        : 打牌する牌のゲームID（例: 25 = 5p）
-##   tile_name      : 表示名（例: "5筒(赤)"）
-##   shanten        : 打牌後の向聴数（0=テンパイ）
-##   shanten_text   : 向聴数テキスト（例: "テンパイ"）
-##   effective_tiles: 有効牌 { ゲームID: 残り枚数上限 }
+##   tile_id                 : 打牌する牌のゲームID（例: 25 = 5p）
+##   tile_name               : 表示名（例: "5筒(赤)"）
+##   shanten                 : 打牌後の向聴数（0=テンパイ）
+##   shanten_text            : 向聴数テキスト（例: "テンパイ"）
+##   effective_tiles         : 有効牌 { ゲームID: 残り枚数上限 }
 ##   effective_count         : 有効牌の総枚数（生の枚数）
-##   effective_count_expected: 有効牌の期待値枚数（山確率補正後）
-##   tenpai_rate    : テンパイ率 / 1シャンテン到達率。計算不能時は -1.0
-##   agari_rate     : 和了率 / テンパイ到達率。計算不能時は -1.0
-##   tile_breakdown : 有効牌ごとの内訳 { game_id: {wall_count, expected, tenpai_rate, agari_rate} }
+##   effective_count_expected: 有効牌の期待値枚数（山確率補正後、float）
+##   next_tenpai_rate        : 次の1巡でテンパイ/繰り上げする確率（= expected / total_wall、float）
+##   tile_breakdown          : 有効牌ごとの内訳（上位3候補のみ計算、それ以外は {}）
 func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary = {}) -> Array:
 	assert(hand.size() >= 2 and hand.size() % 3 == 2, "手牌は14枚・11枚・8枚・5枚・2枚のいずれかである必要があります")
 
+	_shanten_cache.clear()
 	var results: Array = []
 	var evaluated: Dictionary = {}
 
+	# --- 1パス目: 全候補の向聴数・有効牌・基本値を計算 ---
 	for i in range(hand.size()):
 		var tile: Dictionary = hand[i]
 		var tile_id: int = tile.id
@@ -97,36 +99,53 @@ func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary
 			eff_count_raw += cnt
 		var in_wall_prob_val := float(total_wall) / float(total_wall + 34.0)
 		var eff_count_expected: float = float(eff_count_raw) * in_wall_prob_val
-		var rates := _calc_rates(counts, shanten, effective, total_wall, dead_tiles)
+		var next_tenpai_rate: float = minf(eff_count_expected / float(total_wall), 1.0) if total_wall > 0 else 0.0
 
 		results.append({
-			"tile_id"                : tile_id,
-			"tile_name"              : MahjongLogic.get_tile_name(tile),
-			"shanten"                : shanten,
-			"shanten_text"           : _shanten_to_text(shanten),
-			"effective_tiles"        : effective,
-			"effective_count"        : eff_count_raw,
+			"tile_id"                 : tile_id,
+			"tile_name"               : MahjongLogic.get_tile_name(tile),
+			"shanten"                 : shanten,
+			"shanten_text"            : _shanten_to_text(shanten),
+			"effective_tiles"         : effective,
+			"effective_count"         : eff_count_raw,
 			"effective_count_expected": eff_count_expected,
-			"tenpai_rate"            : rates.tenpai_rate,
-			"agari_rate"             : rates.agari_rate,
-			"tile_breakdown"         : rates.tile_breakdown,
+			"next_tenpai_rate"        : next_tenpai_rate,
+			"tile_breakdown"          : {},
+			"_counts"                 : counts,
 		})
 
-	# ソート：向聴数（昇順）→ 有効牌枚数（降順）→ 和了率（降順）
+	# --- ソート: 向聴数（昇順）→ 有効牌枚数（降順）→ next_tenpai_rate（降順）---
 	results.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		if a.shanten != b.shanten:
 			return a.shanten < b.shanten
 		if a.effective_count != b.effective_count:
 			return a.effective_count > b.effective_count
-		return float(a.agari_rate) > float(b.agari_rate)
+		return float(a.next_tenpai_rate) > float(b.next_tenpai_rate)
 	)
+
+	# --- 2パス目: 上位3候補のみ tile_breakdown を計算（shanten>=1 の重い処理）---
+	for i in range(mini(3, results.size())):
+		var r: Dictionary = results[i]
+		if r.shanten >= 1:
+			var rates := _calc_rates(r["_counts"], r.shanten, r["effective_tiles"], total_wall, dead_tiles)
+			r["tile_breakdown"] = rates.tile_breakdown
+
+	# --- 一時キーを削除 ---
+	for r: Dictionary in results:
+		r.erase("_counts")
+
 	return results
 
 
 ## 向聴数のみ計算する（一般手と七対子の最小値）
 ## counts: _to_counts() が返す内部インデックス配列
 func calc_shanten(counts: Array) -> int:
-	return mini(_shanten_regular(counts), _shanten_chiitoi(counts))
+	var key := str(counts)
+	if _shanten_cache.has(key):
+		return _shanten_cache[key]
+	var result := mini(_shanten_regular(counts), _shanten_chiitoi(counts))
+	_shanten_cache[key] = result
+	return result
 
 
 ## 有効牌の表示名リストを返す（UI表示用）

@@ -98,6 +98,13 @@ var _debug_rinshan_cursor: int = 0
 var _debug_rinshan_slot_panels: Array = []
 var _debug_rinshan_slot_textures: Array = []
 var _debug_rinshan_error_label: Label
+
+# アシスト関連
+var _assist_btn: Button = null
+var _assist_panel: Panel = null
+var _assist_star_labels: Array = []
+var _assist_visible: bool = false
+var _assist_analyzer: SanmaAnalyzer = null
 var _debug_buttons_box: Control
 var _debug_show_npc_hands: bool = false
 var _player_riichi_cutin_count: int = 0
@@ -368,6 +375,23 @@ func _build_ui() -> void:
 	_tenpai_assist_box.position = Vector2(1250, -16)
 	_tenpai_assist_box.size = Vector2(620, 112)
 	player_panel.add_child(_tenpai_assist_box)
+
+	# アシストボタン
+	_assist_btn = _make_button("アシスト", Color(0.2, 0.3, 0.6))
+	_assist_btn.custom_minimum_size = Vector2(120, 50)
+	_assist_btn.position = Vector2(1760, 700)
+	_assist_btn.visible = false
+	_assist_btn.pressed.connect(_on_assist_pressed)
+	add_child(_assist_btn)
+
+	# アシスト結果パネル（左キャラエリアに重ねる形で初期非表示）
+	_assist_panel = _make_panel(Color(0.03, 0.10, 0.05, 0.92), Rect2(10, 180, 430, 560))
+	_assist_panel.visible = false
+	_assist_panel.z_index = 20
+	add_child(_assist_panel)
+	var assist_title := _make_label("─ アシスト ─", Vector2(10, 10), 24)
+	assist_title.add_theme_color_override("font_color", Color(0.7, 1.0, 0.7))
+	_assist_panel.add_child(assist_title)
 
 	# プレイヤー 鳴き牌エリア（プレイヤーパネル右端から左へ伸びる）
 	_player_meld_box = Control.new()
@@ -914,6 +938,7 @@ func _on_naki_done(player_idx: int) -> void:
 		_refresh_npc_areas()
 
 func _on_game_ended(result: Dictionary) -> void:
+	_hide_assist()
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 	_refresh_all()
 	if not result.get("draw", false):
@@ -996,6 +1021,7 @@ func _on_discard_pressed() -> void:
 		return
 	if _riichi_mode:
 		return
+	_hide_assist()
 	GameState.player_discard(_selected_idx)
 	_selected_idx = -1
 	_clear_tenpai_assist()
@@ -1004,6 +1030,7 @@ func _on_discard_pressed() -> void:
 func _on_tsumo_pressed() -> void:
 	if _riichi_cutin_running:
 		return
+	_hide_assist()
 	_show_player_hand_as_touhai = true
 	_refresh_hand()
 	_play_chara_voice("seplavo_tumo")
@@ -1028,6 +1055,7 @@ func _on_open_riichi_pressed() -> void:
 func _on_riichi_pressed() -> void:
 	if _riichi_cutin_running:
 		return
+	_hide_assist()
 	_start_riichi_selection(false)
 
 func _run_player_riichi_cutin_sequence(hand_idx: int, is_open: bool) -> void:
@@ -1221,8 +1249,13 @@ func _check_tsumo_auto() -> void:
 	var can_kan: bool = GameState.can_player_ankan() or GameState.can_player_kakan()
 	if GameState.phase == GameState.Phase.AFTER_PON:
 		_set_action_buttons_state(true, false, false, false, false, false, false, false)
+		if _assist_btn != null:
+			_assist_btn.visible = false
 	else:
 		_set_action_buttons_state(false, can_tsumo, false, can_tsumo, can_riichi, false, can_kita, can_kan)
+		if _assist_btn != null:
+			_assist_btn.visible = (not player.is_riichi and
+				player.hand.size() >= 2 and player.hand.size() % 3 == 2)
 
 func _can_player_tsumo_with_yaku(hand_ids: Array) -> bool:
 	if not MahjongLogic.is_complete_hand(hand_ids):
@@ -3806,6 +3839,222 @@ func _is_primary_press(event: InputEvent) -> bool:
 	if event is InputEventScreenTouch:
 		return event.pressed
 	return false
+
+# ============================================================
+# アシスト機能
+# ============================================================
+
+func _build_assist_dead_tiles() -> Dictionary:
+	var counts := {}
+	var red    := {}
+	var gold   := {}
+	for p in GameState.players:
+		for tile: Dictionary in p.discards:
+			var did: int = tile.id
+			counts[did] = counts.get(did, 0) + 1
+			if tile.get("is_red", false):
+				red[did] = red.get(did, 0) + 1
+			if tile.get("is_gold", false):
+				gold[did] = gold.get(did, 0) + 1
+		for meld in p.naki:
+			for tile: Dictionary in meld.get("tiles", []):
+				var mid: int = tile.id
+				counts[mid] = counts.get(mid, 0) + 1
+	return {"counts": counts, "red": red, "gold": gold}
+
+
+func _on_assist_pressed() -> void:
+	if _assist_visible:
+		_hide_assist()
+		return
+	var hand: Array = GameState.players[0].hand
+	if hand.size() < 2 or hand.size() % 3 != 2:
+		return
+	if _assist_analyzer == null:
+		_assist_analyzer = SanmaAnalyzer.new()
+	var total_wall: int = GameState.wall.size()
+	var dead_tiles := _build_assist_dead_tiles()
+	var results := _assist_analyzer.evaluate_discards(hand, total_wall, dead_tiles)
+	results = _apply_tiebreak_priority(results)
+	_show_assist(results, hand)
+
+
+func _show_assist(results: Array, hand: Array) -> void:
+	_assist_visible = true
+	for lbl in _assist_star_labels:
+		lbl.queue_free()
+	_assist_star_labels.clear()
+	for ch in _assist_panel.get_children():
+		if ch is Label and (ch as Label).text == "─ アシスト ─":
+			continue
+		ch.queue_free()
+
+	var top3 := results.slice(0, mini(3, results.size()))
+	var best_tile_id: int = int(top3[0].get("tile_id", -1)) if top3.size() > 0 else -1
+
+	var py := 46.0
+	for i in range(top3.size()):
+		var r: Dictionary = top3[i]
+		var is_best: bool = (i == 0)
+
+		var row := Panel.new()
+		row.position = Vector2(8, py)
+		row.custom_minimum_size = Vector2(414, 140)
+		var rs := StyleBoxFlat.new()
+		rs.bg_color = Color(0.10, 0.22, 0.12, 0.92) if is_best else Color(0.05, 0.12, 0.07, 0.85)
+		if is_best:
+			rs.set_border_width_all(2)
+			rs.border_color = Color(0.4, 0.9, 0.4, 0.7)
+		rs.set_corner_radius_all(5)
+		row.add_theme_stylebox_override("panel", rs)
+		_assist_panel.add_child(row)
+
+		var dummy := {"id": int(r.get("tile_id", -1)), "is_red": false, "is_gold": false, "is_haku_pochi": false}
+		var tex := _get_tile_texture(dummy)
+		if tex:
+			var ti := TextureRect.new()
+			ti.position = Vector2(6, 6)
+			ti.size = Vector2(44, 60)
+			ti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			ti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			ti.texture = tex
+			row.add_child(ti)
+
+		if is_best:
+			var star := _make_label("★", Vector2(56, 4), 28)
+			star.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
+			row.add_child(star)
+
+		var name_lbl := _make_label(str(r.get("tile_name", "")), Vector2(80, 6), 28)
+		row.add_child(name_lbl)
+		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(80, 38), 22)
+		shan_lbl.add_theme_color_override("font_color",
+			Color(0.4, 1.0, 0.5) if int(r.get("shanten", 99)) == 0 else Color(0.80, 0.80, 0.65))
+		row.add_child(shan_lbl)
+
+		var eff_raw: int = int(r.get("effective_count", 0))
+		var eff_exp: float = float(r.get("effective_count_expected", 0.0))
+		var ntr: float = float(r.get("next_tenpai_rate", 0.0)) * 100.0
+		var info_lbl := _make_label(
+			"有効%d枚（期待%.1f枚）  次巡%.2f%%" % [eff_raw, eff_exp, ntr],
+			Vector2(6, 76), 20)
+		info_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
+		row.add_child(info_lbl)
+
+		var ex := 6.0
+		var eff: Dictionary = r.get("effective_tiles", {})
+		for gid: int in eff:
+			var etex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
+			if etex:
+				var eti := TextureRect.new()
+				eti.position = Vector2(ex, 102)
+				eti.size = Vector2(22, 30)
+				eti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+				eti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				eti.texture = etex
+				row.add_child(eti)
+			var ecnt := _make_label("×%d" % int(eff[gid]), Vector2(ex + 23, 112), 16)
+			ecnt.add_theme_color_override("font_color", Color(0.7, 0.8, 0.7))
+			row.add_child(ecnt)
+			ex += 50.0
+			if ex > 390:
+				break
+		py += 148.0
+
+	_place_assist_star(hand, best_tile_id)
+	_assist_panel.visible = true
+
+
+func _hide_assist() -> void:
+	_assist_visible = false
+	if _assist_panel != null:
+		_assist_panel.visible = false
+	if _assist_btn != null:
+		_assist_btn.visible = false
+	for lbl in _assist_star_labels:
+		lbl.queue_free()
+	_assist_star_labels.clear()
+
+
+func _place_assist_star(hand: Array, best_tile_id: int) -> void:
+	for i in range(_tile_buttons.size()):
+		var btn = _tile_buttons[i]
+		if i >= hand.size():
+			break
+		if hand[i].id == best_tile_id:
+			var star := Label.new()
+			star.text = "★"
+			star.add_theme_font_size_override("font_size", 32)
+			star.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
+			star.position = btn.global_position + Vector2(btn.size.x / 2 - 16, -36)
+			add_child(star)
+			_assist_star_labels.append(star)
+			break
+
+
+func _apply_tiebreak_priority(results: Array) -> Array:
+	results.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if a.shanten != b.shanten:
+			return a.shanten < b.shanten
+		if a.effective_count != b.effective_count:
+			return a.effective_count > b.effective_count
+		if abs(float(a.next_tenpai_rate) - float(b.next_tenpai_rate)) > 0.001:
+			return float(a.next_tenpai_rate) > float(b.next_tenpai_rate)
+		return _tile_discard_priority(int(a.tile_id)) > _tile_discard_priority(int(b.tile_id))
+	)
+	return results
+
+
+func _tile_discard_priority(tile_id: int) -> int:
+	var rw: int = GameState.round_wind
+	var is_dealer: bool = (GameState.dealer == 0)
+	var self_wind: int = GameState.players[0].wind  # 牌ID (41=東, 42=南, 43=西)
+
+	match tile_id:
+		11, 19:  # 1m, 9m
+			return 60
+		41:  # 東
+			if rw == MahjongLogic.EAST:
+				return 20 if is_dealer else 30
+			else:
+				return 80  # 南場では客風
+		42:  # 南
+			if rw == MahjongLogic.EAST:
+				if is_dealer: return 90
+				return 10 if self_wind == 42 else 80
+			else:
+				if is_dealer: return 40
+				return 10 if self_wind == 42 else 40
+		43:  # 西
+			if rw == MahjongLogic.EAST:
+				return 10 if self_wind == 43 else 80
+			else:
+				if is_dealer: return 80
+				return 10 if self_wind == 43 else 70
+		44:  # 北
+			return 5
+		45, 46, 47:  # 白発中
+			return 40
+		21: return 55  # 1p
+		29: return 50  # 9p
+		22: return 45  # 2p
+		28: return 42  # 8p
+		23: return 38  # 3p
+		27: return 35  # 7p
+		24: return 30  # 4p
+		26: return 25  # 6p
+		25: return 20  # 5p
+		31: return 55  # 1s
+		39: return 50  # 9s
+		32: return 45  # 2s
+		38: return 42  # 8s
+		33: return 38  # 3s
+		37: return 35  # 7s
+		34: return 30  # 4s
+		36: return 25  # 6s
+		35: return 20  # 5s
+	return 0
+
 
 func _apply_button_image(btn: Button, icon_path: String, tooltip: String) -> void:
 	btn.text = ""
