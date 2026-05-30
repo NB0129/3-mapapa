@@ -105,6 +105,9 @@ var _assist_panel: Panel = null
 var _assist_star_labels: Array = []
 var _assist_visible: bool = false
 var _assist_analyzer: SanmaAnalyzer = null
+var _assist_cached_dead_tiles: Dictionary = {}
+var _assist_cached_total_wall: int = 0
+var _assist_cache_ready: bool = false
 var _debug_buttons_box: Control
 var _debug_show_npc_hands: bool = false
 var _player_riichi_cutin_count: int = 0
@@ -747,6 +750,7 @@ func _next_track_from_playlist(playlist: Array, index_property: String) -> Dicti
 	return track
 
 func _on_turn_started(player_idx: int) -> void:
+	_hide_assist()
 	if player_idx == 0:
 		_refresh_hand()
 		if GameState.phase == GameState.Phase.AFTER_PON:
@@ -770,6 +774,9 @@ func _on_tile_drawn(player_idx: int) -> void:
 			_check_tsumo_auto()
 			if GameState.players[0].is_riichi:
 				_handle_riichi_draw()
+		_assist_cached_dead_tiles = _build_assist_dead_tiles()
+		_assist_cached_total_wall = GameState.wall.size()
+		_assist_cache_ready = true
 
 func _refresh_player_draw_actions() -> void:
 	if not _player_drew:
@@ -1015,22 +1022,22 @@ func _on_tile_button_pressed(idx: int) -> void:
 		_refresh_hand()
 
 func _on_discard_pressed() -> void:
+	_hide_assist()
 	if _riichi_cutin_running:
 		return
 	if _selected_idx < 0:
 		return
 	if _riichi_mode:
 		return
-	_hide_assist()
 	GameState.player_discard(_selected_idx)
 	_selected_idx = -1
 	_clear_tenpai_assist()
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 
 func _on_tsumo_pressed() -> void:
+	_hide_assist()
 	if _riichi_cutin_running:
 		return
-	_hide_assist()
 	_show_player_hand_as_touhai = true
 	_refresh_hand()
 	_play_chara_voice("seplavo_tumo")
@@ -1053,9 +1060,9 @@ func _on_open_riichi_pressed() -> void:
 	_start_riichi_selection(true)
 
 func _on_riichi_pressed() -> void:
+	_hide_assist()
 	if _riichi_cutin_running:
 		return
-	_hide_assist()
 	_start_riichi_selection(false)
 
 func _run_player_riichi_cutin_sequence(hand_idx: int, is_open: bool) -> void:
@@ -1698,13 +1705,23 @@ func _refresh_tenpai_assist() -> void:
 
 	var wait_label := Label.new()
 	wait_label.text = "待ち"
-	wait_label.position = Vector2(x + 2, 31)
-	wait_label.size = Vector2(90, 50)
-	wait_label.add_theme_font_size_override("font_size", 40)
+	wait_label.position = Vector2(x + 2, 12)
+	wait_label.size = Vector2(90, 44)
+	wait_label.add_theme_font_size_override("font_size", 36)
 	wait_label.add_theme_color_override("font_color", Color(1.0, 0.96, 0.72))
 	wait_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	wait_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tenpai_assist_box.add_child(wait_label)
+
+	var wall_cnt_lbl := Label.new()
+	wall_cnt_lbl.text = "残%d枚" % GameState.get_wall_count()
+	wall_cnt_lbl.position = Vector2(x + 2, 62)
+	wall_cnt_lbl.size = Vector2(90, 28)
+	wall_cnt_lbl.add_theme_font_size_override("font_size", 20)
+	wall_cnt_lbl.add_theme_color_override("font_color", Color(0.65, 0.90, 1.0))
+	wall_cnt_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	wall_cnt_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tenpai_assist_box.add_child(wall_cnt_lbl)
 
 func _refresh_npc_areas() -> void:
 	var upper: Dictionary = GameState.players[UPPER_IDX]
@@ -1942,8 +1959,12 @@ func _fill_meld_box(box: Control, naki: Array, holder_idx: int, base_angle: floa
 
 
 # 鳴き牌の視覚表示順（data インデックスの配列）を返す
-# pon/minkan/kakan: 鳴いた牌（data[0]）を鳴き元方向に合った視覚位置へ移動
-# ankan: そのまま [0,1,2,3]
+# 鳴いた牌（data[0]）をカーソル上の START / MIDDLE / END に配置して
+# 鳴き元の方向を示す。ankan はそのまま [0,1,2,3]。
+# holder ごとのカーソル方向:
+#   holder=0 (bottom, 0°, L→R):  from RIGHT_IDX→END, from UPPER_IDX→MIDDLE
+#   holder=1 (right,  90°, T→B): from UPPER_IDX→START, from 0→END
+#   holder=2 (top,  180°, L→R):  from player(0)→START, from RIGHT_IDX→END
 func _build_meld_display_order(meld: Dictionary, holder_idx: int) -> Array:
 	var mtype: String = meld.get("type", "")
 	var n: int = meld.get("tile_ids", []).size()
@@ -1955,30 +1976,32 @@ func _build_meld_display_order(meld: Dictionary, holder_idx: int) -> Array:
 	var from_player: int = meld.get("from_player", -1)
 	if from_player < 0:
 		return identity
-	var direction: int = (from_player - holder_idx + 4) % 4
-	# 加槓はポン3枚と同じ並びにして4枚目は別途オーバーレイ描画するため3枚扱い
 	var base_n: int = 3 if mtype == "kakan" else n
-	# 鳴いた牌は常に data[0]。手牌分は [1..base_n-1]
-	match direction:
-		1:  # 右家 → 鳴いた牌を右端へ [1,2,...,base_n-1, 0]
-			var order: Array = []
-			for i in range(1, base_n):
-				order.append(i)
-			order.append(0)
-			return order
-		2:  # 対面 → 鳴いた牌を中央へ（3枚: [1,0,2]、4枚minkan: [1,2,0,3]）
+
+	var placement := "end"
+	if holder_idx == 0:
+		placement = "end" if from_player == RIGHT_IDX else "middle"
+	elif holder_idx == RIGHT_IDX:
+		placement = "start" if from_player == UPPER_IDX else "end"
+	elif holder_idx == UPPER_IDX:
+		placement = "start" if from_player == 0 else "end"
+
+	match placement:
+		"start":  # 鳴いた牌をカーソル先頭（data[0], 1, 2...）
+			var r: Array = []
+			for i in range(base_n):
+				r.append(i)
+			return r
+		"middle":  # 鳴いた牌を中央（3枚: [1,0,2]、4枚: [1,2,0,3]）
 			if base_n == 3:
 				return [1, 0, 2]
-			else:
-				return [1, 2, 0, 3]
-		3:
-			var order_left: Array = []
+			return [1, 2, 0, 3]
+		_:  # "end": 鳴いた牌をカーソル末尾（1, 2..., 0）
+			var r: Array = []
 			for i in range(1, base_n):
-				order_left.append(i)
-			order_left.append(0)
-			return order_left
-		_:
-			return identity
+				r.append(i)
+			r.append(0)
+			return r
 
 # 抜き北を画像で表示する
 func _fill_nukita_box(box: Control, nukita: Array, base_angle: float, tile_w: int, tile_h: int, right_to_left: bool = false) -> void:
@@ -2463,18 +2486,24 @@ func _reveal_win_result(result: Dictionary) -> void:
 	await _result_delay()
 	var limit_name := _get_limit_name(int(result.get("han", 0)), is_yakuman)
 	var score_text := str(int(sd.get("total", 0))) + "点"
+	var honba_val: int = int(result.get("honba", 0))
+	var honba_bonus_val: int = int(result.get("honba_bonus", 0))
 	if limit_name != "":
 		_add_result_label(limit_name, Vector2(80, y + 70), Vector2(420, 64), 48, Color(1.0, 0.78, 0.25))
-		_add_result_label(score_text, Vector2(540, y + 76), Vector2(360, 54), 42, Color(1.0, 0.96, 0.85))
+		_add_result_label(score_text, Vector2(540, y + 76), Vector2(280, 54), 42, Color(1.0, 0.96, 0.85))
+		if honba_val > 0:
+			_add_result_label("+%d点" % honba_bonus_val, Vector2(830, y + 82), Vector2(260, 44), 34, Color(1.0, 0.80, 0.50))
 		AudioManager.play_se("gangan")
 		await get_tree().create_timer(1.0).timeout
 	else:
-		_add_result_label(score_text, Vector2(80, y + 72), Vector2(360, 54), 42, Color(1.0, 0.96, 0.85))
+		_add_result_label(score_text, Vector2(80, y + 72), Vector2(260, 54), 42, Color(1.0, 0.96, 0.85))
+		if honba_val > 0:
+			_add_result_label("+%d点" % honba_bonus_val, Vector2(350, y + 78), Vector2(260, 44), 34, Color(1.0, 0.80, 0.50))
 		await _result_delay()
-	var chips: int = int(result.get("chips_per_player", 0))
-	if result.get("is_tsumo", false):
-		chips *= 2
-	_add_result_label("チップ " + str(chips) + "枚", Vector2(80, y + 150), Vector2(420, 42), 30, Color(0.86, 1.0, 0.88))
+	var chips_per: int = int(result.get("chips_per_player", 0))
+	var is_tsumo: bool = result.get("is_tsumo", false)
+	var chip_text: String = ("チップ %d枚×２" % chips_per) if is_tsumo else ("チップ %d枚" % chips_per)
+	_add_result_label(chip_text, Vector2(80, y + 150), Vector2(420, 42), 30, Color(0.86, 1.0, 0.88))
 	await _result_delay()
 	var scores_y := y + 215.0
 	for i in range(GameState.players.size()):
@@ -3863,17 +3892,43 @@ func _build_assist_dead_tiles() -> Dictionary:
 	return {"counts": counts, "red": red, "gold": gold}
 
 
+func _show_assist_loading() -> void:
+	_assist_visible = true
+	for lbl in _assist_star_labels:
+		lbl.queue_free()
+	_assist_star_labels.clear()
+	for ch in _assist_panel.get_children():
+		ch.queue_free()
+
+	var title := _make_label("─ アシスト ─", Vector2(10, 10), 24)
+	title.add_theme_color_override("font_color", Color(0.7, 1.0, 0.7))
+	_assist_panel.add_child(title)
+
+	var loading := _make_label("解析中...", Vector2(10, 60), 32)
+	loading.add_theme_color_override("font_color", Color(0.8, 0.8, 0.5))
+	_assist_panel.add_child(loading)
+
+	_assist_panel.visible = true
+
+
 func _on_assist_pressed() -> void:
-	if _assist_visible:
-		_hide_assist()
-		return
 	var hand: Array = GameState.players[0].hand
 	if hand.size() < 2 or hand.size() % 3 != 2:
 		return
 	if _assist_analyzer == null:
 		_assist_analyzer = SanmaAnalyzer.new()
-	var total_wall: int = GameState.wall.size()
-	var dead_tiles := _build_assist_dead_tiles()
+
+	_show_assist_loading()
+
+	var dead_tiles: Dictionary
+	var total_wall: int
+	if _assist_cache_ready:
+		dead_tiles = _assist_cached_dead_tiles
+		total_wall = _assist_cached_total_wall
+	else:
+		dead_tiles = _build_assist_dead_tiles()
+		total_wall = GameState.wall.size()
+
 	var results := _assist_analyzer.evaluate_discards(hand, total_wall, dead_tiles)
 	results = _apply_tiebreak_priority(results)
 	_show_assist(results, hand)
@@ -3885,9 +3940,10 @@ func _show_assist(results: Array, hand: Array) -> void:
 		lbl.queue_free()
 	_assist_star_labels.clear()
 	for ch in _assist_panel.get_children():
-		if ch is Label and (ch as Label).text == "─ アシスト ─":
-			continue
 		ch.queue_free()
+	var assist_title := _make_label("─ アシスト ─", Vector2(10, 10), 24)
+	assist_title.add_theme_color_override("font_color", Color(0.7, 1.0, 0.7))
+	_assist_panel.add_child(assist_title)
 
 	var top3 := results.slice(0, mini(3, results.size()))
 	var best_tile_id: int = int(top3[0].get("tile_id", -1)) if top3.size() > 0 else -1
@@ -3967,6 +4023,7 @@ func _show_assist(results: Array, hand: Array) -> void:
 
 func _hide_assist() -> void:
 	_assist_visible = false
+	_assist_cache_ready = false
 	if _assist_panel != null:
 		_assist_panel.visible = false
 	if _assist_btn != null:
