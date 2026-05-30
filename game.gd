@@ -388,7 +388,7 @@ func _build_ui() -> void:
 	add_child(_assist_btn)
 
 	# アシスト結果パネル（左キャラエリアに重ねる形で初期非表示）
-	_assist_panel = _make_panel(Color(0.03, 0.10, 0.05, 0.92), Rect2(10, 160, 460, 570))
+	_assist_panel = _make_panel(Color(0.03, 0.10, 0.05, 0.92), Rect2(10, 10, 460, 550))
 	_assist_panel.visible = false
 	_assist_panel.z_index = 20
 	add_child(_assist_panel)
@@ -471,6 +471,7 @@ func _build_ui() -> void:
 	_debug_buttons_box = _build_debug_buttons()
 	_debug_buttons_box.position = Vector2(10, 88)
 	_debug_buttons_box.z_index = 20
+	_debug_buttons_box.visible = false
 	player_panel.add_child(_debug_buttons_box)
 
 	_status_label = _make_label("", Vector2(10, 720), 24)
@@ -4040,9 +4041,11 @@ func _hide_assist() -> void:
 
 
 func _place_assist_star(hand: Array, best_tile_id: int) -> void:
-	var display_indices: Array = []
-	for i in range(hand.size() - (1 if _player_drew else 0)):
-		display_indices.append(i)
+	var sort_count := hand.size() - 1 if (_player_drew and hand.size() >= 2) else hand.size()
+	var display_indices := range(sort_count)
+	display_indices.sort_custom(func(a: int, b: int) -> bool:
+		return _tile_sort_key(hand[a]) < _tile_sort_key(hand[b])
+	)
 	if _player_drew and hand.size() >= 2:
 		display_indices.append(hand.size() - 1)
 
