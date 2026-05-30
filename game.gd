@@ -3921,12 +3921,13 @@ func _on_assist_pressed() -> void:
 		_assist_analyzer = SanmaAnalyzer.new()
 	var dead_tiles := _assist_cached_dead_tiles if _assist_cache_ready else _build_assist_dead_tiles()
 	var total_wall := _assist_cached_total_wall if _assist_cache_ready else GameState.wall.size()
+	var meld_count: int = GameState.players[0].naki.size()
 	_show_assist_loading()
 	await get_tree().create_timer(0.05).timeout
-	_run_assist_analysis(hand, dead_tiles, total_wall)
+	_run_assist_analysis(hand, dead_tiles, total_wall, meld_count)
 
-func _run_assist_analysis(hand: Array, dead_tiles: Dictionary, total_wall: int) -> void:
-	var results := _assist_analyzer.evaluate_discards(hand, total_wall, dead_tiles)
+func _run_assist_analysis(hand: Array, dead_tiles: Dictionary, total_wall: int, meld_count: int = 0) -> void:
+	var results := _assist_analyzer.evaluate_discards(hand, total_wall, dead_tiles, meld_count)
 	results = _apply_tiebreak_priority(results)
 	_show_assist(results, hand)
 

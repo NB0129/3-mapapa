@@ -72,7 +72,7 @@ var _shanten_cache: Dictionary = {}
 ##   effective_count_expected: 有効牌の期待値枚数（山確率補正後、float）
 ##   next_tenpai_rate        : 次の1巡でテンパイ/繰り上げする確率（= expected / total_wall、float）
 ##   tile_breakdown          : 有効牌ごとの内訳（上位3候補のみ計算、それ以外は {}）
-func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary = {}) -> Array:
+func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary = {}, meld_count: int = 0) -> Array:
 	assert(hand.size() >= 2 and hand.size() % 3 == 2, "手牌は14枚・11枚・8枚・5枚・2枚のいずれかである必要があります")
 
 	_shanten_cache.clear()
@@ -92,8 +92,8 @@ func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary
 		remaining.remove_at(i)
 
 		var counts    := _to_counts(remaining)
-		var shanten   := calc_shanten(counts)
-		var effective := _calc_effective_tiles(counts, shanten, dead_tiles)
+		var shanten   := calc_shanten(counts, meld_count)
+		var effective := _calc_effective_tiles(counts, shanten, dead_tiles, meld_count)
 		var eff_count_raw := 0
 		for cnt: int in effective.values():
 			eff_count_raw += cnt
@@ -139,11 +139,17 @@ func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary
 
 ## 向聴数のみ計算する（一般手と七対子の最小値）
 ## counts: _to_counts() が返す内部インデックス配列
-func calc_shanten(counts: Array) -> int:
+## meld_count: 副露済み面子数（>0 のとき七対子を除外）
+func calc_shanten(counts: Array, meld_count: int = 0) -> int:
 	var key := str(counts)
 	if _shanten_cache.has(key):
 		return _shanten_cache[key]
-	var result := mini(_shanten_regular(counts), _shanten_chiitoi(counts))
+	var s_regular := _shanten_regular(counts, meld_count)
+	var result: int
+	if meld_count > 0:
+		result = s_regular
+	else:
+		result = mini(s_regular, _shanten_chiitoi(counts))
 	_shanten_cache[key] = result
 	return result
 
@@ -162,9 +168,9 @@ func get_effective_tile_names(effective: Dictionary) -> Array[String]:
 # 向聴数計算（一般手）
 # ==================================================
 
-func _shanten_regular(counts: Array) -> int:
-	_best = 8
-	_search(counts, 0, 0, 0, false)
+func _shanten_regular(counts: Array, meld_count: int = 0) -> int:
+	_best = 8 - meld_count * 2
+	_search(counts, 0, meld_count, 0, false)
 	return _best
 
 
@@ -259,7 +265,7 @@ func _shanten_chiitoi(counts: Array) -> int:
 
 ## 現在の向聴数を下げる牌と山の生の枚数（補正なし）を返す。
 ## wall_count = DECK_SIZE - 手牌 - 死牌
-func _calc_effective_tiles(counts: Array, shanten: int, dead_tiles: Dictionary = {}) -> Dictionary:
+func _calc_effective_tiles(counts: Array, shanten: int, dead_tiles: Dictionary = {}, meld_count: int = 0) -> Dictionary:
 	var dead_counts: Dictionary = dead_tiles.get("counts", {})
 	var effective: Dictionary = {}
 	for idx in range(NUM_TYPES):
@@ -269,7 +275,7 @@ func _calc_effective_tiles(counts: Array, shanten: int, dead_tiles: Dictionary =
 		if wall_count <= 0:
 			continue
 		counts[idx] += 1
-		if calc_shanten(counts) < shanten:
+		if calc_shanten(counts, meld_count) < shanten:
 			effective[game_id] = wall_count
 		counts[idx] -= 1
 	return effective
