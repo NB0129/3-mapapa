@@ -4016,10 +4016,10 @@ func _show_assist(results: Array, hand: Array) -> void:
 				eti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 				eti.texture = etex
 				row.add_child(eti)
-			var ecnt := _make_label("×%d" % int(eff[gid]), Vector2(ex + 35, 222), 22)
+			var ecnt := _make_label("×%d" % int(eff[gid]), Vector2(ex + 36, 222), 22)
 			ecnt.add_theme_color_override("font_color", Color(0.7, 0.8, 0.7))
 			row.add_child(ecnt)
-			ex += 50.0
+			ex += 65.0
 			if ex > 390:
 				break
 		py += 278.0
