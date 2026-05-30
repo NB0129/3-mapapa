@@ -123,12 +123,12 @@ func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary
 		return float(a.next_tenpai_rate) > float(b.next_tenpai_rate)
 	)
 
-	# --- 2パス目: 上位3候補のみ tile_breakdown を計算（shanten>=1 の重い処理）---
-	for i in range(mini(3, results.size())):
-		var r: Dictionary = results[i]
-		if r.shanten >= 1:
-			var rates := _calc_rates(r["_counts"], r.shanten, r["effective_tiles"], total_wall, dead_tiles)
-			r["tile_breakdown"] = rates.tile_breakdown
+	# --- 2パス目: 一時的に無効化（処理時間計測用）---
+	#for i in range(mini(3, results.size())):
+	#	var r: Dictionary = results[i]
+	#	if r.shanten >= 1:
+	#		var rates := _calc_rates(r["_counts"], r.shanten, r["effective_tiles"], total_wall, dead_tiles)
+	#		r["tile_breakdown"] = rates.tile_breakdown
 
 	# --- 一時キーを削除 ---
 	for r: Dictionary in results:
