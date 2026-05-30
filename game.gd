@@ -388,7 +388,7 @@ func _build_ui() -> void:
 	add_child(_assist_btn)
 
 	# アシスト結果パネル（左キャラエリアに重ねる形で初期非表示）
-	_assist_panel = _make_panel(Color(0.03, 0.10, 0.05, 0.92), Rect2(10, 180, 430, 560))
+	_assist_panel = _make_panel(Color(0.03, 0.10, 0.05, 0.92), Rect2(10, 160, 460, 570))
 	_assist_panel.visible = false
 	_assist_panel.z_index = 20
 	add_child(_assist_panel)
@@ -3921,7 +3921,8 @@ func _on_assist_pressed() -> void:
 	var dead_tiles := _assist_cached_dead_tiles if _assist_cache_ready else _build_assist_dead_tiles()
 	var total_wall := _assist_cached_total_wall if _assist_cache_ready else GameState.wall.size()
 	_show_assist_loading()
-	call_deferred("_run_assist_analysis", hand, dead_tiles, total_wall)
+	await get_tree().process_frame
+	_run_assist_analysis(hand, dead_tiles, total_wall)
 
 func _run_assist_analysis(hand: Array, dead_tiles: Dictionary, total_wall: int) -> void:
 	var results := _assist_analyzer.evaluate_discards(hand, total_wall, dead_tiles)
@@ -3951,7 +3952,7 @@ func _show_assist(results: Array, hand: Array) -> void:
 
 		var row := Panel.new()
 		row.position = Vector2(8, py)
-		row.custom_minimum_size = Vector2(414, 140)
+		row.custom_minimum_size = Vector2(444, 170)
 		var rs := StyleBoxFlat.new()
 		rs.bg_color = Color(0.10, 0.22, 0.12, 0.92) if is_best else Color(0.05, 0.12, 0.07, 0.85)
 		if is_best:
@@ -3966,20 +3967,20 @@ func _show_assist(results: Array, hand: Array) -> void:
 		if tex:
 			var ti := TextureRect.new()
 			ti.position = Vector2(6, 6)
-			ti.size = Vector2(44, 60)
+			ti.size = Vector2(66, 90)
 			ti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			ti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			ti.texture = tex
 			row.add_child(ti)
 
 		if is_best:
-			var star := _make_label("★", Vector2(56, 4), 28)
+			var star := _make_label("★", Vector2(76, 6), 36)
 			star.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
 			row.add_child(star)
 
-		var name_lbl := _make_label(str(r.get("tile_name", "")), Vector2(80, 6), 28)
+		var name_lbl := _make_label(str(r.get("tile_name", "")), Vector2(100, 6), 32)
 		row.add_child(name_lbl)
-		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(80, 38), 22)
+		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(100, 44), 26)
 		shan_lbl.add_theme_color_override("font_color",
 			Color(0.4, 1.0, 0.5) if int(r.get("shanten", 99)) == 0 else Color(0.80, 0.80, 0.65))
 		row.add_child(shan_lbl)
@@ -3987,12 +3988,19 @@ func _show_assist(results: Array, hand: Array) -> void:
 		var eff_raw: int = int(r.get("effective_count", 0))
 		var eff_exp: float = float(r.get("effective_count_expected", 0.0))
 		var ntr: float = float(r.get("next_tenpai_rate", 0.0)) * 100.0
-		var ntr_label := _next_turn_label(int(r.get("shanten", 99)))
-		var info_lbl := _make_label(
-			"有効%d枚（期待%.1f枚）  %s%.2f%%" % [eff_raw, eff_exp, ntr_label, ntr],
-			Vector2(6, 76), 20)
-		info_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
-		row.add_child(info_lbl)
+		var shanten_val: int = int(r.get("shanten", 99))
+		var eff_lbl := _make_label(
+			"有効%d枚（期待%.1f枚）" % [eff_raw, eff_exp],
+			Vector2(6, 92), 22)
+		eff_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
+		row.add_child(eff_lbl)
+
+		var next_label := _next_turn_label(shanten_val)
+		var ntr_lbl := _make_label(
+			"%s %.2f%%" % [next_label, ntr],
+			Vector2(6, 120), 22)
+		ntr_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
+		row.add_child(ntr_lbl)
 
 		var ex := 6.0
 		var eff: Dictionary = r.get("effective_tiles", {})
@@ -4000,19 +4008,19 @@ func _show_assist(results: Array, hand: Array) -> void:
 			var etex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
 			if etex:
 				var eti := TextureRect.new()
-				eti.position = Vector2(ex, 102)
+				eti.position = Vector2(ex, 148)
 				eti.size = Vector2(22, 30)
 				eti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 				eti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 				eti.texture = etex
 				row.add_child(eti)
-			var ecnt := _make_label("×%d" % int(eff[gid]), Vector2(ex + 23, 112), 16)
+			var ecnt := _make_label("×%d" % int(eff[gid]), Vector2(ex + 28, 158), 18)
 			ecnt.add_theme_color_override("font_color", Color(0.7, 0.8, 0.7))
 			row.add_child(ecnt)
 			ex += 50.0
 			if ex > 390:
 				break
-		py += 148.0
+		py += 178.0
 
 	_place_assist_star(hand, best_tile_id)
 	_assist_panel.visible = true
@@ -4032,16 +4040,21 @@ func _hide_assist() -> void:
 
 
 func _place_assist_star(hand: Array, best_tile_id: int) -> void:
-	for i in range(_tile_buttons.size()):
-		var btn = _tile_buttons[i]
-		if i >= hand.size():
-			break
-		if hand[i].id == best_tile_id:
+	var display_indices: Array = []
+	for i in range(hand.size() - (1 if _player_drew else 0)):
+		display_indices.append(i)
+	if _player_drew and hand.size() >= 2:
+		display_indices.append(hand.size() - 1)
+
+	for i in range(mini(_tile_buttons.size(), display_indices.size())):
+		var orig_idx: int = display_indices[i]
+		if hand[orig_idx].id == best_tile_id:
+			var btn = _tile_buttons[i]
 			var star := Label.new()
 			star.text = "★"
-			star.add_theme_font_size_override("font_size", 32)
+			star.add_theme_font_size_override("font_size", 40)
 			star.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
-			star.position = Vector2(btn.size.x / 2 - 16, -36)
+			star.position = Vector2(btn.size.x / 2.0 - 20, -44)
 			star.z_index = 10
 			btn.add_child(star)
 			_assist_star_labels.append(star)
