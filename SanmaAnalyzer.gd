@@ -123,13 +123,19 @@ func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary
 		return float(a.next_tenpai_rate) > float(b.next_tenpai_rate)
 	)
 
-	# --- 2パス目: 上位1候補のみ _calc_rates() を実行 ---
+	# --- 2パス目: 1位と同率の候補全てに _calc_rates() を実行 ---
 	if results.size() > 0:
-		var r: Dictionary = results[0]
-		var rates := _calc_rates(r["_counts"], r.shanten, r["effective_tiles"], total_wall, dead_tiles)
-		r["tile_breakdown"] = rates.tile_breakdown
-		r["tenpai_rate"]    = rates.tenpai_rate
-		r["agari_rate"]     = rates.agari_rate
+		var top_shanten: int = results[0].shanten
+		var top_eff: int = results[0].effective_count
+		var top_ntr: float = float(results[0].next_tenpai_rate)
+		for r: Dictionary in results:
+			if r.shanten == top_shanten and r.effective_count == top_eff and abs(float(r.next_tenpai_rate) - top_ntr) < 0.0001:
+				var rates := _calc_rates(r["_counts"], r.shanten, r["effective_tiles"], total_wall, dead_tiles)
+				r["tile_breakdown"] = rates.tile_breakdown
+				r["tenpai_rate"]    = rates.tenpai_rate
+				r["agari_rate"]     = rates.agari_rate
+			else:
+				break
 
 	# --- 一時キーを削除 ---
 	for r: Dictionary in results:
@@ -416,6 +422,7 @@ func _calc_agari_rate(e: float, w: float) -> float:
 			break
 		ev -= ev * (2.0 / (wv + 34.0))
 		ev = maxf(0.0, ev)
+		ev = minf(ev, wv)
 		p_not *= 1.0 - ev / wv
 		wv -= 3.0
 	return minf(1.0 - p_not, 1.0)
