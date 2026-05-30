@@ -388,7 +388,7 @@ func _build_ui() -> void:
 	add_child(_assist_btn)
 
 	# アシスト結果パネル（左キャラエリアに重ねる形で初期非表示）
-	_assist_panel = _make_panel(Color(0.03, 0.10, 0.05, 0.92), Rect2(10, 10, 460, 550))
+	_assist_panel = _make_panel(Color(0.03, 0.10, 0.05, 0.92), Rect2(10, 10, 460, 720))
 	_assist_panel.visible = false
 	_assist_panel.z_index = 20
 	add_child(_assist_panel)
@@ -479,7 +479,7 @@ func _build_ui() -> void:
 	_status_label.visible = false
 	add_child(_status_label)
 
-	_bgm_title_label = _make_label("", Vector2(10, 36), 40)
+	_bgm_title_label = _make_label("", Vector2(10, 88), 40)
 	_bgm_title_label.size = Vector2(900, 50)
 	_bgm_title_label.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
 	_bgm_title_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
@@ -3922,7 +3922,7 @@ func _on_assist_pressed() -> void:
 	var dead_tiles := _assist_cached_dead_tiles if _assist_cache_ready else _build_assist_dead_tiles()
 	var total_wall := _assist_cached_total_wall if _assist_cache_ready else GameState.wall.size()
 	_show_assist_loading()
-	await get_tree().process_frame
+	await get_tree().create_timer(0.05).timeout
 	_run_assist_analysis(hand, dead_tiles, total_wall)
 
 func _run_assist_analysis(hand: Array, dead_tiles: Dictionary, total_wall: int) -> void:
