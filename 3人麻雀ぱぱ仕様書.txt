@@ -637,7 +637,8 @@
   - 牌譜ビューアの「検討」から起動した場合は static var（initial_hand / initial_dead_tiles / initial_total_wall）で状態を受け取る。
 
   【SanmaAnalyzer（SanmaAnalyzer.gd）】
-  - evaluate_discards(hand, total_wall=61, dead_tiles={}) → Array
+  - evaluate_discards(hand, total_wall=61, dead_tiles={}, meld_count=0) → Array
+      meld_count: 副露済み面子数（game.gd からは GameState.players[0].naki.size() を渡す）
   - dead_tiles 構造: {"counts":{game_id:枚数}, "red":{game_id:赤枚数}, "gold":{game_id:金枚数}}
   - 返り値の各辞書キー:
       tile_id / tile_name / shanten / shanten_text / effective_tiles
@@ -646,7 +647,12 @@
       tenpai_rate            : シャンテン依存（下記参照）
       agari_rate             : シャンテン依存（下記参照）
       tile_breakdown         : 有効牌ごとの内訳 {game_id: {wall_count, expected(float均等割り), tenpai_rate, agari_rate}}
-  - _calc_effective_tiles(counts, shanten, dead_tiles):
+  - calc_shanten(counts, meld_count=0):
+      meld_count > 0 のとき七対子向聴を除外し、一般手のみで計算する。
+  - _shanten_regular(counts, meld_count=0):
+      _best の初期値を 8 - meld_count * 2 に設定（副露済み面子は完成扱い）。
+      _search() の mentsu 開始値を meld_count に設定。
+  - _calc_effective_tiles(counts, shanten, dead_tiles, meld_count=0):
       wall_count = DECK_SIZE - 手牌 - 死牌（生の枚数、山確率補正なし）
   - _calc_agari_rate(e, w): 逐次計算ヘルパー（shanten==0/1/2/3で共通）
       turns = ceil(w/3)、毎ターン e -= e × 2/(w+34)、p_not *= 1 - e/w、w -= 3

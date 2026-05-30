@@ -1,6 +1,17 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/30-2】アシスト：副露数を考慮した向聴数計算に対応（SanmaAnalyzer.gd / game.gd）
+  - evaluate_discards() に meld_count: int = 0 引数を追加。
+  - calc_shanten() に meld_count 引数を追加。
+    副露ありの場合（meld_count > 0）は七対子向聴を除外し、一般手のみで計算。
+  - _shanten_regular() に meld_count 引数を追加。
+    _best 初期値を 8 - meld_count * 2 に変更（副露済み面子をすでに完成面子として反映）。
+    _search() の mentsu 開始値を meld_count に変更。
+  - _calc_effective_tiles() に meld_count 引数を追加。内部の calc_shanten() 呼び出しに伝播。
+  - game.gd: _on_assist_pressed() で GameState.players[0].naki.size() を meld_count として取得。
+  - game.gd: _run_assist_analysis() に meld_count 引数を追加し evaluate_discards() に渡す。
+
 【2026/05/30】打牌アシスト機能実装・改善（game.gd / SimulatorScreen.gd / GameLogViewerScreen.gd）
 
 ■ アシストパネル機能（game.gd）
