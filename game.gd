@@ -1086,6 +1086,13 @@ func _run_player_riichi_cutin_sequence(hand_idx: int, is_open: bool) -> void:
 		return
 	_refresh_scores()
 	_refresh_hand()
+
+	# 宣言牌がロン可能な場合はカットインをスキップ
+	if not GameState.action_ron_candidates.is_empty():
+		_riichi_cutin_running = false
+		return
+
+	# ロン不可の場合は通常通りカットインを再生
 	_status_label.text = "リーチ！"
 	_play_riichi_bgm()
 	var npc_riichi: bool = GameState.players[1].is_riichi or GameState.players[2].is_riichi
