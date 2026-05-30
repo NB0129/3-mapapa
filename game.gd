@@ -3961,7 +3961,7 @@ func _show_assist(results: Array, hand: Array) -> void:
 
 		var row := Panel.new()
 		row.position = Vector2(8, py)
-		row.custom_minimum_size = Vector2(444, 270)
+		row.custom_minimum_size = Vector2(444, 310 if is_best else 270)
 		var rs := StyleBoxFlat.new()
 		rs.bg_color = Color(0.10, 0.22, 0.12, 0.92) if is_best else Color(0.05, 0.12, 0.07, 0.85)
 		if is_best:
@@ -4000,16 +4000,40 @@ func _show_assist(results: Array, hand: Array) -> void:
 		var shanten_val: int = int(r.get("shanten", 99))
 		var eff_lbl := _make_label(
 			"有効%d枚（期待%.1f枚）" % [eff_raw, eff_exp],
-			Vector2(6, 100), 40)
+			Vector2(6, 100), 30)
 		eff_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
 		row.add_child(eff_lbl)
 
 		var next_label := _next_turn_label(shanten_val)
 		var ntr_lbl := _make_label(
 			"%s %.2f%%" % [next_label, ntr],
-			Vector2(6, 154), 40)
+			Vector2(6, 154), 30)
 		ntr_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
 		row.add_child(ntr_lbl)
+
+		if is_best:
+			var tenpai_r: float = float(r.get("tenpai_rate", -1.0))
+			var agari_r: float  = float(r.get("agari_rate",  -1.0))
+			if shanten_val == 0 and agari_r >= 0.0:
+				var agari_lbl := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(6, 200), 36)
+				agari_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+				row.add_child(agari_lbl)
+			elif shanten_val == 1 and tenpai_r >= 0.0:
+				var tenpai_lbl := _make_label("テンパイ率 %.2f%%" % (tenpai_r * 100.0), Vector2(6, 200), 36)
+				tenpai_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+				row.add_child(tenpai_lbl)
+				if agari_r >= 0.0:
+					var agari_lbl := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(6, 244), 36)
+					agari_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+					row.add_child(agari_lbl)
+			elif shanten_val == 2 and tenpai_r >= 0.0:
+				var reach_lbl := _make_label("一向聴率 %.2f%%" % (tenpai_r * 100.0), Vector2(6, 200), 36)
+				reach_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+				row.add_child(reach_lbl)
+				if agari_r >= 0.0:
+					var tenpai_lbl := _make_label("テンパイ率 %.2f%%" % (agari_r * 100.0), Vector2(6, 244), 36)
+					tenpai_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+					row.add_child(tenpai_lbl)
 
 		var ex := 6.0
 		var eff: Dictionary = r.get("effective_tiles", {})
@@ -4029,7 +4053,7 @@ func _show_assist(results: Array, hand: Array) -> void:
 			ex += 65.0
 			if ex > 390:
 				break
-		py += 278.0
+		py += 318.0 if is_best else 278.0
 
 	_place_assist_star(hand, best_tile_id)
 	_assist_panel.visible = true
