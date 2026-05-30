@@ -351,6 +351,21 @@ func _run_sim_analysis() -> void:
 	if hand_arr.size() != 14:
 		return
 
+	for ch in _result_list.get_children():
+		ch.queue_free()
+	var loading_lbl := _make_label("解析中...", Vector2(10, 20), 28)
+	loading_lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.5))
+	_result_list.add_child(loading_lbl)
+
+	call_deferred("_run_sim_analysis_deferred")
+
+func _run_sim_analysis_deferred() -> void:
+	var turns: Array = _current_turns()
+	if _turn_idx < 0 or _turn_idx >= turns.size():
+		return
+	var turn: Dictionary = turns[_turn_idx]
+	var hand_arr: Array = turn.get("hand_after_draw", [])
+
 	var hand_typed: Array = []
 	for t in hand_arr:
 		hand_typed.append({
@@ -433,10 +448,11 @@ func _rebuild_sim_list(actual_discard_id: int) -> void:
 			Color(0.4, 1.0, 0.5) if shanten_val == 0 else Color(0.80, 0.80, 0.65))
 		row.add_child(shan_lbl)
 
-		# 2行目: 有効牌枚数 + 次巡聴牌確率
-		var stat_txt := "有効牌%d枚（期待%.1f枚）　次巡聴牌確率%.2f%%" % [
+		# 2行目: 有効牌枚数 + 次巡確率
+		var stat_txt := "有効牌%d枚（期待%.1f枚）　%s%.2f%%" % [
 			int(r.get("effective_count", 0)),
 			float(r.get("effective_count_expected", 0.0)),
+			_next_turn_label(shanten_val),
 			float(r.get("next_tenpai_rate", 0.0)) * 100.0,
 		]
 		var stat_lbl := _make_label(stat_txt, Vector2(8, 50), 28)
@@ -914,6 +930,14 @@ func _make_button(text: String, bg_color: Color) -> Button:
 # ============================================================
 # Tile texture
 # ============================================================
+
+func _next_turn_label(shanten: int) -> String:
+	match shanten:
+		0: return "次巡和了確率"
+		1: return "次巡聴牌確率"
+		2: return "次巡一向聴確率"
+		_: return "次巡繰り上げ確率"
+
 
 func _get_tile_texture_path(tile: Dictionary) -> String:
 	var id: int = tile.id

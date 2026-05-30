@@ -671,12 +671,21 @@ func _style_slot_empty(btn: Button) -> void:
 func _run_analysis() -> void:
 	if _hand.size() != 14:
 		return
+	_no_result_lbl.text = "解析中..."
+	_no_result_lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.5))
+	_no_result_lbl.visible = true
+	_result_scroll.visible = false
+	call_deferred("_run_analysis_deferred")
+
+func _run_analysis_deferred() -> void:
 	var analyzer := SanmaAnalyzer.new()
 	var dead_tiles := _build_dead_tiles()
 	_total_wall = int(_wall_spinbox.value)
 	_results = analyzer.evaluate_discards(_hand, _total_wall, dead_tiles)
 	_rebuild_result_list()
 	_result_scroll.visible = true
+	_no_result_lbl.text = "手牌を14枚入力して\n▶ 解析 を押してください"
+	_no_result_lbl.add_theme_color_override("font_color", Color(0.5, 0.7, 0.5))
 	_no_result_lbl.visible = false
 
 func _rebuild_result_list() -> void:
@@ -747,10 +756,11 @@ func _rebuild_result_list() -> void:
 			act_tag.add_theme_color_override("font_color", Color(1.0, 0.78, 0.2))
 			row_panel.add_child(act_tag)
 
-		# 2行目: 有効牌枚数 + 次巡聴牌確率
-		var stat_txt := "有効牌%d枚（期待%.1f枚）　次巡聴牌確率%.2f%%" % [
+		# 2行目: 有効牌枚数 + 次巡確率
+		var stat_txt := "有効牌%d枚（期待%.1f枚）　%s%.2f%%" % [
 			int(r.get("effective_count", 0)),
 			float(r.get("effective_count_expected", 0.0)),
+			_next_turn_label(shanten_val),
 			float(r.get("next_tenpai_rate", 0.0)) * 100.0,
 		]
 		var stat_lbl := _make_label(stat_txt, Vector2(8, 50), 28)
@@ -879,6 +889,13 @@ func _make_step_btn(text: String) -> Button:
 # ============================================================
 # ヘルパー: 牌テクスチャ
 # ============================================================
+func _next_turn_label(shanten: int) -> String:
+	match shanten:
+		0: return "次巡和了確率"
+		1: return "次巡聴牌確率"
+		2: return "次巡一向聴確率"
+		_: return "次巡繰り上げ確率"
+
 func _get_tile_texture_path(tile: Dictionary) -> String:
 	var id: int = tile.id
 	var is_red: bool = tile.get("is_red", false)

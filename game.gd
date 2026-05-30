@@ -3917,18 +3917,12 @@ func _on_assist_pressed() -> void:
 		return
 	if _assist_analyzer == null:
 		_assist_analyzer = SanmaAnalyzer.new()
-
+	var dead_tiles := _assist_cached_dead_tiles if _assist_cache_ready else _build_assist_dead_tiles()
+	var total_wall := _assist_cached_total_wall if _assist_cache_ready else GameState.wall.size()
 	_show_assist_loading()
+	call_deferred("_run_assist_analysis", hand, dead_tiles, total_wall)
 
-	var dead_tiles: Dictionary
-	var total_wall: int
-	if _assist_cache_ready:
-		dead_tiles = _assist_cached_dead_tiles
-		total_wall = _assist_cached_total_wall
-	else:
-		dead_tiles = _build_assist_dead_tiles()
-		total_wall = GameState.wall.size()
-
+func _run_assist_analysis(hand: Array, dead_tiles: Dictionary, total_wall: int) -> void:
 	var results := _assist_analyzer.evaluate_discards(hand, total_wall, dead_tiles)
 	results = _apply_tiebreak_priority(results)
 	_show_assist(results, hand)
@@ -3991,8 +3985,9 @@ func _show_assist(results: Array, hand: Array) -> void:
 		var eff_raw: int = int(r.get("effective_count", 0))
 		var eff_exp: float = float(r.get("effective_count_expected", 0.0))
 		var ntr: float = float(r.get("next_tenpai_rate", 0.0)) * 100.0
+		var ntr_label := _next_turn_label(int(r.get("shanten", 99)))
 		var info_lbl := _make_label(
-			"有効%d枚（期待%.1f枚）  次巡%.2f%%" % [eff_raw, eff_exp, ntr],
+			"有効%d枚（期待%.1f枚）  %s%.2f%%" % [eff_raw, eff_exp, ntr_label, ntr],
 			Vector2(6, 76), 20)
 		info_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
 		row.add_child(info_lbl)
@@ -4043,10 +4038,19 @@ func _place_assist_star(hand: Array, best_tile_id: int) -> void:
 			star.text = "★"
 			star.add_theme_font_size_override("font_size", 32)
 			star.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
-			star.position = btn.global_position + Vector2(btn.size.x / 2 - 16, -36)
-			add_child(star)
+			star.position = Vector2(btn.size.x / 2 - 16, -36)
+			star.z_index = 10
+			btn.add_child(star)
 			_assist_star_labels.append(star)
 			break
+
+
+func _next_turn_label(shanten: int) -> String:
+	match shanten:
+		0: return "次巡和了確率"
+		1: return "次巡聴牌確率"
+		2: return "次巡一向聴確率"
+		_: return "次巡繰り上げ確率"
 
 
 func _apply_tiebreak_priority(results: Array) -> Array:
