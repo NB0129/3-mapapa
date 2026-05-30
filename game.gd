@@ -388,7 +388,7 @@ func _build_ui() -> void:
 	add_child(_assist_btn)
 
 	# アシスト結果パネル（左キャラエリアに重ねる形で初期非表示）
-	_assist_panel = _make_panel(Color(0.03, 0.10, 0.05, 0.92), Rect2(10, 10, 460, 720))
+	_assist_panel = _make_panel(Color(0.03, 0.10, 0.05, 0.92), Rect2(10, 10, 460, 828))
 	_assist_panel.visible = false
 	_assist_panel.z_index = 20
 	add_child(_assist_panel)
@@ -3953,7 +3953,7 @@ func _show_assist(results: Array, hand: Array) -> void:
 
 		var row := Panel.new()
 		row.position = Vector2(8, py)
-		row.custom_minimum_size = Vector2(444, 170)
+		row.custom_minimum_size = Vector2(444, 270)
 		var rs := StyleBoxFlat.new()
 		rs.bg_color = Color(0.10, 0.22, 0.12, 0.92) if is_best else Color(0.05, 0.12, 0.07, 0.85)
 		if is_best:
@@ -3992,14 +3992,14 @@ func _show_assist(results: Array, hand: Array) -> void:
 		var shanten_val: int = int(r.get("shanten", 99))
 		var eff_lbl := _make_label(
 			"有効%d枚（期待%.1f枚）" % [eff_raw, eff_exp],
-			Vector2(6, 92), 22)
+			Vector2(6, 100), 40)
 		eff_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
 		row.add_child(eff_lbl)
 
 		var next_label := _next_turn_label(shanten_val)
 		var ntr_lbl := _make_label(
 			"%s %.2f%%" % [next_label, ntr],
-			Vector2(6, 120), 22)
+			Vector2(6, 154), 40)
 		ntr_lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 1.0))
 		row.add_child(ntr_lbl)
 
@@ -4009,19 +4009,19 @@ func _show_assist(results: Array, hand: Array) -> void:
 			var etex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
 			if etex:
 				var eti := TextureRect.new()
-				eti.position = Vector2(ex, 148)
-				eti.size = Vector2(22, 30)
+				eti.position = Vector2(ex, 210)
+				eti.size = Vector2(33, 45)
 				eti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 				eti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 				eti.texture = etex
 				row.add_child(eti)
-			var ecnt := _make_label("×%d" % int(eff[gid]), Vector2(ex + 28, 158), 18)
+			var ecnt := _make_label("×%d" % int(eff[gid]), Vector2(ex + 35, 222), 22)
 			ecnt.add_theme_color_override("font_color", Color(0.7, 0.8, 0.7))
 			row.add_child(ecnt)
 			ex += 50.0
 			if ex > 390:
 				break
-		py += 178.0
+		py += 278.0
 
 	_place_assist_star(hand, best_tile_id)
 	_assist_panel.visible = true
