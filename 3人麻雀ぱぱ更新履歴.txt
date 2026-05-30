@@ -1,6 +1,10 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/30-5】アシスト2パス目を上位1候補のみに変更（SanmaAnalyzer.gd）
+  - 2パス目のコメントアウトを解除し、上位3候補 → 上位1候補のみ _calc_rates() を実行するよう変更。
+  - tenpai_rate / agari_rate も _calc_rates() の結果で上書きするよう追加。
+
 【2026/05/30-4】リーチ宣言牌にロン可能な場合はカットインをスキップ（game.gd）
   - _run_player_riichi_cutin_sequence() を修正。
   - prepare_player_riichi() 成功直後に GameState.action_ron_candidates を確認。

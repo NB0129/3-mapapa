@@ -123,12 +123,13 @@ func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary
 		return float(a.next_tenpai_rate) > float(b.next_tenpai_rate)
 	)
 
-	# --- 2パス目: 一時的に無効化（処理時間計測用）---
-	#for i in range(mini(3, results.size())):
-	#	var r: Dictionary = results[i]
-	#	if r.shanten >= 1:
-	#		var rates := _calc_rates(r["_counts"], r.shanten, r["effective_tiles"], total_wall, dead_tiles)
-	#		r["tile_breakdown"] = rates.tile_breakdown
+	# --- 2パス目: 上位1候補のみ _calc_rates() を実行 ---
+	if results.size() > 0:
+		var r: Dictionary = results[0]
+		var rates := _calc_rates(r["_counts"], r.shanten, r["effective_tiles"], total_wall, dead_tiles)
+		r["tile_breakdown"] = rates.tile_breakdown
+		r["tenpai_rate"]    = rates.tenpai_rate
+		r["agari_rate"]     = rates.agari_rate
 
 	# --- 一時キーを削除 ---
 	for r: Dictionary in results:
