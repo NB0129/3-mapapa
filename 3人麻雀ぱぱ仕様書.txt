@@ -210,7 +210,7 @@
   F3キー: NPC2（上家）手牌デバッグパネルの表示/非表示
   F4キー: 嶺上牌（8枚）デバッグパネルの表示/非表示
   F5キー: NPC手牌の実牌表示/伏せ表示を切り替え
-  ゲーム画面の手牌左上にある F1〜F5 ボタンでも同じ操作が可能
+  ゲーム画面の手牌左上にある F1〜F5 ボタンでも同じ操作が可能（初期は非表示・キー操作は常に有効）
   同じキーを再押しするとパネルを閉じる
 
   【手牌スロット構成（F1/F2/F3・計15スロット）】
@@ -368,7 +368,7 @@
     bgm_ritia3_1000tennnocandy.ogg  八美リーチBGM③「1000点棒キャンディ」
     *.ogg.import         Godot OGGインポート設定
 
-  対局中はデバッグボタンの一行上に再生中BGMの曲名をフォントサイズ40で表示する。
+  対局中は再生中BGMの曲名をフォントサイズ40で表示する（position y=88）。
 
 --------------------------------------------------
 ■ キャラクター選択（SaveData.gd / game.gd）
@@ -1001,3 +1001,59 @@
   - Bundle Identifier? `com.nb0129.mapapa3`?
   - Team ID?Code Sign Identity?Provisioning Profile?????Apple Developer Program???????????????????
   - ???????? `README_IOS.md` ??????
+
+--------------------------------------------------
+■ 2026/05/30 追加仕様：打牌アシスト機能（game.gd）
+--------------------------------------------------
+  【アシストボタン・パネル概要】
+  - アシストボタン（画面右側 position(1760, 700)・初期非表示）を押すと打牌候補上位3件を
+    画面左側のパネル（Rect2(10, 10, 460, 828)）に表示する。
+  - リーチ中・ポン直後・手牌枚数が 2枚未満または (size % 3 != 2) の場合は非表示。
+
+  【事前データキャッシュ】
+  - _on_tile_drawn でプレイヤーのツモ時に dead_tiles（_build_assist_dead_tiles()）と
+    wall サイズを事前収集して _assist_cached_dead_tiles / _assist_cached_total_wall に保存。
+  - _assist_cache_ready フラグが true の場合はキャッシュ値を使用し、false の場合は
+    ボタン押下時にその場で収集する。
+  - _hide_assist() 時に _assist_cache_ready を false にリセット。
+
+  【解析実行フロー】
+  - _on_assist_pressed():
+    1. キャッシュまたはリアルタイム収集で dead_tiles / total_wall を取得。
+    2. _show_assist_loading() で「解析中...」を即時表示。
+    3. await get_tree().create_timer(0.05).timeout で1フレーム以上待機（UI描画を確保）。
+    4. _run_assist_analysis(hand, dead_tiles, total_wall) を呼び出し。
+  - _run_assist_analysis():
+    1. SanmaAnalyzer.evaluate_discards() で打牌候補を計算。
+    2. _apply_tiebreak_priority() でソート。
+    3. _show_assist() で結果表示。
+
+  【_show_assist() 行レイアウト（1件あたり）】
+  - パネル幅: 444 / 行高（custom_minimum_size）: 270 / 行間隔（py加算）: 278
+  - 牌画像: position(6, 6)・size(66, 90)
+  - ★マーク（ベストのみ）: position(76, 6)・font 36pt
+  - 牌名ラベル: position(100, 6)・font 32pt
+  - 向聴テキスト: position(100, 44)・font 26pt
+  - 有効枚数「有効N枚（期待X.X枚）」: position(6, 100)・font 40pt
+  - 次巡確率「次巡〇〇確率 XX.XX%」: position(6, 154)・font 40pt
+  - 有効牌画像: size(33, 45)・y=210 から横並び（ex += 50、ex > 390 で打ち切り）
+  - 有効牌枚数ラベル: font 22pt・position(ex+35, 222)
+
+  【_next_turn_label(shanten) — シャンテン別ラベル】
+  - 0 → 「次巡和了確率」
+  - 1 → 「次巡聴牌確率」
+  - 2 → 「次巡一向聴確率」
+  - それ以外 → 「次巡繰り上げ確率」
+  同関数を SimulatorScreen.gd / GameLogViewerScreen.gd にも実装。
+
+  【★表示（_place_assist_star）】
+  - _rebuild_player_hand と同じ sort_custom + _tile_sort_key ロジックで display_indices を再構築。
+  - ★を該当ボタンの子ノードとして追加（position: Vector2(btn.size.x/2-20, -44)・font 40pt・z_index 10）。
+  - _show_assist_loading / _show_assist / _hide_assist の3箇所で
+    is_instance_valid() チェック後に queue_free することでクラッシュを防ぐ。
+
+  【解析中表示（SimulatorScreen / GameLogViewerScreen）】
+  - ▶解析ボタン（SimulatorScreen）: _no_result_lbl に「解析中...」を表示後、
+    call_deferred("_run_analysis_deferred") で計算を遅延実行。
+  - 🔍検討ボタン（GameLogViewerScreen）: _result_list をクリアして「解析中...」ラベルを追加後、
+    call_deferred("_run_sim_analysis_deferred") で計算を遅延実行。

@@ -1,6 +1,46 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/30】打牌アシスト機能実装・改善（game.gd / SimulatorScreen.gd / GameLogViewerScreen.gd）
+
+■ アシストパネル機能（game.gd）
+  - アシストボタン（画面右側・リーチ中は非表示）押下で打牌候補上位3件をパネル表示する機能を実装。
+  - 表示内容: 牌画像（66×90）・★マーク・打牌名・向聴テキスト・有効枚数（期待値）・次巡確率・有効牌グリッド。
+  - ベスト打牌の手牌タイルの上に★マークをオーバーレイ表示（ボタン子ノード、z_index=10）。
+  - ツモ時に dead_tiles・wall サイズを事前キャッシュし、ボタン押下時に即使用（_assist_cache_ready）。
+  - 「解析中...」表示後 create_timer(0.05).timeout で待機してから計算を開始（UIの描画を確保）。
+  - _run_assist_analysis() で evaluate_discards → _apply_tiebreak_priority → _show_assist の順に処理。
+  - パネルサイズ: Rect2(10, 10, 460, 828)
+
+■ アシストパネル行レイアウト（game.gd）
+  - 行高: 270 / 行間隔: 278
+  - 牌画像: 66×90 / ★: 36pt / 牌名: 32pt / 向聴テキスト: 26pt
+  - 有効枚数「有効N枚（期待X.X枚）」: 40pt（y=100）
+  - 次巡確率「次巡〇〇確率 XX.XX%」: 40pt（y=154）
+  - 有効牌画像: 33×45 / 枚数ラベル: 22pt
+
+■ 次巡ラベルのシャンテン別表示（game.gd / SimulatorScreen.gd / GameLogViewerScreen.gd）
+  - _next_turn_label(shanten) 関数を3ファイルに追加。
+    shanten=0 → 「次巡和了確率」
+    shanten=1 → 「次巡聴牌確率」
+    shanten=2 → 「次巡一向聴確率」
+    それ以外  → 「次巡繰り上げ確率」
+
+■ 解析中表示（SimulatorScreen.gd / GameLogViewerScreen.gd）
+  - ▶解析 / 🔍検討 ボタン押下直後に「解析中...」を表示し、計算完了後に結果で上書きするよう変更。
+  - call_deferred 方式から await create_timer(0.05) 方式に統一。
+
+■ _place_assist_star の修正（game.gd）
+  - _rebuild_player_hand と同じ sort_custom + _tile_sort_key ロジックで display_indices を再構築。
+    （従来は range のみで★の位置がずれる問題があった）
+  - ★をルートではなくボタンの子ノードとして追加（グローバル座標依存を廃止）。
+  - _show_assist_loading / _show_assist / _hide_assist の3箇所に is_instance_valid() チェックを追加。
+    （ボタン再生成時に子ノードの★が自動解放されても queue_free クラッシュしないよう対処）
+
+■ UIその他（game.gd）
+  - _debug_buttons_box の初期表示を非表示化。F1〜F5キー操作は引き続き有効。
+  - _bgm_title_label の position y=36 → y=88 に変更。
+
 【2026/05/29-3】breakdown表示レイアウト全面刷新・確率値精度改善（SanmaAnalyzer.gd / GameLogViewerScreen.gd / SimulatorScreen.gd）
   - SanmaAnalyzer:
     - effective_count_expected を int → float に変更。
