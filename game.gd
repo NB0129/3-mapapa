@@ -3895,7 +3895,8 @@ func _build_assist_dead_tiles() -> Dictionary:
 func _show_assist_loading() -> void:
 	_assist_visible = true
 	for lbl in _assist_star_labels:
-		lbl.queue_free()
+		if is_instance_valid(lbl):
+			lbl.queue_free()
 	_assist_star_labels.clear()
 	for ch in _assist_panel.get_children():
 		ch.queue_free()
@@ -3931,7 +3932,8 @@ func _run_assist_analysis(hand: Array, dead_tiles: Dictionary, total_wall: int) 
 func _show_assist(results: Array, hand: Array) -> void:
 	_assist_visible = true
 	for lbl in _assist_star_labels:
-		lbl.queue_free()
+		if is_instance_valid(lbl):
+			lbl.queue_free()
 	_assist_star_labels.clear()
 	for ch in _assist_panel.get_children():
 		ch.queue_free()
@@ -4024,7 +4026,8 @@ func _hide_assist() -> void:
 	if _assist_btn != null:
 		_assist_btn.visible = false
 	for lbl in _assist_star_labels:
-		lbl.queue_free()
+		if is_instance_valid(lbl):
+			lbl.queue_free()
 	_assist_star_labels.clear()
 
 
