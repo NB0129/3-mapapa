@@ -219,7 +219,7 @@ func _build_member_select_panel() -> Control:
 	root.add_child(table)
 
 	_role_labels.clear()
-	_role_labels["player"] = _make_role_label(Vector2(435, 405))
+	_role_labels["player"] = _make_player_role_label(Vector2(435, 405))
 	_role_labels["top"] = _make_role_label(Vector2(680, 250))
 	_role_labels["right"] = _make_role_label(Vector2(777, 405))
 	_role_labels["bottom"] = _make_role_label(Vector2(680, 553))
@@ -560,6 +560,27 @@ func _make_role_label(pos: Vector2) -> Dictionary:
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var l := _make_label("", Vector2.ZERO, 50, Color(1.0, 0.90, 0.35))
 	l.size = Vector2(180, 70)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var shadow := LabelSettings.new()
+	shadow.font_size = 50
+	shadow.font_color = Color(1.0, 0.90, 0.35)
+	shadow.shadow_color = Color(0, 0, 0, 0.85)
+	shadow.shadow_size = 5
+	l.label_settings = shadow
+	box.add_child(l)
+	return {"box": box, "label": l}
+
+func _make_player_role_label(pos: Vector2) -> Dictionary:
+	var box := _make_panel(Color(0.02, 0.02, 0.04, 0.72), Rect2(pos, Vector2(180, 180)))
+	box.z_index = 20
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sub := _make_label("Player", Vector2(18, 34), 22, Color.WHITE)
+	sub.size = Vector2(120, 28)
+	box.add_child(sub)
+	var l := _make_label("", Vector2(0, 56), 50, Color(1.0, 0.90, 0.35))
+	l.size = Vector2(180, 110)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
