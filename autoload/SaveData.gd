@@ -1,6 +1,8 @@
 extends Node
 
 const SAVE_PATH := "user://savedata.json"
+const DEFAULT_NPC_SEATS := {"bottom": "kuma_def", "right": "kuma_hiyake", "top": ""}
+const DEFAULT_NPC_IDS := ["kuma_def", "kuma_hiyake"]
 
 var total_p: int = 0
 var dan: int = 1
@@ -20,9 +22,9 @@ var total_chip: int = 0
 # プレイヤー設定
 var player_name: String = "あなた"
 var selected_player_character: String = "hachimi"
-var selected_npc: Array = ["kuma_def", "kuma_hiyake"]
+var selected_npc: Array = DEFAULT_NPC_IDS.duplicate()
 var selected_empty_seat: String = "top"
-var selected_npc_seats: Dictionary = {"bottom": "kuma_def", "right": "kuma_hiyake", "top": ""}
+var selected_npc_seats: Dictionary = DEFAULT_NPC_SEATS.duplicate()
 
 const NPC_DEFS := {
 	"kuma_black":    {"name": "ブラックくま",       "path": "res://chara/kuma_black.webp",    "path_game": "res://chara/kuma_black2a.webp",    "path_menu": "res://chara/kuma_black2b.webp"},
@@ -95,7 +97,7 @@ func load_data() -> void:
 	total_chip     = d.get("total_chip", 0)
 	player_name               = d.get("player_name", "あなた")
 	selected_player_character = d.get("selected_player_character", "hachimi")
-	selected_npc              = _normalize_npc_ids(d.get("selected_npc", ["kuma_def", "kuma_hiyake"]))
+	selected_npc              = _normalize_npc_ids(d.get("selected_npc", DEFAULT_NPC_IDS))
 	selected_empty_seat       = d.get("selected_empty_seat", "top")
 	selected_npc_seats        = _normalize_npc_seats(d.get("selected_npc_seats", selected_npc_seats))
 	npc_games      = d.get("npc_games", {"kuma_black": 0, "kuma_def": 0, "kuma_hiyake": 0, "kuma_hokkyoku": 0, "kuma_megane": 0, "kuma_saibo": 0})
@@ -117,7 +119,7 @@ func _normalize_npc_ids(ids: Array) -> Array:
 		var npc_id := _legacy_npc_id(str(id))
 		if NPC_DEFS.has(npc_id) and npc_id not in result:
 			result.append(npc_id)
-	for fallback in ["kuma_def", "kuma_hiyake"]:
+	for fallback in DEFAULT_NPC_IDS:
 		if result.size() >= 2:
 			break
 		if fallback not in result:
@@ -134,7 +136,7 @@ func _normalize_npc_seats(seats: Dictionary) -> Dictionary:
 		if result[seat] != "":
 			filled.append(result[seat])
 	if filled.size() != 2:
-		result = {"bottom": "kuma_def", "right": "kuma_hiyake", "top": ""}
+		result = DEFAULT_NPC_SEATS.duplicate()
 	selected_empty_seat = _find_empty_seat(result)
 	selected_npc = _seat_npc_ids(result)
 	return result

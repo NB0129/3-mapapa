@@ -41,7 +41,7 @@ func _ready() -> void:
 	_seat_npcs = SaveData.selected_npc_seats.duplicate(true)
 	_empty_seat = SaveData.selected_empty_seat
 	if _seat_npcs.is_empty():
-		_seat_npcs = {"bottom": "kuma_def", "right": "kuma_hiyake", "top": ""}
+		_seat_npcs = SaveData.DEFAULT_NPC_SEATS.duplicate()
 		_empty_seat = "top"
 	_remove_unselectable_npcs()
 	_build_ui()
