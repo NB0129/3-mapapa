@@ -656,9 +656,9 @@
       _search() 内では counts・探索位置・面子数・搭子数・雀頭有無の部分状態をメモ化し、同一状態の再帰探索を省略する。
   - _calc_effective_tiles(counts, shanten, dead_tiles, meld_count=0):
       wall_count = DECK_SIZE - 手牌 - 死牌（生の枚数、山確率補正なし）
-  - _calc_agari_rate(e, w): 逐次計算ヘルパー（shanten==0/1/2/3で共通）
-      turns = ceil(w/3)、毎ターン e -= e × 2/(w+34)、p_not *= 1 - e/w、w -= 3
-      return minf(1.0 - p_not, 1.0)
+  - _calc_agari_rate(e, w): 累乗計算ヘルパー（shanten==0/1/2/3で共通）
+      turns = ceil(w/3)、p_per_draw = minf(e / w, 1.0)
+      return minf(1.0 - pow(1.0 - p_per_draw, turns), 1.0)
   - _calc_rates() シャンテン別の意味:
       evaluate_discards() の2パス目から meld_count を引き継ぎ、詳細確率内の向聴数・有効牌再計算でも副露済み面子を完成扱いにする。
       shanten==0: tenpai_rate=1.0, agari_rate=ツモ和了率（clamp 1.0）
@@ -676,7 +676,7 @@
       breakdown各行（牌画像＋テキスト）: font 24
   - 表示ラベル（shanten別）テキスト:
       ==0 : 「和了率 XX.XX%」のみ（font 35）
-      ==1 : 「テンパイ率 XX.XX%」（font 35）「和了率 XX.XX%」（font 28）
+      ==1 : 黄色表示は「和了率 XX.XX%」のみ（青文字の次巡聴牌確率と重複するため黄色のテンパイ率は表示しない）
       ==2 : 「1シャンテン率 XX.XX%」（font 35）「テンパイ率 XX.XX%」（font 28）
       >=3 : 「1シャンテン率 XX.XX%」のみ（font 35）
       tenpai_r<0: 「—」

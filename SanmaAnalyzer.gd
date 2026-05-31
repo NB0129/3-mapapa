@@ -421,18 +421,8 @@ func _calc_agari_rate(e: float, w: float) -> float:
 	if w <= 0.0 or e <= 0.0:
 		return 0.0
 	var turns: int = ceili(w / 3.0)
-	var p_not := 1.0
-	var ev := e
-	var wv := w
-	for k in range(turns):
-		if wv <= 0.0:
-			break
-		ev -= ev * (2.0 / (wv + 34.0))
-		ev = maxf(0.0, ev)
-		ev = minf(ev, wv)
-		p_not *= 1.0 - ev / wv
-		wv -= 3.0
-	return minf(1.0 - p_not, 1.0)
+	var p_per_draw := minf(e / w, 1.0)
+	return minf(1.0 - pow(1.0 - p_per_draw, turns), 1.0)
 
 
 # ==================================================

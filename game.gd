@@ -4029,14 +4029,10 @@ func _show_assist(results: Array, hand: Array) -> void:
 				var agari_lbl := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(6, 200), 30)
 				agari_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 				row.add_child(agari_lbl)
-			elif shanten_val == 1 and tenpai_r >= 0.0:
-				var tenpai_lbl := _make_label("テンパイ率 %.2f%%" % (tenpai_r * 100.0), Vector2(6, 200), 30)
-				tenpai_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-				row.add_child(tenpai_lbl)
-				if agari_r >= 0.0:
-					var agari_lbl := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(6, 244), 30)
-					agari_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-					row.add_child(agari_lbl)
+			elif shanten_val == 1 and agari_r >= 0.0:
+				var agari_lbl := _make_label("和了率 %.2f%%" % (agari_r * 100.0), Vector2(6, 200), 30)
+				agari_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+				row.add_child(agari_lbl)
 			elif shanten_val == 2 and tenpai_r >= 0.0:
 				var reach_lbl := _make_label("一向聴率 %.2f%%" % (tenpai_r * 100.0), Vector2(6, 200), 30)
 				reach_lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
