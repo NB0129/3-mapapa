@@ -219,9 +219,9 @@ func _build_member_select_panel() -> Control:
 	root.add_child(table)
 
 	_role_labels.clear()
-	_role_labels["player"] = _make_role_label(Vector2(585, 444))
+	_role_labels["player"] = _make_role_label(Vector2(585, 405))
 	_role_labels["top"] = _make_role_label(Vector2(680, 250))
-	_role_labels["right"] = _make_role_label(Vector2(692, 409))
+	_role_labels["right"] = _make_role_label(Vector2(777, 405))
 	_role_labels["bottom"] = _make_role_label(Vector2(680, 553))
 	for key in _role_labels.keys():
 		root.add_child(_role_labels[key].box)
