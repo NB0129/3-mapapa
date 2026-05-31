@@ -385,7 +385,7 @@ func _update_intro() -> void:
 	var img := TextureRect.new()
 	img.position = Vector2(-300, -220)
 	img.size = Vector2(420, 390)
-	img.scale = Vector2(2.4, 2.4)
+	img.scale = Vector2(2.16, 2.16)
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -394,7 +394,7 @@ func _update_intro() -> void:
 		if npc_id == "kuma_hokkyoku":
 			intro_path = SaveData.get_npc_path_game(npc_id)
 			img.position = Vector2(-150, -120)
-			img.scale = Vector2(1.68, 1.68)
+			img.scale = Vector2(1.512, 1.512)
 		else:
 			intro_path = SaveData.get_npc_path(npc_id)
 		img.texture = load(intro_path)
