@@ -211,38 +211,38 @@ func _build_member_select_panel() -> Control:
 
 	var table := TextureRect.new()
 	table.texture = _make_used_rect_texture("res://assets/bg/bg_takujou.webp")
-	table.position = Vector2(LEFT_W + 44, 200)
+	table.position = Vector2(LEFT_W + 10, 240)
 	table.size = Vector2(760, 520)
-	table.scale = Vector2(0.9, 0.9)
+	table.scale = Vector2(0.63, 0.63)
 	table.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	table.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	table.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(table)
 
 	_role_labels.clear()
-	_role_labels["player"] = _make_role_label(Vector2(626, 450))
-	_role_labels["top"] = _make_role_label(Vector2(820, 215))
-	_role_labels["right"] = _make_role_label(Vector2(970, 450))
-	_role_labels["bottom"] = _make_role_label(Vector2(820, 646))
+	_role_labels["player"] = _make_role_label(Vector2(585, 444))
+	_role_labels["top"] = _make_role_label(Vector2(720, 275))
+	_role_labels["right"] = _make_role_label(Vector2(835, 444))
+	_role_labels["bottom"] = _make_role_label(Vector2(720, 585))
 	for key in _role_labels.keys():
 		root.add_child(_role_labels[key].box)
 
 	_slot_nodes.clear()
-	_add_seat_slot(root, "top", Vector2(780, 50))
-	_add_seat_slot(root, "right", Vector2(1161, 405))
-	_add_seat_slot(root, "bottom", Vector2(780, 710))
+	_add_seat_slot(root, "top", Vector2(720, 20))
+	_add_seat_slot(root, "right", Vector2(1100, 360))
+	_add_seat_slot(root, "bottom", Vector2(720, 750))
 
-	_intro_panel = _make_panel(Color(0.09, 0.09, 0.13, 0.92), Rect2(LEFT_W + 1068, 60, 310, 880))
+	_intro_panel = _make_panel(Color(0.09, 0.09, 0.13, 0.92), Rect2(LEFT_W + 1028, 40, 360, 860))
 	_intro_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_intro_panel)
 
-	var btn_start := _make_button("ゲーム開始", Color(0.15, 0.50, 0.24), Vector2(350, 78), 30)
-	btn_start.position = Vector2(1560, 955)
+	var btn_start := _make_image_button("res://ui/btn_gamestart.webp", Vector2(360, 120))
+	btn_start.position = Vector2(1520, 930)
 	btn_start.pressed.connect(_on_match_start_pressed)
 	root.add_child(btn_start)
 
-	var btn_back := _make_button("戻る", Color(0.28, 0.28, 0.32), Vector2(170, 62), 24)
-	btn_back.position = Vector2(LEFT_W + 44, 955)
+	var btn_back := _make_image_button("res://ui/icon_modoru.webp", Vector2(220, 94))
+	btn_back.position = Vector2(LEFT_W + 28, 940)
 	btn_back.pressed.connect(_show_main_menu)
 	root.add_child(btn_back)
 
@@ -250,9 +250,10 @@ func _build_member_select_panel() -> Control:
 	return root
 
 func _add_seat_slot(root: Control, seat: String, pos: Vector2) -> void:
+	var slot_size := Vector2(340, 230)
 	var panel := Panel.new()
 	panel.position = pos
-	panel.size = Vector2(260, 170)
+	panel.size = slot_size
 	panel.gui_input.connect(func(ev: InputEvent) -> void:
 		if _is_primary_press(ev):
 			_selected_seat = seat
@@ -262,24 +263,25 @@ func _add_seat_slot(root: Control, seat: String, pos: Vector2) -> void:
 	)
 	root.add_child(panel)
 
-	var dash := _make_dashed_border(Vector2(260, 170), Color(0.80, 0.84, 0.88, 0.8))
+	var dash := _make_dashed_border(slot_size, Color(0.80, 0.84, 0.88, 0.8))
 	dash.visible = false
 	panel.add_child(dash)
 
 	var img := TextureRect.new()
-	img.position = Vector2(16, 12)
-	img.size = Vector2(228, 116)
+	img.position = Vector2(18, 12)
+	img.size = Vector2(304, 160)
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(img)
 
 	var name_lbl := _make_label("", Vector2(16, 132), 20)
-	name_lbl.size = Vector2(150, 30)
+	name_lbl.position = Vector2(18, 178)
+	name_lbl.size = Vector2(200, 34)
 	panel.add_child(name_lbl)
 
-	var btn := _make_button("変更", Color(0.22, 0.34, 0.56), Vector2(82, 36), 18)
-	btn.position = Vector2(168, 128)
+	var btn := _make_button("変更", Color(0.22, 0.34, 0.56), Vector2(96, 42), 20)
+	btn.position = Vector2(230, 176)
 	btn.pressed.connect(func(): _change_seat_npc(seat))
 	panel.add_child(btn)
 	_slot_nodes[seat] = {"panel": panel, "img": img, "label": name_lbl, "button": btn, "dash": dash}
@@ -361,18 +363,18 @@ func _update_intro() -> void:
 	for child in _intro_panel.get_children():
 		child.queue_free()
 	var npc_id := _candidate_npc if _candidate_seat == _selected_seat and _candidate_npc != "" else str(_seat_npcs.get(_selected_seat, ""))
-	var pos := Vector2(LEFT_W + 1068, 60)
+	var pos := Vector2(LEFT_W + 1028, 40)
 	_intro_panel.position = pos
-	_intro_panel.size = Vector2(310, 880)
+	_intro_panel.size = Vector2(360, 860)
 	var clip := Control.new()
-	clip.position = Vector2(22, 28)
-	clip.size = Vector2(266, 430)
+	clip.position = Vector2(24, 26)
+	clip.size = Vector2(312, 455)
 	clip.clip_contents = true
 	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_intro_panel.add_child(clip)
 	var img := TextureRect.new()
-	img.position = Vector2(-246, -430)
-	img.size = Vector2(266, 430)
+	img.position = Vector2(-300, -455)
+	img.size = Vector2(312, 455)
 	img.scale = Vector2(3, 3)
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -386,21 +388,21 @@ func _update_intro() -> void:
 		img.texture = load(intro_path)
 	clip.add_child(img)
 	var prev_btn := _make_button("←", Color(0.22, 0.34, 0.56), Vector2(74, 52), 28)
-	prev_btn.position = Vector2(58, 455)
+	prev_btn.position = Vector2(78, 494)
 	prev_btn.pressed.connect(func(): _cycle_candidate(-1))
 	_intro_panel.add_child(prev_btn)
 	var next_btn := _make_button("→", Color(0.22, 0.34, 0.56), Vector2(74, 52), 28)
-	next_btn.position = Vector2(178, 455)
+	next_btn.position = Vector2(208, 494)
 	next_btn.pressed.connect(func(): _cycle_candidate(1))
 	_intro_panel.add_child(next_btn)
 	var text := "空席" if npc_id == "" else SaveData.get_npc_name(npc_id)
-	_intro_panel.add_child(_make_label(text, Vector2(28, 520), 30, Color(1.0, 0.92, 0.68)))
-	var desc := _make_label(_get_npc_description(npc_id), Vector2(10, 575), 18, Color(0.90, 0.94, 1.0))
-	desc.size = Vector2(290, 245)
+	_intro_panel.add_child(_make_label(text, Vector2(30, 560), 32, Color(1.0, 0.92, 0.68)))
+	var desc := _make_label(_get_npc_description(npc_id), Vector2(18, 620), 19, Color(0.90, 0.94, 1.0))
+	desc.size = Vector2(324, 150)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_intro_panel.add_child(desc)
 	var confirm := _make_button("決定", Color(0.15, 0.50, 0.24), Vector2(240, 64), 26)
-	confirm.position = Vector2(35, 752)
+	confirm.position = Vector2(60, 780)
 	confirm.disabled = _candidate_seat == "" or _candidate_npc == ""
 	confirm.pressed.connect(_confirm_candidate)
 	_intro_panel.add_child(confirm)
