@@ -128,8 +128,8 @@ func _build_stats_panel() -> Panel:
 func _build_start_panel() -> Panel:
 	var panel := _make_panel(Color(0.08, 0.06, 0.06, 0.30), Rect2(LEFT_W + MID_W, 0, RIGHT_W, 1080))
 
-	var btn_taikyoku := _make_image_button("res://ui/btn_taikyoku.webp", Vector2(1040, 300))
-	btn_taikyoku.position = _right_panel_center_pos(btn_taikyoku.size, 46)
+	var btn_taikyoku := _make_image_button("res://ui/btn_taikyoku.webp", Vector2(640, 300))
+	btn_taikyoku.position = Vector2(0, 46)
 	btn_taikyoku.pressed.connect(_show_member_select)
 	panel.add_child(btn_taikyoku)
 
