@@ -658,6 +658,7 @@
       turns = ceil(w/3)、毎ターン e -= e × 2/(w+34)、p_not *= 1 - e/w、w -= 3
       return minf(1.0 - p_not, 1.0)
   - _calc_rates() シャンテン別の意味:
+      evaluate_discards() の2パス目から meld_count を引き継ぎ、詳細確率内の向聴数・有効牌再計算でも副露済み面子を完成扱いにする。
       shanten==0: tenpai_rate=1.0, agari_rate=ツモ和了率（clamp 1.0）
       shanten==1: tenpai_rate=テンパイ到達率, agari_rate=和了期待値（両方 clamp 1.0）
                   tile_breakdown = 各有効牌の{tenpai_rate=引く確率, agari_rate=テンパイ後和了率,

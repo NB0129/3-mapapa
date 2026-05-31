@@ -130,7 +130,7 @@ func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary
 		var top_ntr: float = float(results[0].next_tenpai_rate)
 		for r: Dictionary in results:
 			if r.shanten == top_shanten and r.effective_count == top_eff and abs(float(r.next_tenpai_rate) - top_ntr) < 0.0001:
-				var rates := _calc_rates(r["_counts"], r.shanten, r["effective_tiles"], total_wall, dead_tiles)
+				var rates := _calc_rates(r["_counts"], r.shanten, r["effective_tiles"], total_wall, dead_tiles, meld_count)
 				r["tile_breakdown"] = rates.tile_breakdown
 				r["tenpai_rate"]    = rates.tenpai_rate
 				r["agari_rate"]     = rates.agari_rate
@@ -148,7 +148,7 @@ func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary
 ## counts: _to_counts() が返す内部インデックス配列
 ## meld_count: 副露済み面子数（>0 のとき七対子を除外）
 func calc_shanten(counts: Array, meld_count: int = 0) -> int:
-	var key := str(counts)
+	var key := str(meld_count) + ":" + str(counts)
 	if _shanten_cache.has(key):
 		return _shanten_cache[key]
 	var s_regular := _shanten_regular(counts, meld_count)
@@ -302,7 +302,8 @@ func _calc_rates(
 		shanten   : int,
 		effective : Dictionary,
 		total_wall: int,
-		dead_tiles: Dictionary
+		dead_tiles: Dictionary,
+		meld_count: int = 0
 ) -> Dictionary:
 	if total_wall <= 0:
 		return {"tenpai_rate": -1.0, "agari_rate": -1.0, "tile_breakdown": {}}
@@ -339,11 +340,11 @@ func _calc_rates(
 			if idx < 0:
 				continue
 			counts[idx] += 1
-			var new_shanten := calc_shanten(counts)
+			var new_shanten := calc_shanten(counts, meld_count)
 			var remaining := total_wall - 1
 			var tile_agari := 0.0
 			if new_shanten == 0 and remaining > 0:
-				var new_eff := _calc_effective_tiles(counts, 0, dead_tiles)
+				var new_eff := _calc_effective_tiles(counts, 0, dead_tiles, meld_count)
 				var e2 := 0.0
 				for cnt in new_eff.values():
 					e2 += float(cnt)
@@ -380,10 +381,10 @@ func _calc_rates(
 			if idx < 0:
 				continue
 			counts[idx] += 1
-			var new_shanten := calc_shanten(counts)
+			var new_shanten := calc_shanten(counts, meld_count)
 			var remaining := total_wall - 1
 			if new_shanten == 1 and remaining > 0:
-				var new_eff := _calc_effective_tiles(counts, 1, dead_tiles)
+				var new_eff := _calc_effective_tiles(counts, 1, dead_tiles, meld_count)
 				var e2 := 0.0
 				for cnt in new_eff.values():
 					e2 += float(cnt)

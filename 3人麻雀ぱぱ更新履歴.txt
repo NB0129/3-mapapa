@@ -1,6 +1,11 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/31】副露ありアシスト詳細確率の meld_count 引き継ぎ修正（SanmaAnalyzer.gd）
+  - evaluate_discards() の2パス目で _calc_rates() に meld_count を渡すよう修正。
+  - _calc_rates() 内の次段階向聴数・有効牌再計算でも meld_count を引き継ぐよう修正。
+  - calc_shanten() のキャッシュキーに meld_count を含め、副露数違いの計算結果が混ざらないよう修正。
+
 【2026/05/30-8】SanmaAnalyzer 確率計算・2パス目を改善（SanmaAnalyzer.gd）
   - _calc_agari_rate(): ループ内に ev = minf(ev, wv) を追加（有効牌期待枚数が残山を超えないようクランプ）。
   - 2パス目: 上位1候補のみ → 1位と同率（shanten・effective_count・next_tenpai_rate が等しい）の候補全てに _calc_rates() を適用するよう変更。
