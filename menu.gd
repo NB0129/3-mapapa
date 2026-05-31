@@ -383,7 +383,7 @@ func _update_intro() -> void:
 	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_intro_panel.add_child(clip)
 	var img := TextureRect.new()
-	img.position = Vector2(-300, -220)
+	img.position = Vector2(-250, -173)
 	img.size = Vector2(420, 390)
 	img.scale = Vector2(2.16, 2.16)
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -393,7 +393,7 @@ func _update_intro() -> void:
 		var intro_path: String
 		if npc_id == "kuma_hokkyoku":
 			intro_path = SaveData.get_npc_path_game(npc_id)
-			img.position = Vector2(-150, -120)
+			img.position = Vector2(-115, -87)
 			img.scale = Vector2(1.512, 1.512)
 		else:
 			intro_path = SaveData.get_npc_path(npc_id)
