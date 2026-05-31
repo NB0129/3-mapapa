@@ -977,7 +977,6 @@ func _check_pinfu(decomp: Dictionary, context: Dictionary) -> bool:
 	# 和了牌が両面待ちか確認（タンキ・カンチャン・ペンチャンは不可）
 	var winning_id: int = context.get("winning_tile_id", -1)
 	if winning_id < 0: return false
-	if winning_id == j: return false  # タンキ待ち
 	return _is_ryanmen_in_decomp(decomp, winning_id)
 
 func _iipeiko_count(melds: Array) -> int:

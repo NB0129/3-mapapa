@@ -36,6 +36,8 @@ var _haku_pochi_img: TextureRect
 var _npc_left_chara: TextureRect
 var _npc_right_chara: TextureRect
 var _result_dynamic_nodes: Array = []
+var _double_ron_result_queue: Array = []
+var _double_ron_result_index: int = -1
 var _reach_cutin: CanvasLayer
 var _riichi_stick_layer: Node2D
 var _reach_stick_texture: Texture2D
@@ -1039,6 +1041,8 @@ func _on_game_ended(result: Dictionary) -> void:
 	_hide_assist()
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 	_refresh_all()
+	_double_ron_result_queue.clear()
+	_double_ron_result_index = -1
 	if not result.get("draw", false):
 		_refresh_wanpai_dora(result.get("winner_idx", -1))
 	_refresh_riichi_stick_display(result)
@@ -1289,6 +1293,18 @@ func _on_skip_pressed() -> void:
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 
 func _on_msg_ok_pressed() -> void:
+	if _double_ron_result_index >= 0 and _double_ron_result_index + 1 < _double_ron_result_queue.size():
+		_double_ron_result_index += 1
+		var next_result: Dictionary = _double_ron_result_queue[_double_ron_result_index]
+		_clear_result_dynamic_nodes()
+		_win_overlay.visible = false
+		_msg_panel.visible = false
+		_btn_result_back.visible = false
+		_btn_table_view.visible = false
+		_show_result_sequence(next_result, false)
+		return
+	_double_ron_result_queue.clear()
+	_double_ron_result_index = -1
 	_clear_result_dynamic_nodes()
 	_win_overlay.visible = false
 	_msg_panel.visible = false
@@ -2332,7 +2348,7 @@ func _naki_text_vertical(naki: Array) -> String:
 # ============================================================
 # 結果表示
 # ============================================================
-func _show_result_sequence(result: Dictionary) -> void:
+func _show_result_sequence(result: Dictionary, play_call_animation: bool = true) -> void:
 	if result.get("draw", false):
 		await _reveal_draw_tenpai_hands(result)
 		_clear_result_dynamic_nodes()
@@ -2354,6 +2370,12 @@ func _show_result_sequence(result: Dictionary) -> void:
 		if result.get("oorasu_choice_required", false):
 			_show_oorasu_choice_prompt()
 		return
+	var animation_result := result
+	if result.get("is_double_ron", false) and _double_ron_result_queue.is_empty():
+		_double_ron_result_queue = _ordered_double_ron_results(result)
+		_double_ron_result_index = 0
+		if not _double_ron_result_queue.is_empty():
+			result = _double_ron_result_queue[0]
 	_clear_result_dynamic_nodes()
 	_haku_pochi_lbl.visible = false
 	_haku_pochi_img.visible = false
@@ -2363,7 +2385,8 @@ func _show_result_sequence(result: Dictionary) -> void:
 	_btn_table_view.visible = false
 	_btn_result_back.visible = false
 	_msg_label.text = ""
-	await _play_win_call_animation(result)
+	if play_call_animation:
+		await _play_win_call_animation(animation_result)
 	_win_overlay.visible = true
 	await _play_result_chara_animation(result.get("winner_idx", 0))
 	var _bust_ids: Array = result.get("bust_player_indices", [])
@@ -2374,6 +2397,32 @@ func _show_result_sequence(result: Dictionary) -> void:
 	_prepare_win_result_panel(result)
 	await _reveal_win_result(result)
 	_finish_win_result_panel(result)
+
+func _ordered_double_ron_results(main_result: Dictionary) -> Array:
+	var results: Array = main_result.get("double_ron_results", [])
+	var ordered: Array = results.duplicate(true)
+	ordered.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return _double_ron_display_priority(int(a.get("winner_idx", -1))) < _double_ron_display_priority(int(b.get("winner_idx", -1)))
+	)
+	for r: Dictionary in ordered:
+		r["is_double_ron"] = true
+		r["match_will_end"] = main_result.get("match_will_end", false)
+		r["oorasu_choice_required"] = main_result.get("oorasu_choice_required", false)
+		r["bust_player_idx"] = main_result.get("bust_player_idx", -1)
+		r["bust_player_indices"] = main_result.get("bust_player_indices", [])
+		r["score_after"] = main_result.get("score_after", r.get("score_after", []))
+	return ordered
+
+func _double_ron_display_priority(player_idx: int) -> int:
+	match player_idx:
+		UPPER_IDX:
+			return 0
+		RIGHT_IDX:
+			return 1
+		0:
+			return 2
+		_:
+			return 99
 
 func _reveal_draw_tenpai_hands(result: Dictionary) -> void:
 	var ti: Dictionary = result.get("tenpai_info", {})
@@ -2398,6 +2447,9 @@ func _reveal_draw_tenpai_hands(result: Dictionary) -> void:
 	await get_tree().create_timer(3.0).timeout
 
 func _play_win_call_animation(result: Dictionary) -> void:
+	if result.get("is_double_ron", false) and not result.get("is_tsumo", false):
+		await _play_double_ron_call_animation(result)
+		return
 	var winner_idx: int = result.get("winner_idx", 0)
 	if winner_idx == 0:
 		AudioManager.play_se("plhora")
@@ -2431,6 +2483,57 @@ func _play_win_call_animation(result: Dictionary) -> void:
 	await get_tree().create_timer(1.65).timeout
 	_result_dynamic_nodes.erase(call_sprite)
 	call_sprite.queue_free()
+
+func _play_double_ron_call_animation(result: Dictionary) -> void:
+	var results: Array = _ordered_double_ron_results(result)
+	if results.is_empty():
+		return
+	var sprites: Array = []
+	var tween := create_tween().set_parallel(true)
+	for sub: Dictionary in results:
+		var winner_idx: int = int(sub.get("winner_idx", 0))
+		if winner_idx == 0:
+			AudioManager.play_se("plhora")
+		elif not _play_npc_win_voice(winner_idx, sub):
+			AudioManager.play_se("npchora")
+		var call_sprite := _make_win_call_sprite(false)
+		var pos: Dictionary = _win_call_positions(winner_idx)
+		call_sprite.position = pos.get("start", Vector2.ZERO)
+		call_sprite.rotation_degrees = float(pos.get("rotation", 0.0))
+		add_child(call_sprite)
+		_result_dynamic_nodes.append(call_sprite)
+		sprites.append(call_sprite)
+		tween.tween_property(call_sprite, "position", pos.get("end", Vector2.ZERO), 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	await tween.finished
+	await get_tree().create_timer(1.65).timeout
+	for sprite: Sprite2D in sprites:
+		_result_dynamic_nodes.erase(sprite)
+		sprite.queue_free()
+
+func _make_win_call_sprite(is_tsumo: bool) -> Sprite2D:
+	var call_sprite := Sprite2D.new()
+	call_sprite.texture = load("res://ui/hassei_tumo.webp" if is_tsumo else "res://ui/hassei_ron.webp")
+	call_sprite.centered = true
+	call_sprite.z_index = 80
+	if call_sprite.texture:
+		var texture_size: Vector2 = call_sprite.texture.get_size()
+		var target_size := Vector2(663, 347)
+		call_sprite.scale = Vector2.ONE * min(target_size.x / texture_size.x, target_size.y / texture_size.y)
+	return call_sprite
+
+func _win_call_positions(winner_idx: int) -> Dictionary:
+	var end_center := Vector2(SCREEN_SIZE.x * 0.5, 880)
+	var start_center := Vector2(end_center.x, 960)
+	var rotation := 0.0
+	if winner_idx == RIGHT_IDX:
+		end_center = Vector2(1640, 430)
+		start_center = Vector2(1900, end_center.y)
+		rotation = -90.0
+	elif winner_idx == UPPER_IDX:
+		end_center = Vector2(SCREEN_SIZE.x * 0.5, 190)
+		start_center = Vector2(end_center.x, -130)
+		rotation = 180.0
+	return {"start": start_center, "end": end_center, "rotation": rotation}
 
 func _play_npc_win_voice(winner_idx: int, result: Dictionary) -> bool:
 	if result.get("is_tsumo", false):
@@ -2495,7 +2598,7 @@ func _prepare_win_result_panel(result: Dictionary) -> void:
 	_msg_ok.position = Vector2(1100, 955)
 	_msg_ok.custom_minimum_size = Vector2(220, 58)
 	_msg_ok.size = _msg_ok.custom_minimum_size
-	_msg_ok.text = "精算へ" if result.get("match_will_end", false) else "次の局へ"
+	_msg_ok.text = "次へ" if _double_ron_has_next_result() else ("精算へ" if result.get("match_will_end", false) else "次の局へ")
 	_btn_table_view.position = Vector2(1100, 835)
 	_btn_table_view.custom_minimum_size = Vector2(220, 58)
 	_btn_table_view.size = _btn_table_view.custom_minimum_size
@@ -2503,10 +2606,13 @@ func _prepare_win_result_panel(result: Dictionary) -> void:
 
 func _finish_win_result_panel(_result: Dictionary) -> void:
 	_btn_table_view.visible = true
-	if _result.get("oorasu_choice_required", false):
+	if _result.get("oorasu_choice_required", false) and not _double_ron_has_next_result():
 		_show_oorasu_choice_prompt()
 	else:
 		_msg_ok.visible = true
+
+func _double_ron_has_next_result() -> bool:
+	return _double_ron_result_index >= 0 and _double_ron_result_index + 1 < _double_ron_result_queue.size()
 
 func _show_oorasu_choice_prompt() -> void:
 	_msg_ok.visible = false
