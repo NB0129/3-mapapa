@@ -487,7 +487,7 @@ func _score_riichi_discard(player_idx: int, hand_idx: int) -> Array:
 		var yaku: Array = MahjongLogic.check_yaku(win_hand, ctx)
 		best_han = max(best_han, MahjongLogic.count_han(yaku))
 	var safety: int = _discard_safety_score_for_all_opponents(player_idx, p.hand[hand_idx])
-	return [wait_count, best_han, waits.size(), safety]
+	return [wait_count, best_han, waits.size(), -_discard_bonus_penalty(p.hand[hand_idx]), safety]
 
 func _is_riichi_score_better(a: Array, b: Array) -> bool:
 	for i in range(min(a.size(), b.size())):
@@ -755,18 +755,21 @@ func _prefer_non_bonus_discard(hand: Array, indices: Array) -> int:
 	var best_indices: Array = []
 	var best_penalty := 99
 	for i: int in indices:
-		var tile: Dictionary = hand[i]
-		var penalty := 0
-		if tile.get("is_gold", false):
-			penalty += 2
-		if tile.get("is_red", false):
-			penalty += 1
+		var penalty: int = _discard_bonus_penalty(hand[i])
 		if penalty < best_penalty:
 			best_penalty = penalty
 			best_indices = [i]
 		elif penalty == best_penalty:
 			best_indices.append(i)
 	return best_indices.pick_random()
+
+func _discard_bonus_penalty(tile: Dictionary) -> int:
+	var penalty := 0
+	if tile.get("is_gold", false):
+		penalty += 2
+	if tile.get("is_red", false):
+		penalty += 1
+	return penalty
 
 func _count_yaochu_types(hand_ids: Array) -> int:
 	var yaochu: Dictionary = {}
