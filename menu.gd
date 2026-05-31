@@ -43,6 +43,7 @@ func _ready() -> void:
 	if _seat_npcs.is_empty():
 		_seat_npcs = {"bottom": "kuma_def", "right": "kuma_hiyake", "top": ""}
 		_empty_seat = "top"
+	_remove_unselectable_npcs()
 	_build_ui()
 	_refresh_stats()
 	AudioManager.play_bgm("bgm_menyu.ogg")
@@ -236,7 +237,7 @@ func _build_member_select_panel() -> Control:
 	root.add_child(_intro_panel)
 
 	var btn_start := _make_image_button("res://ui/btn_gamestart.webp", Vector2(540, 180))
-	btn_start.position = Vector2(1430, 900)
+	btn_start.position = Vector2(1430, 850)
 	btn_start.pressed.connect(_on_match_start_pressed)
 	root.add_child(btn_start)
 
@@ -376,14 +377,14 @@ func _update_intro() -> void:
 	_intro_panel.position = pos
 	_intro_panel.size = Vector2(468, 731)
 	var clip := Control.new()
-	clip.position = Vector2(24, 24)
-	clip.size = Vector2(420, 390)
+	clip.position = Vector2(66, 24)
+	clip.size = Vector2(336, 312)
 	clip.clip_contents = true
 	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_intro_panel.add_child(clip)
 	var img := TextureRect.new()
-	img.position = Vector2(-394, -390)
-	img.size = Vector2(420, 390)
+	img.position = Vector2(-315, -312)
+	img.size = Vector2(336, 312)
 	img.scale = Vector2(3, 3)
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -429,8 +430,7 @@ func _change_seat_npc(seat: String) -> void:
 
 func _cycle_candidate(direction: int) -> void:
 	_candidate_seat = _selected_seat
-	var ids: Array = SaveData.NPC_DEFS.keys()
-	ids.sort()
+	var ids: Array = _selectable_npc_ids()
 	var current := _candidate_npc if _candidate_npc != "" else str(_seat_npcs.get(_selected_seat, ""))
 	var start_idx: int = ids.find(current)
 	for offset in range(1, ids.size() + 1):
@@ -477,8 +477,19 @@ func _rotate_empty_after_fill(filled_seat: String) -> void:
 		if seat == next_empty:
 			_seat_npcs[seat] = ""
 		elif str(_seat_npcs.get(seat, "")) == "":
-			_seat_npcs[seat] = _first_unused_npc(SaveData.NPC_DEFS.keys())
+			_seat_npcs[seat] = _first_unused_npc(_selectable_npc_ids())
 	_empty_seat = next_empty
+
+func _selectable_npc_ids() -> Array:
+	var ids: Array = SaveData.NPC_DEFS.keys()
+	ids.erase("kuma_black")
+	ids.sort()
+	return ids
+
+func _remove_unselectable_npcs() -> void:
+	for seat in SEATS:
+		if str(_seat_npcs.get(seat, "")) == "kuma_black":
+			_seat_npcs[seat] = _first_unused_npc(_selectable_npc_ids())
 
 func _find_empty_seat() -> String:
 	for seat in SEATS:
