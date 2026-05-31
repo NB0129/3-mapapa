@@ -377,22 +377,22 @@ func _update_intro() -> void:
 	_intro_panel.position = pos
 	_intro_panel.size = Vector2(468, 731)
 	var clip := Control.new()
-	clip.position = Vector2(66, 24)
-	clip.size = Vector2(336, 312)
+	clip.position = Vector2(24, 24)
+	clip.size = Vector2(420, 390)
 	clip.clip_contents = true
 	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_intro_panel.add_child(clip)
 	var img := TextureRect.new()
-	img.position = Vector2(-315, -312)
-	img.size = Vector2(336, 312)
-	img.scale = Vector2(3, 3)
+	img.position = Vector2(-246, -300)
+	img.size = Vector2(420, 390)
+	img.scale = Vector2(2.4, 2.4)
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if npc_id != "":
 		var intro_path: String
 		if npc_id == "kuma_hokkyoku":
-			intro_path = SaveData.get_npc_path_menu(npc_id)
+			intro_path = SaveData.get_npc_path_game(npc_id)
 		else:
 			intro_path = SaveData.get_npc_path(npc_id)
 		img.texture = load(intro_path)
