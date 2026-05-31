@@ -221,7 +221,7 @@ func _build_member_select_panel() -> Control:
 	_role_labels.clear()
 	_role_labels["player"] = _make_player_role_label(Vector2(435, 350))
 	_role_labels["top"] = _make_role_label(Vector2(680, 250))
-	_role_labels["right"] = _make_role_label(Vector2(777, 405))
+	_role_labels["right"] = _make_side_role_label(Vector2(957, 350))
 	_role_labels["bottom"] = _make_role_label(Vector2(680, 553))
 	for key in _role_labels.keys():
 		root.add_child(_role_labels[key].box)
@@ -349,9 +349,14 @@ func _refresh_role_labels() -> void:
 		var entry: Dictionary = _role_labels[key]
 		var label: Label = entry.label
 		var role_text := _role_for_position(str(key))
-		label.text = role_text
+		label.text = _vertical_role_text(role_text) if str(key) == "right" else role_text
 		if label.label_settings != null:
 			label.label_settings.font_color = Color(0.62, 0.64, 0.68) if role_text == "空席" else Color(1.0, 0.90, 0.35)
+
+func _vertical_role_text(text: String) -> String:
+	if text.length() <= 1:
+		return text
+	return "\n".join(text.split(""))
 
 func _role_for_position(pos: String) -> String:
 	match _empty_seat:
@@ -571,6 +576,17 @@ func _make_role_label(pos: Vector2) -> Dictionary:
 	l.label_settings = shadow
 	box.add_child(l)
 	return {"box": box, "label": l}
+
+func _make_side_role_label(pos: Vector2) -> Dictionary:
+	var data := _make_role_label(pos)
+	var box: Panel = data.box
+	var label: Label = data.label
+	box.rotation_degrees = 90.0
+	label.add_theme_font_size_override("font_size", 34)
+	if label.label_settings != null:
+		label.label_settings.font_size = 34
+		label.label_settings.shadow_size = 4
+	return data
 
 func _make_player_role_label(pos: Vector2) -> Dictionary:
 	var box := _make_panel(Color(0.02, 0.02, 0.04, 0.72), Rect2(pos, Vector2(180, 180)))
