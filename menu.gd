@@ -207,11 +207,10 @@ func _build_member_select_panel() -> Control:
 	root.size = SCREEN_SIZE
 	var bg_panel := _make_panel(Color(0.03, 0.05, 0.06, 0.12), Rect2(LEFT_W, 0, MID_W + RIGHT_W, 1080))
 	root.add_child(bg_panel)
-	root.add_child(_make_label("メンツ選択", Vector2(LEFT_W + 44, 34), 38, Color(0.86, 0.95, 1.0)))
 
 	var table := TextureRect.new()
 	table.texture = _make_used_rect_texture("res://assets/bg/bg_takujou.webp")
-	table.position = Vector2(LEFT_W + 10, 240)
+	table.position = Vector2(LEFT_W + 10, 250)
 	table.size = Vector2(760, 520)
 	table.scale = Vector2(0.63, 0.63)
 	table.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -221,16 +220,16 @@ func _build_member_select_panel() -> Control:
 
 	_role_labels.clear()
 	_role_labels["player"] = _make_role_label(Vector2(585, 444))
-	_role_labels["top"] = _make_role_label(Vector2(720, 275))
-	_role_labels["right"] = _make_role_label(Vector2(835, 444))
-	_role_labels["bottom"] = _make_role_label(Vector2(720, 585))
+	_role_labels["top"] = _make_role_label(Vector2(650, 275))
+	_role_labels["right"] = _make_role_label(Vector2(685, 444))
+	_role_labels["bottom"] = _make_role_label(Vector2(650, 435))
 	for key in _role_labels.keys():
 		root.add_child(_role_labels[key].box)
 
 	_slot_nodes.clear()
-	_add_seat_slot(root, "top", Vector2(720, 20))
-	_add_seat_slot(root, "right", Vector2(1100, 360))
-	_add_seat_slot(root, "bottom", Vector2(720, 750))
+	_add_seat_slot(root, "top", Vector2(650, 20))
+	_add_seat_slot(root, "right", Vector2(950, 360))
+	_add_seat_slot(root, "bottom", Vector2(650, 600))
 
 	_intro_panel = _make_panel(Color(0.09, 0.09, 0.13, 0.92), Rect2(LEFT_W + 1028, 40, 360, 860))
 	_intro_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
