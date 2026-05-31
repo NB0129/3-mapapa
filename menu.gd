@@ -231,12 +231,12 @@ func _build_member_select_panel() -> Control:
 	_add_seat_slot(root, "right", Vector2(957, 325))
 	_add_seat_slot(root, "bottom", Vector2(600, 623))
 
-	_intro_panel = _make_panel(Color(0.09, 0.09, 0.13, 0.92), Rect2(LEFT_W + 1028, 40, 360, 860))
+	_intro_panel = _make_panel(Color(0.09, 0.09, 0.13, 0.92), Rect2(1432, 40, 468, 731))
 	_intro_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_intro_panel)
 
-	var btn_start := _make_image_button("res://ui/btn_gamestart.webp", Vector2(360, 120))
-	btn_start.position = Vector2(1520, 930)
+	var btn_start := _make_image_button("res://ui/btn_gamestart.webp", Vector2(540, 180))
+	btn_start.position = Vector2(1430, 900)
 	btn_start.pressed.connect(_on_match_start_pressed)
 	root.add_child(btn_start)
 
@@ -372,18 +372,18 @@ func _update_intro() -> void:
 	for child in _intro_panel.get_children():
 		child.queue_free()
 	var npc_id := _candidate_npc if _candidate_seat == _selected_seat and _candidate_npc != "" else str(_seat_npcs.get(_selected_seat, ""))
-	var pos := Vector2(LEFT_W + 1028, 40)
+	var pos := Vector2(1432, 40)
 	_intro_panel.position = pos
-	_intro_panel.size = Vector2(360, 860)
+	_intro_panel.size = Vector2(468, 731)
 	var clip := Control.new()
-	clip.position = Vector2(24, 26)
-	clip.size = Vector2(312, 455)
+	clip.position = Vector2(24, 24)
+	clip.size = Vector2(420, 390)
 	clip.clip_contents = true
 	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_intro_panel.add_child(clip)
 	var img := TextureRect.new()
-	img.position = Vector2(-300, -455)
-	img.size = Vector2(312, 455)
+	img.position = Vector2(-394, -390)
+	img.size = Vector2(420, 390)
 	img.scale = Vector2(3, 3)
 	img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -397,21 +397,21 @@ func _update_intro() -> void:
 		img.texture = load(intro_path)
 	clip.add_child(img)
 	var prev_btn := _make_button("←", Color(0.22, 0.34, 0.56), Vector2(74, 52), 28)
-	prev_btn.position = Vector2(78, 494)
+	prev_btn.position = Vector2(130, 430)
 	prev_btn.pressed.connect(func(): _cycle_candidate(-1))
 	_intro_panel.add_child(prev_btn)
 	var next_btn := _make_button("→", Color(0.22, 0.34, 0.56), Vector2(74, 52), 28)
-	next_btn.position = Vector2(208, 494)
+	next_btn.position = Vector2(264, 430)
 	next_btn.pressed.connect(func(): _cycle_candidate(1))
 	_intro_panel.add_child(next_btn)
 	var text := "空席" if npc_id == "" else SaveData.get_npc_name(npc_id)
-	_intro_panel.add_child(_make_label(text, Vector2(30, 560), 32, Color(1.0, 0.92, 0.68)))
-	var desc := _make_label(_get_npc_description(npc_id), Vector2(18, 620), 19, Color(0.90, 0.94, 1.0))
-	desc.size = Vector2(324, 150)
+	_intro_panel.add_child(_make_label(text, Vector2(34, 500), 32, Color(1.0, 0.92, 0.68)))
+	var desc := _make_label(_get_npc_description(npc_id), Vector2(24, 558), 19, Color(0.90, 0.94, 1.0))
+	desc.size = Vector2(420, 88)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_intro_panel.add_child(desc)
 	var confirm := _make_button("決定", Color(0.15, 0.50, 0.24), Vector2(240, 64), 26)
-	confirm.position = Vector2(60, 780)
+	confirm.position = Vector2(114, 650)
 	confirm.disabled = _candidate_seat == "" or _candidate_npc == ""
 	confirm.pressed.connect(_confirm_candidate)
 	_intro_panel.add_child(confirm)
