@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dpbjeao4tfo1y"
-path="res://.godot/imported/btn_taikyoku.png-90e2682525fb4ae4d3a282b5dd213b4e.ctex"
+uid="uid://ba1lgi73b5pka"
+path="res://.godot/imported/btn_ritiop2.webp-034d1b508531cdebc440a63e323c082b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://ui/btn_taikyoku.png"
-dest_files=["res://.godot/imported/btn_taikyoku.png-90e2682525fb4ae4d3a282b5dd213b4e.ctex"]
+source_file="res://ui/btn_ritiop2.webp"
+dest_files=["res://.godot/imported/btn_ritiop2.webp-034d1b508531cdebc440a63e323c082b.ctex"]
 
 [params]
 

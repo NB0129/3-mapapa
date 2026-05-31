@@ -126,27 +126,38 @@ func _build_stats_panel() -> Panel:
 
 func _build_start_panel() -> Panel:
 	var panel := _make_panel(Color(0.08, 0.06, 0.06, 0.30), Rect2(LEFT_W + MID_W, 0, RIGHT_W, 1080))
-	panel.add_child(_make_label("対局", Vector2(58, 42), 40, Color(1.0, 0.82, 0.58)))
-	var btn_play := _make_button("対局開始", Color(0.15, 0.52, 0.24), Vector2(430, 110), 40)
-	btn_play.position = Vector2(105, 390)
-	btn_play.pressed.connect(_show_member_select)
-	panel.add_child(btn_play)
-	var btn_title := _make_button("タイトルへ", Color(0.28, 0.28, 0.32), Vector2(430, 76), 28)
-	btn_title.position = Vector2(105, 540)
-	btn_title.pressed.connect(func(): get_tree().change_scene_to_file("res://Title.tscn"))
-	panel.add_child(btn_title)
-	var btn_rules := _make_button("ルール表", Color(0.20, 0.30, 0.46), Vector2(430, 76), 28)
-	btn_rules.position = Vector2(105, 660)
-	btn_rules.pressed.connect(_on_rules_pressed)
-	panel.add_child(btn_rules)
-	var btn_sim := _make_button("シミュレーター", Color(0.25, 0.20, 0.40), Vector2(430, 76), 28)
-	btn_sim.position = Vector2(105, 780)
-	btn_sim.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/simulator/SimulatorScreen.tscn"))
-	panel.add_child(btn_sim)
-	var btn_log := _make_button("牌  譜", Color(0.30, 0.20, 0.15), Vector2(430, 76), 28)
-	btn_log.position = Vector2(105, 900)
-	btn_log.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/gamelog/GameLogListScreen.tscn"))
-	panel.add_child(btn_log)
+
+	var btn_taikyoku := _make_image_button("res://ui/btn_taikyoku.webp", Vector2(1560, 450))
+	btn_taikyoku.position = Vector2(60, 160)
+	btn_taikyoku.pressed.connect(_show_member_select)
+	panel.add_child(btn_taikyoku)
+
+	var btn_ruuruhyou := _make_image_button("res://ui/btn_ru-ruhyou.webp", Vector2(1560, 330))
+	btn_ruuruhyou.position = Vector2(60, 350)
+	btn_ruuruhyou.pressed.connect(_on_rules_pressed)
+	panel.add_child(btn_ruuruhyou)
+
+	var divider := ColorRect.new()
+	divider.position = Vector2(40, 510)
+	divider.size = Vector2(560, 2)
+	divider.color = Color(1.0, 1.0, 1.0, 0.15)
+	panel.add_child(divider)
+
+	var btn_haihu := _make_image_button("res://ui/btn_haihu.webp", Vector2(1560, 330))
+	btn_haihu.position = Vector2(60, 560)
+	btn_haihu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/gamelog/GameLogListScreen.tscn"))
+	panel.add_child(btn_haihu)
+
+	var btn_simyu := _make_image_button("res://ui/btn_simyu.webp", Vector2(1560, 330))
+	btn_simyu.position = Vector2(60, 710)
+	btn_simyu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/simulator/SimulatorScreen.tscn"))
+	panel.add_child(btn_simyu)
+
+	var icon_modoru := _make_image_button("res://ui/icon_modoru.webp", Vector2(300, 128))
+	icon_modoru.position = Vector2(640 - 300 - 20, 940)
+	icon_modoru.pressed.connect(func(): get_tree().change_scene_to_file("res://Title.tscn"))
+	panel.add_child(icon_modoru)
+
 	return panel
 
 func _play_entry_animation() -> void:
@@ -552,6 +563,19 @@ func _make_role_label(pos: Vector2) -> Dictionary:
 	l.label_settings = shadow
 	box.add_child(l)
 	return {"box": box, "label": l}
+
+func _make_image_button(path: String, size: Vector2) -> Button:
+	var btn := Button.new()
+	btn.icon = load(path)
+	btn.expand_icon = true
+	btn.custom_minimum_size = size
+	btn.size = size
+	var empty := StyleBoxEmpty.new()
+	btn.add_theme_stylebox_override("normal", empty)
+	btn.add_theme_stylebox_override("hover", empty)
+	btn.add_theme_stylebox_override("pressed", empty)
+	btn.add_theme_stylebox_override("focus", empty)
+	return btn
 
 func _make_button(text: String, bg_color: Color, min_size: Vector2 = Vector2(180, 56), font_size: int = 24) -> Button:
 	var btn := Button.new()

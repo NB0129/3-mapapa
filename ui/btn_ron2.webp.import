@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://beemo7q30j5j7"
-path="res://.godot/imported/btn_simyu.png-86e267683261352797b6161b702cf727.ctex"
+uid="uid://1x465pe1rdut"
+path="res://.godot/imported/btn_ron2.webp-b47d94bc1f8455d1ab83403dc6e9771d.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://ui/btn_simyu.png"
-dest_files=["res://.godot/imported/btn_simyu.png-86e267683261352797b6161b702cf727.ctex"]
+source_file="res://ui/btn_ron2.webp"
+dest_files=["res://.godot/imported/btn_ron2.webp-b47d94bc1f8455d1ab83403dc6e9771d.ctex"]
 
 [params]
 

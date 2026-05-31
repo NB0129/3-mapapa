@@ -1,6 +1,42 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/05/31-13】ゲーム画面の手牌位置と右上アイコンエリアを調整（game.gd）
+  - プレイヤーパネルを y=750 → y=710 に上げ、手牌・BGM表記・アクションボタンをまとめて上へ移動。
+  - 手牌マスクを Rect2(10,841,1900,239)、プレイヤー抜き北を y=720、ステータス表示を y=680 に調整。
+  - 右上アイコンエリアに半透明マスク Rect2(1484,0,436,142) を追加。
+  - ルールボタンをテキストから ui/icon_ru-ru.webp に置き換え、ホーム/ルール/設定アイコンを 128×128px に拡大。
+  - アイコンは used_rect テクスチャを使い、透過余白を除いた実絵部分を大きく表示するよう変更。
+  - 右側NPC立ち絵を y=-120 に上げ、アイコンエリア下端まで寄せた。
+
+【2026/05/31-12】日焼け熊リーチ演出（波カットイン）実装（game.gd / chara / se）
+  - chara/ の新規 PNG 7枚（nami・kira・megane・riza_hiyake・riza_megane・riza_saibo・taminaru）を WebP に変換し元 PNG を削除。
+  - se/ の新規 WAV 6本（se_riti_nami / se_riti_ai / se_riti_megane × se直下・charavo各1）を OGG に変換し元 WAV を削除。
+  - game.gd に _npc_riichi_cutin_running: bool 変数を追加。
+  - _on_riichi_declared() の NPC 側に _get_npc_id_for_player() による分岐を追加。kuma_hiyake のみ波カットイン演出へ。
+  - _run_npc_riichi_cutin_hiyake() を新規追加。nami.webp を画面左外からスライドイン→0.3秒停止→フェードアウト。se_riti_nami.ogg を同期再生し、BGM はカットイン中ストップ→フェードアウトと同時にリーチBGM再開。
+
+【2026/05/31-11】メニュー右パネルのボタンを画像ボタンに置き換え（menu.gd）
+  - _make_image_button() ヘルパーを追加。背景なし（StyleBoxEmpty）・expand_icon=true。
+  - btn_taikyoku / btn_ruuruhyou / btn_haihu / btn_simyu を各 ui/*.webp 画像ボタンに変更。
+  - icon_modoru を 2 倍サイズ（300×128）に拡大し、右寄せ（x=320, y=940）に配置。背景カラーマスクを削除。
+
+【2026/05/31-10】メニュー右パネルのレイアウト全面刷新（menu.gd）
+  - _build_start_panel() を全面書き直し。
+  - 「対局」ラベル・btn_play・btn_title・btn_rules・btn_sim・btn_log を全て削除。
+  - btn_taikyoku（対局開始・520×150・44pt）を y=160 に配置。接続先は _show_member_select()。
+  - btn_ruuruhyou（ルール表・520×110・34pt）を y=350 に配置。接続先は _on_rules_pressed()。
+  - 区切り線（ColorRect・y=510）を追加。
+  - btn_haihu（牌譜・520×110・34pt）を y=560 に配置。
+  - btn_simyu（シミュレーター・520×110・34pt）を y=710 に配置。
+  - icon_modoru（← 戻る・150×64・22pt）を右下 y=980 に配置。タイトルへ遷移。
+
+【2026/05/31-9】タイトル画面をタップで遷移に変更（title.gd）
+  - ゲームスタートボタン（btn_start）を削除。
+  - 画面全体を透明ボタン（touch_area）でカバーし、タップ/クリックでMenu.tscnへ遷移するよう変更。
+  - 「画面をタップ」ラベルをy=880に追加し、1.2秒サイクルのゆっくり点滅アニメーションを設定。
+  - _make_button() ヘルパー関数を削除。
+
 【2026/05/31-8】自動アシスト解析を次フレーム遅延実行に変更（game.gd）
   - _refresh_auto_assist() で即座に SanmaAnalyzer.evaluate_discards() を走らせず、_run_auto_assist_deferred() に予約するよう変更。
   - プレイヤーツモ時の dead_tiles / wall キャッシュ作成をアクション更新前に移動。

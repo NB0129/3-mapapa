@@ -117,6 +117,7 @@ var _debug_show_npc_hands: bool = false
 var _player_riichi_cutin_count: int = 0
 var _riichi_cutin_running: bool = false
 var _riichi_tsumogiri_timer_pending: bool = false
+var _npc_riichi_cutin_running: bool = false
 
 const UPPER_IDX := 2
 const RIGHT_IDX := 1
@@ -356,7 +357,7 @@ func _build_ui() -> void:
 
 	# --- プレイヤー 北抜き表示エリア（手牌の1行上、右寄せ） ---
 	_player_nukita_box = Control.new()
-	_player_nukita_box.position = Vector2(1810, 760)
+	_player_nukita_box.position = Vector2(1810, 720)
 	add_child(_player_nukita_box)
 
 	# --- 王牌エリア（空席=左家位置、背景なし） ---
@@ -368,10 +369,10 @@ func _build_ui() -> void:
 	_build_wanpai_display()
 
 	# --- プレイヤーエリア ---
-	var player_hand_mask := _make_panel(Color(0, 0, 0, 0.5), Rect2(10, 881, 1900, 199))
+	var player_hand_mask := _make_panel(Color(0, 0, 0, 0.5), Rect2(10, 841, 1900, 239))
 	add_child(player_hand_mask)
 
-	var player_panel := _make_control_rect(Rect2(10, 750, 1900, 330))
+	var player_panel := _make_control_rect(Rect2(10, 710, 1900, 330))
 	add_child(player_panel)
 
 	_hand_box = Control.new()
@@ -484,7 +485,7 @@ func _build_ui() -> void:
 	_debug_buttons_box.visible = false
 	player_panel.add_child(_debug_buttons_box)
 
-	_status_label = _make_label("", Vector2(10, 720), 24)
+	_status_label = _make_label("", Vector2(10, 680), 24)
 	_status_label.add_theme_color_override("font_color", Color(1, 1, 0))
 	_status_label.visible = false
 	add_child(_status_label)
@@ -564,22 +565,29 @@ func _build_ui() -> void:
 	_btn_result_back.visible = false
 	add_child(_btn_result_back)
 
-	# --- アイコンボタン（ホーム・設定） ---
+	# --- アイコンボタン（ホーム・ルール・設定） ---
+	var icon_area_mask := _make_panel(Color(0.02, 0.04, 0.06, 0.56), Rect2(1484, 0, 436, 142))
+	icon_area_mask.z_index = 5
+	add_child(icon_area_mask)
+
 	_btn_home_icon = _make_icon_button("res://assets/bg/icon_home.webp")
-	_btn_home_icon.position = Vector2(1564, 6)
-	_btn_home_icon.size = Vector2(108, 108)
+	_btn_home_icon.position = Vector2(1506, 7)
+	_btn_home_icon.size = Vector2(128, 128)
+	_btn_home_icon.z_index = 6
 	_btn_home_icon.pressed.connect(_on_home_icon_pressed)
 	add_child(_btn_home_icon)
 
-	_btn_rules_icon = _make_text_icon_button("ルール")
-	_btn_rules_icon.position = Vector2(1682, 6)
-	_btn_rules_icon.size = Vector2(108, 108)
+	_btn_rules_icon = _make_icon_button("res://ui/icon_ru-ru.webp")
+	_btn_rules_icon.position = Vector2(1645, 7)
+	_btn_rules_icon.size = Vector2(128, 128)
+	_btn_rules_icon.z_index = 6
 	_btn_rules_icon.pressed.connect(_on_rules_icon_pressed)
 	add_child(_btn_rules_icon)
 
 	_btn_settings_icon = _make_icon_button("res://assets/bg/icon_settei.webp")
-	_btn_settings_icon.position = Vector2(1800, 6)
-	_btn_settings_icon.size = Vector2(108, 108)
+	_btn_settings_icon.position = Vector2(1784, 7)
+	_btn_settings_icon.size = Vector2(128, 128)
+	_btn_settings_icon.z_index = 6
 	_btn_settings_icon.pressed.connect(_on_settings_icon_pressed)
 	add_child(_btn_settings_icon)
 
@@ -621,7 +629,7 @@ func _build_npc_standing_art() -> void:
 	var left_id: String = standing_ids.left
 	var right_id: String = standing_ids.right
 	_npc_left_chara = _make_standing_texture(SaveData.get_npc_path_game(left_id), Vector2(-70, 95), Vector2(520, 960))
-	_npc_right_chara = _make_standing_texture(SaveData.get_npc_path_game(right_id), Vector2(1470, -70), Vector2(520, 960))
+	_npc_right_chara = _make_standing_texture(SaveData.get_npc_path_game(right_id), Vector2(1470, -120), Vector2(520, 960))
 	add_child(_npc_left_chara)
 	add_child(_npc_right_chara)
 
@@ -862,8 +870,50 @@ func _on_riichi_declared(player_idx: int) -> void:
 		_play_chara_voice("seplavo_gote" if npc_riichi else "seplavo_sennsei")
 		_play_riichi_bgm()
 	else:
-		_play_npc_voice(player_idx, "riti")
-		_play_npc_riichi_bgm(player_idx)
+		var npc_id := _get_npc_id_for_player(player_idx)
+		if npc_id == "kuma_hiyake":
+			await _run_npc_riichi_cutin_hiyake(player_idx)
+		else:
+			_play_npc_voice(player_idx, "riti")
+			_play_npc_riichi_bgm(player_idx)
+
+func _run_npc_riichi_cutin_hiyake(player_idx: int) -> void:
+	if _npc_riichi_cutin_running:
+		return
+	_npc_riichi_cutin_running = true
+
+	_set_action_buttons_state(false, false, false, false, false, false, false, false)
+
+	AudioManager.stop_bgm()
+
+	var wave_tex: Texture2D = load("res://chara/nami.webp")
+	var wave_img := TextureRect.new()
+	wave_img.texture = wave_tex
+	wave_img.position = Vector2(-1920, 0)
+	wave_img.size = Vector2(1920, 1080)
+	wave_img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	wave_img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	wave_img.z_index = 100
+	add_child(wave_img)
+
+	AudioManager.play_se("se_riti_nami.ogg")
+
+	var tween_in := create_tween()
+	tween_in.tween_property(wave_img, "position", Vector2(0, 0), 0.3).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	await tween_in.finished
+
+	await get_tree().create_timer(0.3).timeout
+
+	var tween_out := create_tween()
+	tween_out.tween_property(wave_img, "modulate:a", 0.0, 0.4).set_ease(Tween.EASE_IN)
+
+	_play_npc_voice(player_idx, "riti")
+	_play_npc_riichi_bgm(player_idx)
+
+	await tween_out.finished
+	wave_img.queue_free()
+
+	_npc_riichi_cutin_running = false
 
 func _play_riichi_bgm() -> void:
 	var bgms: Array = []
@@ -3711,7 +3761,7 @@ func _make_icon_button(icon_path: String) -> Button:
 	btn.text = ""
 	btn.flat = true
 	if ResourceLoader.exists(icon_path):
-		btn.icon = load(icon_path)
+		btn.icon = _make_used_rect_texture(icon_path)
 	btn.expand_icon = true
 	btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return btn

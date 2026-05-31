@@ -17,23 +17,26 @@ func _build_ui() -> void:
 	bg.texture = bg_tex
 	add_child(bg)
 
-	var btn_start := _make_button("ゲームスタート", Color(0.2, 0.5, 0.2))
-	btn_start.position = Vector2(760, 500)
-	btn_start.custom_minimum_size = Vector2(400, 70)
-	btn_start.add_theme_font_size_override("font_size", 32)
-	btn_start.pressed.connect(func(): get_tree().change_scene_to_file("res://Menu.tscn"))
-	add_child(btn_start)
+	var tap_lbl := Label.new()
+	tap_lbl.text = "画面をタップ"
+	tap_lbl.add_theme_font_size_override("font_size", 48)
+	tap_lbl.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
+	tap_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tap_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tap_lbl.position = Vector2(660, 510)
+	tap_lbl.size = Vector2(600, 60)
+	add_child(tap_lbl)
 
-func _make_button(text: String, bg_color: Color) -> Button:
-	var btn := Button.new()
-	btn.text = text
-	var style := StyleBoxFlat.new()
-	style.bg_color = bg_color
-	style.corner_radius_top_left    = 8
-	style.corner_radius_top_right   = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	btn.add_theme_stylebox_override("normal",  style)
-	btn.add_theme_stylebox_override("hover",   style)
-	btn.add_theme_stylebox_override("pressed", style)
-	return btn
+	var tween := create_tween()
+	tween.set_loops()
+	tween.tween_property(tap_lbl, "modulate:a", 0.0, 1.2).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(tap_lbl, "modulate:a", 1.0, 1.2).set_ease(Tween.EASE_IN_OUT)
+
+	var touch_area := Button.new()
+	touch_area.position = Vector2(0, 0)
+	touch_area.size = Vector2(1920, 1080)
+	touch_area.add_theme_stylebox_override("normal",  StyleBoxEmpty.new())
+	touch_area.add_theme_stylebox_override("hover",   StyleBoxEmpty.new())
+	touch_area.add_theme_stylebox_override("pressed", StyleBoxEmpty.new())
+	touch_area.pressed.connect(func(): get_tree().change_scene_to_file("res://Menu.tscn"))
+	add_child(touch_area)
