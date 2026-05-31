@@ -111,6 +111,7 @@ var _assist_analyzer: SanmaAnalyzer = null
 var _assist_cached_dead_tiles: Dictionary = {}
 var _assist_cached_total_wall: int = 0
 var _assist_cache_ready: bool = false
+var _assist_request_serial: int = 0
 var _debug_buttons_box: Control
 var _debug_show_npc_hands: bool = false
 var _player_riichi_cutin_count: int = 0
@@ -782,15 +783,15 @@ func _on_turn_started(player_idx: int) -> void:
 func _on_tile_drawn(player_idx: int) -> void:
 	if player_idx == 0:
 		_player_drew = true
+		_assist_cached_dead_tiles = _build_assist_dead_tiles()
+		_assist_cached_total_wall = GameState.wall.size()
+		_assist_cache_ready = true
 		_refresh_hand()
 		call_deferred("_refresh_player_draw_actions")
 		if GameState.phase == GameState.Phase.PLAYER_TURN:
 			_check_tsumo_auto()
 			if GameState.players[0].is_riichi:
 				_handle_riichi_draw()
-		_assist_cached_dead_tiles = _build_assist_dead_tiles()
-		_assist_cached_total_wall = GameState.wall.size()
-		_assist_cache_ready = true
 
 func _refresh_player_draw_actions() -> void:
 	if not _player_drew:
@@ -3987,6 +3988,7 @@ func _on_assist_pressed() -> void:
 	_refresh_auto_assist()
 
 func _refresh_auto_assist() -> void:
+	_assist_request_serial += 1
 	_clear_assist_stars()
 	if _assist_panel != null:
 		_assist_panel.visible = false
@@ -3998,6 +4000,15 @@ func _refresh_auto_assist() -> void:
 	var dead_tiles := _assist_cached_dead_tiles if _assist_cache_ready else _build_assist_dead_tiles()
 	var total_wall := _assist_cached_total_wall if _assist_cache_ready else GameState.wall.size()
 	var meld_count: int = GameState.players[0].naki.size()
+	var request_id := _assist_request_serial
+	_run_auto_assist_deferred.call_deferred(request_id, hand, dead_tiles, total_wall, meld_count)
+
+func _run_auto_assist_deferred(request_id: int, hand: Array, dead_tiles: Dictionary, total_wall: int, meld_count: int) -> void:
+	await get_tree().process_frame
+	if request_id != _assist_request_serial:
+		return
+	if not _can_show_auto_assist():
+		return
 	var results := _assist_analyzer.evaluate_discards(hand, total_wall, dead_tiles, meld_count)
 	results = _apply_tiebreak_priority(results)
 	if results.is_empty():
@@ -4185,6 +4196,7 @@ func _show_assist(results: Array, hand: Array) -> void:
 
 
 func _hide_assist() -> void:
+	_assist_request_serial += 1
 	_assist_visible = false
 	_assist_cache_ready = false
 	if _assist_panel != null:

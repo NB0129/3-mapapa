@@ -1046,9 +1046,11 @@
     2. OFF時は★・左パネルを非表示にする。
     3. ON時は現在の assist_mode に応じて _refresh_auto_assist() を実行する。
   - _refresh_auto_assist():
-    1. SanmaAnalyzer.evaluate_discards() で打牌候補を計算。
-    2. _apply_tiebreak_priority() でソート。
-    3. assist_mode==1 なら _place_assist_star()、assist_mode==2 なら _show_assist() で結果表示。
+    1. 表示条件を確認し、解析リクエスト番号を更新する。
+    2. _run_auto_assist_deferred() を call_deferred し、次フレーム以降に SanmaAnalyzer.evaluate_discards() を実行する。
+    3. 古いリクエスト番号や打牌不能状態になった解析結果は破棄する。
+    4. assist_mode==1 なら _place_assist_star()、assist_mode==2 なら _show_assist() で結果表示。
+  - 自動アシスト解析はNPC打牌・鳴き判定・プレイヤーツモ開始の同一処理スタックを塞がないよう遅延実行する。
 
   【_show_assist() 行レイアウト（1件あたり）】
   - パネル幅: 444 / 行高（custom_minimum_size）: 270 / 行間隔（py加算）: 278
