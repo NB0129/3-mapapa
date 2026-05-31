@@ -103,6 +103,7 @@ var _debug_rinshan_error_label: Label
 
 # アシスト関連
 var _assist_btn: Button = null
+var _assist_mode_label: Label = null
 var _assist_panel: Panel = null
 var _assist_star_labels: Array = []
 var _assist_visible: bool = false
@@ -354,7 +355,7 @@ func _build_ui() -> void:
 
 	# --- プレイヤー 北抜き表示エリア（手牌の1行上、右寄せ） ---
 	_player_nukita_box = Control.new()
-	_player_nukita_box.position = Vector2(1810, 720)
+	_player_nukita_box.position = Vector2(1810, 760)
 	add_child(_player_nukita_box)
 
 	# --- 王牌エリア（空席=左家位置、背景なし） ---
@@ -382,10 +383,15 @@ func _build_ui() -> void:
 	player_panel.add_child(_tenpai_assist_box)
 
 	# アシストボタン
+	_assist_mode_label = _make_label("アシストモード", Vector2(1390, 646), 32)
+	_assist_mode_label.add_theme_color_override("font_color", Color(0.88, 0.95, 0.90))
+	_assist_mode_label.visible = false
+	add_child(_assist_mode_label)
+
 	_assist_btn = _make_button("アシスト", Color(0.2, 0.3, 0.6))
-	_assist_btn.custom_minimum_size = Vector2(132, 58)
-	_assist_btn.position = Vector2(1748, 694)
-	_assist_btn.visible = false
+	_assist_btn.custom_minimum_size = Vector2(198, 87)
+	_assist_btn.position = Vector2(1682, 620)
+	_set_assist_toggle_visible(false)
 	_assist_btn.pressed.connect(_on_assist_pressed)
 	add_child(_assist_btn)
 	_refresh_assist_toggle_button()
@@ -693,7 +699,7 @@ func _on_game_started() -> void:
 	_refresh_all()
 	_refresh_assist_toggle_button()
 	if _assist_btn != null:
-		_assist_btn.visible = false
+		_set_assist_toggle_visible(false)
 	_hide_assist()
 	_status_label.text = "ゲーム開始！"
 	if GameState.kyoku == 1 and GameState.round_wind == MahjongLogic.EAST and GameState.honba == 0:
@@ -797,7 +803,7 @@ func _refresh_player_draw_actions() -> void:
 	if GameState.players[0].is_riichi and GameState.phase == GameState.Phase.PLAYER_TURN:
 		_handle_riichi_draw()
 	if _assist_btn != null:
-		_assist_btn.visible = _can_show_assist_toggle()
+		_set_assist_toggle_visible(_can_show_assist_toggle())
 	_refresh_auto_assist()
 
 func _on_tile_discarded(_player_idx: int, _tile: Dictionary) -> void:
@@ -817,7 +823,7 @@ func _on_tile_discarded(_player_idx: int, _tile: Dictionary) -> void:
 	_refresh_all()
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 	if _assist_btn != null:
-		_assist_btn.visible = false
+		_set_assist_toggle_visible(false)
 	_hide_assist()
 
 func _on_tsumo_declared(_player_idx: int, _result: Dictionary) -> void:
@@ -1278,12 +1284,12 @@ func _check_tsumo_auto() -> void:
 	if GameState.phase == GameState.Phase.AFTER_PON:
 		_set_action_buttons_state(true, false, false, false, false, false, false, false)
 		if _assist_btn != null:
-			_assist_btn.visible = false
+			_set_assist_toggle_visible(false)
 		_hide_assist()
 	else:
 		_set_action_buttons_state(false, can_tsumo, false, can_tsumo, can_riichi, false, can_kita, can_kan)
 		if _assist_btn != null:
-			_assist_btn.visible = _can_show_assist_toggle()
+			_set_assist_toggle_visible(_can_show_assist_toggle())
 		_refresh_auto_assist()
 
 func _can_player_tsumo_with_yaku(hand_ids: Array) -> bool:
@@ -2889,7 +2895,7 @@ func _set_action_buttons_state(
 		_btn_open_riichi.visible = false
 	_layout_action_buttons()
 	if _assist_btn != null and not _can_show_assist_toggle():
-		_assist_btn.visible = false
+		_set_assist_toggle_visible(false)
 	if not _can_show_auto_assist():
 		_hide_assist()
 
@@ -4195,13 +4201,15 @@ func _refresh_assist_toggle_button() -> void:
 	if _assist_btn == null:
 		return
 	var is_on: bool = SaveData.assist_enabled and SaveData.assist_mode > 0
-	_assist_btn.text = "      ●" if is_on else "●      "
+	_assist_btn.text = "     ●" if is_on else "●     "
 	_assist_btn.tooltip_text = "打牌アシスト ON" if is_on else "打牌アシスト OFF"
-	_assist_btn.add_theme_font_size_override("font_size", 26)
+	_assist_btn.add_theme_font_size_override("font_size", 60)
+	_assist_btn.set("text_alignment", HORIZONTAL_ALIGNMENT_CENTER)
 	var base_color := Color(0.18, 0.72, 0.42) if is_on else Color(0.35, 0.35, 0.35)
 	var style := StyleBoxFlat.new()
 	style.bg_color = base_color
-	style.set_corner_radius_all(29)
+	style.set_corner_radius_all(44)
+	style.set_content_margin_all(0)
 	var hover := style.duplicate() as StyleBoxFlat
 	hover.bg_color = base_color.lightened(0.12)
 	var pressed := style.duplicate() as StyleBoxFlat
@@ -4210,6 +4218,12 @@ func _refresh_assist_toggle_button() -> void:
 	_assist_btn.add_theme_stylebox_override("hover", hover)
 	_assist_btn.add_theme_stylebox_override("pressed", pressed)
 	_assist_btn.add_theme_color_override("font_color", Color.WHITE)
+
+func _set_assist_toggle_visible(visible: bool) -> void:
+	if _assist_btn != null:
+		_assist_btn.visible = visible
+	if _assist_mode_label != null:
+		_assist_mode_label.visible = visible
 
 
 func _place_assist_star(hand: Array, best_tile_id: int) -> void:
