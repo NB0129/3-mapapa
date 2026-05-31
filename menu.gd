@@ -222,14 +222,14 @@ func _build_member_select_panel() -> Control:
 	_role_labels["player"] = _make_role_label(Vector2(585, 444))
 	_role_labels["top"] = _make_role_label(Vector2(600, 275))
 	_role_labels["right"] = _make_role_label(Vector2(690, 424))
-	_role_labels["bottom"] = _make_role_label(Vector2(600, 450))
+	_role_labels["bottom"] = _make_role_label(Vector2(600, 455))
 	for key in _role_labels.keys():
 		root.add_child(_role_labels[key].box)
 
 	_slot_nodes.clear()
 	_add_seat_slot(root, "top", Vector2(600, 20))
 	_add_seat_slot(root, "right", Vector2(955, 340))
-	_add_seat_slot(root, "bottom", Vector2(600, 615))
+	_add_seat_slot(root, "bottom", Vector2(600, 620))
 
 	_intro_panel = _make_panel(Color(0.09, 0.09, 0.13, 0.92), Rect2(LEFT_W + 1028, 40, 360, 860))
 	_intro_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -305,11 +305,13 @@ func _refresh_member_select() -> void:
 			dash.visible = true
 			img.texture = null
 			label.text = "空席"
+			label.add_theme_color_override("font_color", Color(0.62, 0.64, 0.68))
 		else:
 			dash.visible = false
 			var npc_id := str(_seat_npcs[seat])
 			img.texture = load(SaveData.get_npc_path_menu(npc_id))
 			label.text = SaveData.get_npc_name(npc_id)
+			label.add_theme_color_override("font_color", Color(0.95, 0.95, 0.9))
 		panel.add_theme_stylebox_override("panel", style)
 	_refresh_role_labels()
 	_update_intro()
