@@ -267,6 +267,9 @@
   npc_games         NPC別対戦回数（npc_01〜npc_06）
   bgm_volume        BGM音量（デフォルト0.15）
   se_volume         SE音量（デフォルト0.5）
+  assist_enabled    打牌アシストのゲーム中ON/OFF（デフォルト true）
+  assist_mode       打牌アシスト表示モード（0=OFF, 1=★だけ表示, 2=★＋左パネル常時表示。デフォルト1）
+  reach_cutin_enabled リーチカットイン演出ON/OFF（デフォルト true）
 
   【対局終了時に更新される統計】
     total_p          プレイヤー最終P増減を加算
@@ -531,7 +534,9 @@
     押すと設定ポップアップを表示
     BGM音量スライダー（0.0〜1.0、ステップ0.05）
     SE音量スライダー（0.0〜1.0、ステップ0.05）
-    「閉じる」ボタン押下時にSaveDataへ音量保存・save_data()呼び出し
+    打牌アシスト選択（OFF / ★だけ表示 / ★＋左パネル常時表示）
+    リーチ演出ON/OFFチェック
+    「閉じる」ボタン押下時にSaveDataへ音量・設定を保存し、save_data()呼び出し
 
 --------------------------------------------------
 ■ フリテン判定（GameState.gd）
@@ -973,6 +978,7 @@
 
   【プレイヤーリーチカットイン】
   - プレイヤーのリーチ宣言確定後、捨て牌を河へ置く前に `CutinReach.tscn` のカットイン演出を再生する。
+  - 設定の reach_cutin_enabled が false の場合はカットイン演出だけをスキップし、リーチBGM・ボイス・リーチ成立処理は通常通り行う。
   - カットイン開始と同時にリーチBGMへ切り替える。
   - 先制リーチ時は `seplavo_sennsei` を再生し、カットイン画像は `res://chara/hatimiriti2.webp` を使う。
   - 追っかけリーチ時は `seplavo_gote` を再生し、カットイン画像は `res://chara/hatimiriti1.webp` を使う。
@@ -1017,9 +1023,13 @@
 ■ 2026/05/30 追加仕様：打牌アシスト機能（game.gd）
 --------------------------------------------------
   【アシストボタン・パネル概要】
-  - アシストボタン（画面右側 position(1760, 700)・初期非表示）を押すと打牌候補上位3件を
-    画面左側のパネル（Rect2(10, 10, 460, 828)）に表示する。
-  - リーチ中・ポン直後・手牌枚数が 2枚未満または (size % 3 != 2) の場合は非表示。
+  - 旧アシストボタン位置に、打牌アシストON/OFF用のiPhone風トグルを表示する。
+  - OFF時はトグルをグレー表示にし、★・左パネルを非表示にする。
+  - assist_mode に応じて、プレイヤー打牌可能時に自動解析する。
+      0=OFF: 表示しない
+      1=★だけ表示: 最善打牌の上に★のみ表示
+      2=★＋左パネル常時表示: ★と左パネル上位3候補を常時表示
+  - ロン/ポン/カン/リーチ選択中、リーチ中、プレイヤー打牌不能時は非表示。
 
   【事前データキャッシュ】
   - _on_tile_drawn でプレイヤーのツモ時に dead_tiles（_build_assist_dead_tiles()）と
@@ -1030,14 +1040,13 @@
 
   【解析実行フロー】
   - _on_assist_pressed():
-    1. キャッシュまたはリアルタイム収集で dead_tiles / total_wall を取得。
-    2. _show_assist_loading() で「解析中...」を即時表示。
-    3. await get_tree().create_timer(0.05).timeout で1フレーム以上待機（UI描画を確保）。
-    4. _run_assist_analysis(hand, dead_tiles, total_wall) を呼び出し。
-  - _run_assist_analysis():
+    1. assist_enabled をON/OFFする。
+    2. OFF時は★・左パネルを非表示にする。
+    3. ON時は現在の assist_mode に応じて _refresh_auto_assist() を実行する。
+  - _refresh_auto_assist():
     1. SanmaAnalyzer.evaluate_discards() で打牌候補を計算。
     2. _apply_tiebreak_priority() でソート。
-    3. _show_assist() で結果表示。
+    3. assist_mode==1 なら _place_assist_star()、assist_mode==2 なら _show_assist() で結果表示。
 
   【_show_assist() 行レイアウト（1件あたり）】
   - パネル幅: 444 / 行高（custom_minimum_size）: 270 / 行間隔（py加算）: 278

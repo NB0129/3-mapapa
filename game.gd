@@ -82,6 +82,8 @@ var _rules_tab_buttons: Array = []
 var _bgm_slider: HSlider
 var _bgm_title_label: Label
 var _se_slider: HSlider
+var _assist_mode_option: OptionButton
+var _reach_cutin_check: CheckBox
 var _debug_panel: Panel
 var _debug_hand_tiles: Array = []   # 13要素、{} = 空スロット（id/is_red/is_gold/is_haku_pochi）
 var _debug_draw_tile: Dictionary = {}
@@ -381,11 +383,12 @@ func _build_ui() -> void:
 
 	# アシストボタン
 	_assist_btn = _make_button("アシスト", Color(0.2, 0.3, 0.6))
-	_assist_btn.custom_minimum_size = Vector2(120, 50)
-	_assist_btn.position = Vector2(1760, 700)
+	_assist_btn.custom_minimum_size = Vector2(132, 58)
+	_assist_btn.position = Vector2(1748, 694)
 	_assist_btn.visible = false
 	_assist_btn.pressed.connect(_on_assist_pressed)
 	add_child(_assist_btn)
+	_refresh_assist_toggle_button()
 
 	# アシスト結果パネル（左キャラエリアに重ねる形で初期非表示）
 	_assist_panel = _make_panel(Color(0.03, 0.10, 0.05, 0.92), Rect2(10, 10, 460, 828))
@@ -688,6 +691,10 @@ func _on_game_started() -> void:
 			tr.visible = true
 	_refresh_wanpai_dora()
 	_refresh_all()
+	_refresh_assist_toggle_button()
+	if _assist_btn != null:
+		_assist_btn.visible = false
+	_hide_assist()
 	_status_label.text = "ゲーム開始！"
 	if GameState.kyoku == 1 and GameState.round_wind == MahjongLogic.EAST and GameState.honba == 0:
 		_play_chara_voice("seplavo_yoro2")
@@ -789,6 +796,9 @@ func _refresh_player_draw_actions() -> void:
 	_check_tsumo_auto()
 	if GameState.players[0].is_riichi and GameState.phase == GameState.Phase.PLAYER_TURN:
 		_handle_riichi_draw()
+	if _assist_btn != null:
+		_assist_btn.visible = _can_show_assist_toggle()
+	_refresh_auto_assist()
 
 func _on_tile_discarded(_player_idx: int, _tile: Dictionary) -> void:
 	_player_drew = false
@@ -806,6 +816,9 @@ func _on_tile_discarded(_player_idx: int, _tile: Dictionary) -> void:
 	_btn_skip.tooltip_text = "キャンセル"
 	_refresh_all()
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
+	if _assist_btn != null:
+		_assist_btn.visible = false
+	_hide_assist()
 
 func _on_tsumo_declared(_player_idx: int, _result: Dictionary) -> void:
 	_riichi_tsumogiri_timer_pending = false
@@ -1097,7 +1110,7 @@ func _run_player_riichi_cutin_sequence(hand_idx: int, is_open: bool) -> void:
 	_play_riichi_bgm()
 	var npc_riichi: bool = GameState.players[1].is_riichi or GameState.players[2].is_riichi
 	_play_chara_voice("seplavo_gote" if npc_riichi else "seplavo_sennsei")
-	if _reach_cutin != null:
+	if SaveData.reach_cutin_enabled and _reach_cutin != null:
 		await _reach_cutin.play_cutin(_get_player_riichi_cutin_path(npc_riichi), _get_riichi_stick_target_position(0))
 	_refresh_riichi_stick_display()
 	GameState.finish_player_riichi()
@@ -1266,11 +1279,12 @@ func _check_tsumo_auto() -> void:
 		_set_action_buttons_state(true, false, false, false, false, false, false, false)
 		if _assist_btn != null:
 			_assist_btn.visible = false
+		_hide_assist()
 	else:
 		_set_action_buttons_state(false, can_tsumo, false, can_tsumo, can_riichi, false, can_kita, can_kan)
 		if _assist_btn != null:
-			_assist_btn.visible = (not player.is_riichi and
-				player.hand.size() >= 2 and player.hand.size() % 3 == 2)
+			_assist_btn.visible = _can_show_assist_toggle()
+		_refresh_auto_assist()
 
 func _can_player_tsumo_with_yaku(hand_ids: Array) -> bool:
 	if not MahjongLogic.is_complete_hand(hand_ids):
@@ -2874,6 +2888,10 @@ func _set_action_buttons_state(
 	if _riichi_mode:
 		_btn_open_riichi.visible = false
 	_layout_action_buttons()
+	if _assist_btn != null and not _can_show_assist_toggle():
+		_assist_btn.visible = false
+	if not _can_show_auto_assist():
+		_hide_assist()
 
 func _layout_action_buttons() -> void:
 	if _action_box == null:
@@ -3700,8 +3718,8 @@ func _make_text_icon_button(text: String) -> Button:
 
 func _build_settings_popup() -> Panel:
 	var panel := Panel.new()
-	panel.custom_minimum_size = Vector2(500, 300)
-	panel.position = Vector2(710, 390)
+	panel.custom_minimum_size = Vector2(560, 450)
+	panel.position = Vector2(680, 315)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.1, 0.1, 0.2, 0.95)
 	style.border_color = Color(0.6, 0.5, 0.1)
@@ -3709,32 +3727,50 @@ func _build_settings_popup() -> Panel:
 	style.set_corner_radius_all(10)
 	panel.add_theme_stylebox_override("panel", style)
 
-	var title_lbl := _make_label("設  定", Vector2(185, 22), 28)
+	var title_lbl := _make_label("設  定", Vector2(220, 22), 28)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.3))
 	panel.add_child(title_lbl)
 
-	panel.add_child(_make_label("BGM音量", Vector2(30, 100), 22))
+	panel.add_child(_make_label("BGM音量", Vector2(30, 94), 22))
 	_bgm_slider = HSlider.new()
 	_bgm_slider.min_value = 0.0
 	_bgm_slider.max_value = 1.0
 	_bgm_slider.step = 0.05
-	_bgm_slider.position = Vector2(170, 104)
-	_bgm_slider.size = Vector2(280, 30)
+	_bgm_slider.position = Vector2(190, 98)
+	_bgm_slider.size = Vector2(320, 30)
 	_bgm_slider.value_changed.connect(_on_bgm_slider_changed)
 	panel.add_child(_bgm_slider)
 
-	panel.add_child(_make_label("SE音量", Vector2(30, 168), 22))
+	panel.add_child(_make_label("SE音量", Vector2(30, 154), 22))
 	_se_slider = HSlider.new()
 	_se_slider.min_value = 0.0
 	_se_slider.max_value = 1.0
 	_se_slider.step = 0.05
-	_se_slider.position = Vector2(170, 172)
-	_se_slider.size = Vector2(280, 30)
+	_se_slider.position = Vector2(190, 158)
+	_se_slider.size = Vector2(320, 30)
 	_se_slider.value_changed.connect(_on_se_slider_changed)
 	panel.add_child(_se_slider)
 
+	panel.add_child(_make_label("打牌アシスト", Vector2(30, 220), 22))
+	_assist_mode_option = OptionButton.new()
+	_assist_mode_option.position = Vector2(190, 216)
+	_assist_mode_option.size = Vector2(320, 42)
+	_assist_mode_option.add_item("OFF", 0)
+	_assist_mode_option.add_item("★だけ表示", 1)
+	_assist_mode_option.add_item("★＋左パネル常時表示", 2)
+	_assist_mode_option.item_selected.connect(_on_assist_mode_selected)
+	panel.add_child(_assist_mode_option)
+
+	_reach_cutin_check = CheckBox.new()
+	_reach_cutin_check.text = "リーチ演出"
+	_reach_cutin_check.position = Vector2(30, 286)
+	_reach_cutin_check.custom_minimum_size = Vector2(260, 44)
+	_reach_cutin_check.add_theme_font_size_override("font_size", 22)
+	_reach_cutin_check.toggled.connect(_on_reach_cutin_toggled)
+	panel.add_child(_reach_cutin_check)
+
 	var btn_close := _make_button("閉じる", Color(0.35, 0.35, 0.35))
-	btn_close.position = Vector2(175, 228)
+	btn_close.position = Vector2(205, 364)
 	btn_close.custom_minimum_size = Vector2(150, 50)
 	btn_close.pressed.connect(_on_settings_close_pressed)
 	panel.add_child(btn_close)
@@ -3819,6 +3855,8 @@ func _select_rule_tab(idx: int) -> void:
 func _on_settings_icon_pressed() -> void:
 	_bgm_slider.value = AudioManager.bgm_volume
 	_se_slider.value  = AudioManager.se_volume
+	_assist_mode_option.select(SaveData.assist_mode)
+	_reach_cutin_check.button_pressed = SaveData.reach_cutin_enabled
 	_settings_popup.visible = true
 
 func _on_rules_icon_pressed() -> void:
@@ -3831,9 +3869,23 @@ func _on_bgm_slider_changed(value: float) -> void:
 func _on_se_slider_changed(value: float) -> void:
 	AudioManager.set_se_volume(value)
 
+func _on_assist_mode_selected(index: int) -> void:
+	SaveData.assist_mode = int(_assist_mode_option.get_item_id(index))
+	if SaveData.assist_mode > 0:
+		SaveData.assist_enabled = true
+	SaveData.save_data()
+	_refresh_assist_toggle_button()
+	call_deferred("_refresh_auto_assist")
+
+func _on_reach_cutin_toggled(enabled: bool) -> void:
+	SaveData.reach_cutin_enabled = enabled
+	SaveData.save_data()
+
 func _on_settings_close_pressed() -> void:
 	SaveData.bgm_volume = AudioManager.bgm_volume
 	SaveData.se_volume  = AudioManager.se_volume
+	SaveData.assist_mode = _assist_mode_option.get_selected_id()
+	SaveData.reach_cutin_enabled = _reach_cutin_check.button_pressed
 	SaveData.save_data()
 	_settings_popup.visible = false
 
@@ -3902,10 +3954,7 @@ func _build_assist_dead_tiles() -> Dictionary:
 
 func _show_assist_loading() -> void:
 	_assist_visible = true
-	for lbl in _assist_star_labels:
-		if is_instance_valid(lbl):
-			lbl.queue_free()
-	_assist_star_labels.clear()
+	_clear_assist_stars()
 	for ch in _assist_panel.get_children():
 		ch.queue_free()
 
@@ -3921,6 +3970,57 @@ func _show_assist_loading() -> void:
 
 
 func _on_assist_pressed() -> void:
+	var is_on: bool = SaveData.assist_enabled and SaveData.assist_mode > 0
+	SaveData.assist_enabled = not is_on
+	if SaveData.assist_enabled and SaveData.assist_mode == 0:
+		SaveData.assist_mode = 1
+		if _assist_mode_option != null:
+			_assist_mode_option.select(1)
+	SaveData.save_data()
+	_refresh_assist_toggle_button()
+	_refresh_auto_assist()
+
+func _refresh_auto_assist() -> void:
+	_clear_assist_stars()
+	if _assist_panel != null:
+		_assist_panel.visible = false
+	if not _can_show_auto_assist():
+		return
+	if _assist_analyzer == null:
+		_assist_analyzer = SanmaAnalyzer.new()
+	var hand: Array = GameState.players[0].hand
+	var dead_tiles := _assist_cached_dead_tiles if _assist_cache_ready else _build_assist_dead_tiles()
+	var total_wall := _assist_cached_total_wall if _assist_cache_ready else GameState.wall.size()
+	var meld_count: int = GameState.players[0].naki.size()
+	var results := _assist_analyzer.evaluate_discards(hand, total_wall, dead_tiles, meld_count)
+	results = _apply_tiebreak_priority(results)
+	if results.is_empty():
+		return
+	if SaveData.assist_mode >= 2:
+		_show_assist(results, hand)
+	else:
+		_place_assist_star(hand, int(results[0].get("tile_id", -1)))
+
+func _can_show_auto_assist() -> bool:
+	if not SaveData.assist_enabled or SaveData.assist_mode <= 0:
+		return false
+	return _can_show_assist_toggle()
+
+func _can_show_assist_toggle() -> bool:
+	if GameState.players.is_empty() or GameState.current_player != 0:
+		return false
+	if GameState.phase != GameState.Phase.PLAYER_TURN:
+		return false
+	if _riichi_mode or _pon_select_mode or _kan_select_mode or _riichi_cutin_running:
+		return false
+	var hand: Array = GameState.players[0].hand
+	if hand.size() < 2 or hand.size() % 3 != 2:
+		return false
+	if GameState.players[0].is_riichi:
+		return false
+	return true
+
+func _run_manual_assist_panel() -> void:
 	var hand: Array = GameState.players[0].hand
 	if hand.size() < 2 or hand.size() % 3 != 2:
 		return
@@ -4079,12 +4179,33 @@ func _hide_assist() -> void:
 	_assist_cache_ready = false
 	if _assist_panel != null:
 		_assist_panel.visible = false
-	if _assist_btn != null:
-		_assist_btn.visible = false
+	_clear_assist_stars()
+
+func _clear_assist_stars() -> void:
 	for lbl in _assist_star_labels:
 		if is_instance_valid(lbl):
 			lbl.queue_free()
 	_assist_star_labels.clear()
+
+func _refresh_assist_toggle_button() -> void:
+	if _assist_btn == null:
+		return
+	var is_on: bool = SaveData.assist_enabled and SaveData.assist_mode > 0
+	_assist_btn.text = "      ●" if is_on else "●      "
+	_assist_btn.tooltip_text = "打牌アシスト ON" if is_on else "打牌アシスト OFF"
+	_assist_btn.add_theme_font_size_override("font_size", 26)
+	var base_color := Color(0.18, 0.72, 0.42) if is_on else Color(0.35, 0.35, 0.35)
+	var style := StyleBoxFlat.new()
+	style.bg_color = base_color
+	style.set_corner_radius_all(29)
+	var hover := style.duplicate() as StyleBoxFlat
+	hover.bg_color = base_color.lightened(0.12)
+	var pressed := style.duplicate() as StyleBoxFlat
+	pressed.bg_color = base_color.darkened(0.18)
+	_assist_btn.add_theme_stylebox_override("normal", style)
+	_assist_btn.add_theme_stylebox_override("hover", hover)
+	_assist_btn.add_theme_stylebox_override("pressed", pressed)
+	_assist_btn.add_theme_color_override("font_color", Color.WHITE)
 
 
 func _place_assist_star(hand: Array, best_tile_id: int) -> void:
