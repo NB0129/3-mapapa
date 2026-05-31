@@ -53,6 +53,7 @@ const DECK_SIZE := 4
 # --------------------------------------------------
 var _best: int
 var _shanten_cache: Dictionary = {}
+var _search_seen: Dictionary = {}
 
 
 # ==================================================
@@ -148,7 +149,7 @@ func evaluate_discards(hand: Array, total_wall: int = 61, dead_tiles: Dictionary
 ## counts: _to_counts() が返す内部インデックス配列
 ## meld_count: 副露済み面子数（>0 のとき七対子を除外）
 func calc_shanten(counts: Array, meld_count: int = 0) -> int:
-	var key := str(meld_count) + ":" + str(counts)
+	var key: Vector3i = _counts_key(counts, meld_count)
 	if _shanten_cache.has(key):
 		return _shanten_cache[key]
 	var s_regular := _shanten_regular(counts, meld_count)
@@ -177,6 +178,7 @@ func get_effective_tile_names(effective: Dictionary) -> Array[String]:
 
 func _shanten_regular(counts: Array, meld_count: int = 0) -> int:
 	_best = 8 - meld_count * 2
+	_search_seen.clear()
 	_search(counts, 0, meld_count, 0, false)
 	return _best
 
@@ -205,6 +207,10 @@ func _search(
 		t += 1
 	if t >= NUM_TYPES:
 		return
+	var state_key: Vector3i = _search_state_key(counts, t, mentsu, taatsu, has_jantai)
+	if _search_seen.has(state_key):
+		return
+	_search_seen[state_key] = true
 
 	# ── 面子 ──────────────────────────────────────
 
@@ -443,6 +449,25 @@ func _to_counts(hand: Array) -> Array:
 		if idx >= 0:
 			counts[idx] += 1
 	return counts
+
+
+func _counts_key(counts: Array, meld_count: int = 0) -> Vector3i:
+	var key_a := 0
+	var key_b := 0
+	for i in range(14):
+		key_a = key_a * 5 + int(counts[i])
+	for i in range(14, NUM_TYPES):
+		key_b = key_b * 5 + int(counts[i])
+	return Vector3i(key_a, key_b, meld_count)
+
+
+func _search_state_key(counts: Array, tile: int, mentsu: int, taatsu: int, has_jantai: bool) -> Vector3i:
+	var key: Vector3i = _counts_key(counts, 0)
+	var state := tile
+	state = state * 5 + mentsu
+	state = state * 5 + taatsu
+	state = state * 2 + (1 if has_jantai else 0)
+	return Vector3i(key.x, key.y, state)
 
 
 ## 内部インデックスtが順子・嵌張搭子の開始点として有効か

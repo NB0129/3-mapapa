@@ -649,9 +649,11 @@
       tile_breakdown         : 有効牌ごとの内訳 {game_id: {wall_count, expected(float均等割り), tenpai_rate, agari_rate}}
   - calc_shanten(counts, meld_count=0):
       meld_count > 0 のとき七対子向聴を除外し、一般手のみで計算する。
+      キャッシュキーは counts を2分割した Vector3i と meld_count で構成し、配列文字列化を避ける。
   - _shanten_regular(counts, meld_count=0):
       _best の初期値を 8 - meld_count * 2 に設定（副露済み面子は完成扱い）。
       _search() の mentsu 開始値を meld_count に設定。
+      _search() 内では counts・探索位置・面子数・搭子数・雀頭有無の部分状態をメモ化し、同一状態の再帰探索を省略する。
   - _calc_effective_tiles(counts, shanten, dead_tiles, meld_count=0):
       wall_count = DECK_SIZE - 手牌 - 死牌（生の枚数、山確率補正なし）
   - _calc_agari_rate(e, w): 逐次計算ヘルパー（shanten==0/1/2/3で共通）
