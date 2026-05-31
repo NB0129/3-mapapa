@@ -11,7 +11,7 @@ const NPC_DESCRIPTIONS := {
 	"kuma_black": "くまぱぱの中に生まれた別の人格\nが具現化したくま",
 	"kuma_def": "普通の白くま。",
 	"kuma_hiyake": "南国在中のノリノリくま\n特性：ゼンツ",
-	"kuma_hokkyoku": "麻雀ぱぱに紛れ込んだ野生の熊。\n熊なので麻雀は打てない",
+	"kuma_hokkyoku": "麻雀ぱぱに紛れ込んだ野生の熊。\n熊なのでツモ切りしかできない",
 	"kuma_megane": "眼鏡の分だけ賢い。\n特性：リーチにはオリ",
 	"kuma_saibo": "AIによって命を吹き込まれた最強のNPC",
 }
@@ -275,7 +275,7 @@ func _add_seat_slot(root: Control, seat: String, pos: Vector2) -> void:
 	img.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(img)
 
-	var name_lbl := _make_label("", Vector2(16, 132), 20)
+	var name_lbl := _make_label("", Vector2(16, 132), 30)
 	name_lbl.position = Vector2(18, 178)
 	name_lbl.size = Vector2(200, 34)
 	panel.add_child(name_lbl)
@@ -408,12 +408,12 @@ func _update_intro() -> void:
 	next_btn.pressed.connect(func(): _cycle_candidate(1))
 	_intro_panel.add_child(next_btn)
 	var text := "空席" if npc_id == "" else SaveData.get_npc_name(npc_id)
-	_intro_panel.add_child(_make_label(text, Vector2(34, 500), 32, Color(1.0, 0.92, 0.68)))
-	var desc := _make_label(_get_npc_description(npc_id), Vector2(24, 558), 19, Color(0.90, 0.94, 1.0))
+	_intro_panel.add_child(_make_label(text, Vector2(34, 500), 40, Color(1.0, 0.92, 0.68)))
+	var desc := _make_label(_get_npc_description(npc_id), Vector2(24, 558), 30, Color(0.90, 0.94, 1.0))
 	desc.size = Vector2(420, 88)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_intro_panel.add_child(desc)
-	var confirm := _make_button("決定", Color(0.15, 0.50, 0.24), Vector2(240, 64), 26)
+	var confirm := _make_button("NPC選択", Color(0.15, 0.50, 0.24), Vector2(240, 64), 26)
 	confirm.position = Vector2(114, 650)
 	confirm.disabled = _candidate_seat == "" or _candidate_npc == ""
 	confirm.pressed.connect(_confirm_candidate)
