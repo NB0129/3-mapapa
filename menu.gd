@@ -128,23 +128,23 @@ func _build_stats_panel() -> Panel:
 func _build_start_panel() -> Panel:
 	var panel := _make_panel(Color(0.08, 0.06, 0.06, 0.30), Rect2(LEFT_W + MID_W, 0, RIGHT_W, 1080))
 
-	var btn_taikyoku := _make_image_button("res://ui/btn_taikyoku.webp", Vector2(520, 150))
-	btn_taikyoku.position = _right_panel_center_pos(btn_taikyoku.size, 92)
+	var btn_taikyoku := _make_image_button("res://ui/btn_taikyoku.webp", Vector2(1040, 300))
+	btn_taikyoku.position = _right_panel_center_pos(btn_taikyoku.size, 46)
 	btn_taikyoku.pressed.connect(_show_member_select)
 	panel.add_child(btn_taikyoku)
 
 	var btn_ruuruhyou := _make_image_button("res://ui/btn_ru-ruhyou.webp", Vector2(520, 110))
-	btn_ruuruhyou.position = _right_panel_center_pos(btn_ruuruhyou.size, 286)
+	btn_ruuruhyou.position = _right_panel_center_pos(btn_ruuruhyou.size, 388)
 	btn_ruuruhyou.pressed.connect(_on_rules_pressed)
 	panel.add_child(btn_ruuruhyou)
 
 	var btn_haihu := _make_image_button("res://ui/btn_haihu.webp", Vector2(520, 110))
-	btn_haihu.position = _right_panel_center_pos(btn_haihu.size, 432)
+	btn_haihu.position = _right_panel_center_pos(btn_haihu.size, 534)
 	btn_haihu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/gamelog/GameLogListScreen.tscn"))
 	panel.add_child(btn_haihu)
 
 	var btn_simyu := _make_image_button("res://ui/btn_simyu.webp", Vector2(520, 110))
-	btn_simyu.position = _right_panel_center_pos(btn_simyu.size, 578)
+	btn_simyu.position = _right_panel_center_pos(btn_simyu.size, 680)
 	btn_simyu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/simulator/SimulatorScreen.tscn"))
 	panel.add_child(btn_simyu)
 
