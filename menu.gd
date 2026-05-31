@@ -221,15 +221,15 @@ func _build_member_select_panel() -> Control:
 	_role_labels.clear()
 	_role_labels["player"] = _make_role_label(Vector2(585, 444))
 	_role_labels["top"] = _make_role_label(Vector2(600, 275))
-	_role_labels["right"] = _make_role_label(Vector2(690, 424))
-	_role_labels["bottom"] = _make_role_label(Vector2(600, 455))
+	_role_labels["right"] = _make_role_label(Vector2(692, 409))
+	_role_labels["bottom"] = _make_role_label(Vector2(600, 458))
 	for key in _role_labels.keys():
 		root.add_child(_role_labels[key].box)
 
 	_slot_nodes.clear()
 	_add_seat_slot(root, "top", Vector2(600, 20))
-	_add_seat_slot(root, "right", Vector2(955, 340))
-	_add_seat_slot(root, "bottom", Vector2(600, 620))
+	_add_seat_slot(root, "right", Vector2(957, 325))
+	_add_seat_slot(root, "bottom", Vector2(600, 623))
 
 	_intro_panel = _make_panel(Color(0.09, 0.09, 0.13, 0.92), Rect2(LEFT_W + 1028, 40, 360, 860))
 	_intro_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
