@@ -485,7 +485,7 @@ func _on_rules_pressed() -> void:
 
 func _build_rules_popup() -> Panel:
 	var panel := _make_panel(Color(0.07, 0.08, 0.12, 0.96), Rect2(250, 90, 1420, 900))
-	panel.add_child(_make_label("ルール表", Vector2(36, 24), 42, Color(1.0, 0.92, 0.55)))
+	panel.add_child(_make_label("ルール表", Vector2(36, 24), 50, Color(1.0, 0.92, 0.55)))
 	var btn_close := _make_button("閉じる", Color(0.35, 0.25, 0.25), Vector2(130, 58), 24)
 	btn_close.position = Vector2(1240, 28)
 	btn_close.pressed.connect(func(): _rules_popup.visible = false)
@@ -495,7 +495,7 @@ func _build_rules_popup() -> Panel:
 	var tab_x := 36.0
 	for i in range(tabs.size()):
 		var tab: Dictionary = tabs[i]
-		var btn := _make_button(str(tab.get("title", "")), Color(0.18, 0.24, 0.34), Vector2(150, 56), 22)
+		var btn := _make_button(str(tab.get("title", "")), Color(0.18, 0.24, 0.34), Vector2(150, 56), 30)
 		btn.position = Vector2(tab_x, 104)
 		btn.pressed.connect(func(idx := i): _select_rule_tab(idx))
 		panel.add_child(btn)
@@ -509,7 +509,7 @@ func _build_rules_popup() -> Panel:
 	_rules_body_label = Label.new()
 	_rules_body_label.size = Vector2(1290, 1200)
 	_rules_body_label.custom_minimum_size = Vector2(1290, 1200)
-	_rules_body_label.add_theme_font_size_override("font_size", 30)
+	_rules_body_label.add_theme_font_size_override("font_size", 40)
 	_rules_body_label.add_theme_color_override("font_color", Color(0.96, 0.96, 0.90))
 	_rules_body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	scroll.add_child(_rules_body_label)
