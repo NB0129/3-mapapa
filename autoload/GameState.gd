@@ -1912,6 +1912,8 @@ func _build_win_result(winner_idx: int, is_tsumo: bool, loser_idx: int, yaku: Ar
 		for nt: Dictionary in winner.nukita:
 			if nt.id == dora_id:
 				han += 1; regular_dora += 1
+			if ura_id >= 0 and nt.id == ura_id:
+				han += 1; ura_count += 1
 
 	# 赤ドラ（常にドラ扱い）
 	var red_count: int = 0
