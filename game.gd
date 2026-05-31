@@ -4153,6 +4153,8 @@ func _show_assist(results: Array, hand: Array) -> void:
 		var ex := 6.0
 		var eff: Dictionary = r.get("effective_tiles", {})
 		for gid: int in eff:
+			var eff_count: int = int(eff[gid])
+			var is_zero_wait := eff_count <= 0
 			var etex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
 			if etex:
 				var eti := TextureRect.new()
@@ -4161,9 +4163,11 @@ func _show_assist(results: Array, hand: Array) -> void:
 				eti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 				eti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 				eti.texture = etex
+				if is_zero_wait:
+					eti.modulate = Color(0.42, 0.42, 0.42, 0.75)
 				row.add_child(eti)
-			var ecnt := _make_label("×%d" % int(eff[gid]), Vector2(ex + 36, eff_y + 12), 22)
-			ecnt.add_theme_color_override("font_color", Color(0.7, 0.8, 0.7))
+			var ecnt := _make_label("×%d" % eff_count, Vector2(ex + 36, eff_y + 12), 22)
+			ecnt.add_theme_color_override("font_color", Color(0.45, 0.45, 0.45) if is_zero_wait else Color(0.7, 0.8, 0.7))
 			row.add_child(ecnt)
 			ex += 65.0
 			if ex > 390:

@@ -277,6 +277,7 @@ func _shanten_chiitoi(counts: Array) -> int:
 # ==================================================
 
 ## 現在の向聴数を下げる牌と山の生の枚数（補正なし）を返す。
+## テンパイ時だけは、残り0枚の待ちも UI 表示用に 0 枚として残す。
 ## wall_count = DECK_SIZE - 手牌 - 死牌
 func _calc_effective_tiles(counts: Array, shanten: int, dead_tiles: Dictionary = {}, meld_count: int = 0) -> Dictionary:
 	var dead_counts: Dictionary = dead_tiles.get("counts", {})
@@ -285,11 +286,11 @@ func _calc_effective_tiles(counts: Array, shanten: int, dead_tiles: Dictionary =
 		var game_id: int = _IDX_TO_GAME_ID[idx]
 		var dead: int = int(dead_counts.get(game_id, 0))
 		var wall_count: int = DECK_SIZE - counts[idx] - dead
-		if wall_count <= 0:
+		if wall_count <= 0 and shanten != 0:
 			continue
 		counts[idx] += 1
 		if calc_shanten(counts, meld_count) < shanten:
-			effective[game_id] = wall_count
+			effective[game_id] = maxi(wall_count, 0)
 		counts[idx] -= 1
 	return effective
 

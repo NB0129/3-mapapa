@@ -663,6 +663,7 @@
       _search() 内では counts・探索位置・面子数・搭子数・雀頭有無の部分状態をメモ化し、同一状態の再帰探索を省略する。
   - _calc_effective_tiles(counts, shanten, dead_tiles, meld_count=0):
       wall_count = DECK_SIZE - 手牌 - 死牌（生の枚数、山確率補正なし）
+      shanten==0 のときは、残り0枚の待ちも UI 表示用に effective_tiles[game_id] = 0 として残す。
   - _calc_agari_rate(e, w): 累乗計算ヘルパー（shanten==0/1/2/3で共通）
       turns = ceil(w/3)、p_per_draw = minf(e / w, 1.0)
       return minf(1.0 - pow(1.0 - p_per_draw, turns), 1.0)
