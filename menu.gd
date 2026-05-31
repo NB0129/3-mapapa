@@ -220,9 +220,9 @@ func _build_member_select_panel() -> Control:
 
 	_role_labels.clear()
 	_role_labels["player"] = _make_role_label(Vector2(585, 444))
-	_role_labels["top"] = _make_role_label(Vector2(600, 275))
+	_role_labels["top"] = _make_role_label(Vector2(680, 250))
 	_role_labels["right"] = _make_role_label(Vector2(692, 409))
-	_role_labels["bottom"] = _make_role_label(Vector2(600, 458))
+	_role_labels["bottom"] = _make_role_label(Vector2(680, 553))
 	for key in _role_labels.keys():
 		root.add_child(_role_labels[key].box)
 
@@ -348,7 +348,10 @@ func _refresh_role_labels() -> void:
 	for key in _role_labels.keys():
 		var entry: Dictionary = _role_labels[key]
 		var label: Label = entry.label
-		label.text = _role_for_position(str(key))
+		var role_text := _role_for_position(str(key))
+		label.text = role_text
+		if label.label_settings != null:
+			label.label_settings.font_color = Color(0.62, 0.64, 0.68) if role_text == "空席" else Color(1.0, 0.90, 0.35)
 
 func _role_for_position(pos: String) -> String:
 	match _empty_seat:
