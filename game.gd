@@ -78,6 +78,7 @@ var _settings_popup: Panel
 var _home_confirm_popup: Panel
 var _rules_popup: Panel
 var _rules_body_label: Label
+var _rules_scroll: ScrollContainer
 var _rules_tab_buttons: Array = []
 var _bgm_slider: HSlider
 var _bgm_title_label: Label
@@ -104,6 +105,8 @@ var _debug_rinshan_error_label: Label
 # アシスト関連
 var _assist_btn: Button = null
 var _assist_mode_label: Label = null
+var _assist_toggle_knob: Panel = null
+var _assist_toggle_knob_label: Label = null
 var _assist_panel: Panel = null
 var _assist_star_labels: Array = []
 var _assist_visible: bool = false
@@ -385,17 +388,34 @@ func _build_ui() -> void:
 	player_panel.add_child(_tenpai_assist_box)
 
 	# アシストボタン
-	_assist_mode_label = _make_label("アシストモード", Vector2(1390, 646), 32)
+	_assist_mode_label = _make_label("アシスト", Vector2(1532, 646), 28)
+	_assist_mode_label.size = Vector2(140, 40)
+	_assist_mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_assist_mode_label.add_theme_color_override("font_color", Color(0.88, 0.95, 0.90))
 	_assist_mode_label.visible = false
 	add_child(_assist_mode_label)
 
-	_assist_btn = _make_button("アシスト", Color(0.2, 0.3, 0.6))
+	_assist_btn = _make_button("", Color(0.2, 0.3, 0.6))
 	_assist_btn.custom_minimum_size = Vector2(198, 87)
+	_assist_btn.size = _assist_btn.custom_minimum_size
 	_assist_btn.position = Vector2(1682, 620)
+	_assist_btn.clip_contents = false
+	_assist_btn.focus_mode = Control.FOCUS_NONE
 	_set_assist_toggle_visible(false)
 	_assist_btn.pressed.connect(_on_assist_pressed)
 	add_child(_assist_btn)
+	_assist_toggle_knob = Panel.new()
+	_assist_toggle_knob.size = Vector2(81, 81)
+	_assist_toggle_knob.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_assist_btn.add_child(_assist_toggle_knob)
+	_assist_toggle_knob_label = Label.new()
+	_assist_toggle_knob_label.size = _assist_toggle_knob.size
+	_assist_toggle_knob_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_assist_toggle_knob_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_assist_toggle_knob_label.add_theme_font_size_override("font_size", 24)
+	_assist_toggle_knob_label.add_theme_color_override("font_color", Color(0.08, 0.10, 0.10))
+	_assist_toggle_knob_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_assist_toggle_knob.add_child(_assist_toggle_knob_label)
 	_refresh_assist_toggle_button()
 
 	# アシスト結果パネル（左キャラエリアに重ねる形で初期非表示）
@@ -2824,6 +2844,13 @@ func _get_result_chara_path(winner_idx: int) -> String:
 		return "res://chara/hatimi2.webp"
 	if winner_idx >= 0 and winner_idx < GameState.players.size():
 		var npc_id := str(GameState.players[winner_idx].get("npc_id", ""))
+		match npc_id:
+			"kuma_hiyake":
+				return "res://chara/riza_hiyake.webp"
+			"kuma_saibo":
+				return "res://chara/riza_saibo.webp"
+			"kuma_megane":
+				return "res://chara/riza_megane.webp"
 		if npc_id != "":
 			return SaveData.get_npc_path_game(npc_id)
 	return "res://chara/kuma_def2a.webp"
@@ -3775,43 +3802,45 @@ func _make_text_icon_button(text: String) -> Button:
 
 func _build_settings_popup() -> Panel:
 	var panel := Panel.new()
-	panel.custom_minimum_size = Vector2(560, 450)
-	panel.position = Vector2(680, 315)
+	panel.custom_minimum_size = Vector2(1120, 900)
+	panel.size = panel.custom_minimum_size
+	panel.position = Vector2(400, 90)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.1, 0.1, 0.2, 0.95)
 	style.border_color = Color(0.6, 0.5, 0.1)
-	style.set_border_width_all(3)
-	style.set_corner_radius_all(10)
+	style.set_border_width_all(6)
+	style.set_corner_radius_all(20)
 	panel.add_theme_stylebox_override("panel", style)
 
-	var title_lbl := _make_label("設  定", Vector2(220, 22), 28)
+	var title_lbl := _make_label("設  定", Vector2(440, 44), 56)
 	title_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.3))
 	panel.add_child(title_lbl)
 
-	panel.add_child(_make_label("BGM音量", Vector2(30, 94), 22))
+	panel.add_child(_make_label("BGM音量", Vector2(60, 188), 44))
 	_bgm_slider = HSlider.new()
 	_bgm_slider.min_value = 0.0
 	_bgm_slider.max_value = 1.0
 	_bgm_slider.step = 0.05
-	_bgm_slider.position = Vector2(190, 98)
-	_bgm_slider.size = Vector2(320, 30)
+	_bgm_slider.position = Vector2(380, 196)
+	_bgm_slider.size = Vector2(640, 60)
 	_bgm_slider.value_changed.connect(_on_bgm_slider_changed)
 	panel.add_child(_bgm_slider)
 
-	panel.add_child(_make_label("SE音量", Vector2(30, 154), 22))
+	panel.add_child(_make_label("SE音量", Vector2(60, 308), 44))
 	_se_slider = HSlider.new()
 	_se_slider.min_value = 0.0
 	_se_slider.max_value = 1.0
 	_se_slider.step = 0.05
-	_se_slider.position = Vector2(190, 158)
-	_se_slider.size = Vector2(320, 30)
+	_se_slider.position = Vector2(380, 316)
+	_se_slider.size = Vector2(640, 60)
 	_se_slider.value_changed.connect(_on_se_slider_changed)
 	panel.add_child(_se_slider)
 
-	panel.add_child(_make_label("打牌アシスト", Vector2(30, 220), 22))
+	panel.add_child(_make_label("打牌アシスト", Vector2(60, 440), 44))
 	_assist_mode_option = OptionButton.new()
-	_assist_mode_option.position = Vector2(190, 216)
-	_assist_mode_option.size = Vector2(320, 42)
+	_assist_mode_option.position = Vector2(380, 432)
+	_assist_mode_option.size = Vector2(640, 84)
+	_assist_mode_option.add_theme_font_size_override("font_size", 36)
 	_assist_mode_option.add_item("OFF", 0)
 	_assist_mode_option.add_item("★だけ表示", 1)
 	_assist_mode_option.add_item("★＋左パネル常時表示", 2)
@@ -3820,15 +3849,17 @@ func _build_settings_popup() -> Panel:
 
 	_reach_cutin_check = CheckBox.new()
 	_reach_cutin_check.text = "リーチ演出"
-	_reach_cutin_check.position = Vector2(30, 286)
-	_reach_cutin_check.custom_minimum_size = Vector2(260, 44)
-	_reach_cutin_check.add_theme_font_size_override("font_size", 22)
+	_reach_cutin_check.position = Vector2(60, 572)
+	_reach_cutin_check.custom_minimum_size = Vector2(520, 88)
+	_reach_cutin_check.add_theme_font_size_override("font_size", 44)
 	_reach_cutin_check.toggled.connect(_on_reach_cutin_toggled)
 	panel.add_child(_reach_cutin_check)
 
 	var btn_close := _make_button("閉じる", Color(0.35, 0.35, 0.35))
-	btn_close.position = Vector2(205, 364)
-	btn_close.custom_minimum_size = Vector2(150, 50)
+	btn_close.position = Vector2(410, 728)
+	btn_close.custom_minimum_size = Vector2(300, 100)
+	btn_close.size = btn_close.custom_minimum_size
+	btn_close.add_theme_font_size_override("font_size", 40)
 	btn_close.pressed.connect(_on_settings_close_pressed)
 	panel.add_child(btn_close)
 
@@ -3888,6 +3919,7 @@ func _build_rules_popup() -> Panel:
 	scroll.position = Vector2(36, 184)
 	scroll.size = Vector2(1348, 670)
 	panel.add_child(scroll)
+	_rules_scroll = scroll
 	_rules_body_label = Label.new()
 	_rules_body_label.size = Vector2(1290, 1200)
 	_rules_body_label.custom_minimum_size = Vector2(1290, 1200)
@@ -3905,6 +3937,12 @@ func _select_rule_tab(idx: int) -> void:
 	for i in range(_rules_tab_buttons.size()):
 		_rules_tab_buttons[i].modulate = Color(1.0, 0.92, 0.55) if i == idx else Color.WHITE
 	_rules_body_label.text = str(tabs[idx].get("body", ""))
+	call_deferred("_reset_rules_scroll")
+
+func _reset_rules_scroll() -> void:
+	if _rules_scroll != null:
+		_rules_scroll.scroll_vertical = 0
+		_rules_scroll.scroll_horizontal = 0
 
 # ============================================================
 # 設定・ホームアイコン シグナルハンドラ
@@ -4263,10 +4301,8 @@ func _refresh_assist_toggle_button() -> void:
 	if _assist_btn == null:
 		return
 	var is_on: bool = SaveData.assist_enabled and SaveData.assist_mode > 0
-	_assist_btn.text = "     ●" if is_on else "●     "
+	_assist_btn.text = ""
 	_assist_btn.tooltip_text = "打牌アシスト ON" if is_on else "打牌アシスト OFF"
-	_assist_btn.add_theme_font_size_override("font_size", 60)
-	_assist_btn.set("text_alignment", HORIZONTAL_ALIGNMENT_CENTER)
 	var base_color := Color(0.18, 0.72, 0.42) if is_on else Color(0.35, 0.35, 0.35)
 	var style := StyleBoxFlat.new()
 	style.bg_color = base_color
@@ -4280,6 +4316,19 @@ func _refresh_assist_toggle_button() -> void:
 	_assist_btn.add_theme_stylebox_override("hover", hover)
 	_assist_btn.add_theme_stylebox_override("pressed", pressed)
 	_assist_btn.add_theme_color_override("font_color", Color.WHITE)
+	if _assist_mode_label != null:
+		_assist_mode_label.add_theme_color_override("font_color", Color(0.42, 1.0, 0.58) if is_on else Color(0.78, 0.82, 0.80))
+	if _assist_toggle_knob != null:
+		_assist_toggle_knob.position = Vector2(114, 3) if is_on else Vector2(3, 3)
+		var knob_style := StyleBoxFlat.new()
+		knob_style.bg_color = Color(0.95, 1.0, 0.94) if is_on else Color(0.88, 0.88, 0.88)
+		knob_style.set_corner_radius_all(41)
+		knob_style.shadow_color = Color(0, 0, 0, 0.28)
+		knob_style.shadow_size = 6
+		_assist_toggle_knob.add_theme_stylebox_override("panel", knob_style)
+	if _assist_toggle_knob_label != null:
+		_assist_toggle_knob_label.text = "ON" if is_on else "OFF"
+		_assist_toggle_knob_label.add_theme_color_override("font_color", Color(0.07, 0.36, 0.18) if is_on else Color(0.24, 0.24, 0.24))
 
 func _set_assist_toggle_visible(visible: bool) -> void:
 	if _assist_btn != null:

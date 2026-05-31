@@ -34,6 +34,7 @@ var _candidate_seat: String = ""
 var _candidate_npc: String = ""
 var _rules_popup: Panel
 var _rules_body_label: Label
+var _rules_scroll: ScrollContainer
 var _rules_tab_buttons: Array = []
 
 func _ready() -> void:
@@ -127,34 +128,28 @@ func _build_stats_panel() -> Panel:
 func _build_start_panel() -> Panel:
 	var panel := _make_panel(Color(0.08, 0.06, 0.06, 0.30), Rect2(LEFT_W + MID_W, 0, RIGHT_W, 1080))
 
-	var btn_taikyoku := _make_image_button("res://ui/btn_taikyoku.webp", Vector2(1560, 450))
-	btn_taikyoku.position = Vector2(60, 160)
+	var btn_taikyoku := _make_image_button("res://ui/btn_taikyoku.webp", Vector2(520, 150))
+	btn_taikyoku.position = _right_panel_center_pos(btn_taikyoku.size, 92)
 	btn_taikyoku.pressed.connect(_show_member_select)
 	panel.add_child(btn_taikyoku)
 
-	var btn_ruuruhyou := _make_image_button("res://ui/btn_ru-ruhyou.webp", Vector2(1560, 330))
-	btn_ruuruhyou.position = Vector2(60, 350)
+	var btn_ruuruhyou := _make_image_button("res://ui/btn_ru-ruhyou.webp", Vector2(520, 110))
+	btn_ruuruhyou.position = _right_panel_center_pos(btn_ruuruhyou.size, 286)
 	btn_ruuruhyou.pressed.connect(_on_rules_pressed)
 	panel.add_child(btn_ruuruhyou)
 
-	var divider := ColorRect.new()
-	divider.position = Vector2(40, 510)
-	divider.size = Vector2(560, 2)
-	divider.color = Color(1.0, 1.0, 1.0, 0.15)
-	panel.add_child(divider)
-
-	var btn_haihu := _make_image_button("res://ui/btn_haihu.webp", Vector2(1560, 330))
-	btn_haihu.position = Vector2(60, 560)
+	var btn_haihu := _make_image_button("res://ui/btn_haihu.webp", Vector2(520, 110))
+	btn_haihu.position = _right_panel_center_pos(btn_haihu.size, 432)
 	btn_haihu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/gamelog/GameLogListScreen.tscn"))
 	panel.add_child(btn_haihu)
 
-	var btn_simyu := _make_image_button("res://ui/btn_simyu.webp", Vector2(1560, 330))
-	btn_simyu.position = Vector2(60, 710)
+	var btn_simyu := _make_image_button("res://ui/btn_simyu.webp", Vector2(520, 110))
+	btn_simyu.position = _right_panel_center_pos(btn_simyu.size, 578)
 	btn_simyu.pressed.connect(func(): get_tree().change_scene_to_file("res://scenes/simulator/SimulatorScreen.tscn"))
 	panel.add_child(btn_simyu)
 
 	var icon_modoru := _make_image_button("res://ui/icon_modoru.webp", Vector2(300, 128))
-	icon_modoru.position = Vector2(640 - 300 - 20, 940)
+	icon_modoru.position = Vector2(RIGHT_W - icon_modoru.size.x - 40, 910)
 	icon_modoru.pressed.connect(func(): get_tree().change_scene_to_file("res://Title.tscn"))
 	panel.add_child(icon_modoru)
 
@@ -510,6 +505,7 @@ func _build_rules_popup() -> Panel:
 	scroll.position = Vector2(36, 184)
 	scroll.size = Vector2(1348, 670)
 	panel.add_child(scroll)
+	_rules_scroll = scroll
 	_rules_body_label = Label.new()
 	_rules_body_label.size = Vector2(1290, 1200)
 	_rules_body_label.custom_minimum_size = Vector2(1290, 1200)
@@ -527,6 +523,12 @@ func _select_rule_tab(idx: int) -> void:
 	for i in range(_rules_tab_buttons.size()):
 		_rules_tab_buttons[i].modulate = Color(1.0, 0.92, 0.55) if i == idx else Color.WHITE
 	_rules_body_label.text = str(tabs[idx].get("body", ""))
+	call_deferred("_reset_rules_scroll")
+
+func _reset_rules_scroll() -> void:
+	if _rules_scroll != null:
+		_rules_scroll.scroll_vertical = 0
+		_rules_scroll.scroll_horizontal = 0
 
 func _make_panel(color: Color, rect: Rect2) -> Panel:
 	var p := Panel.new()
@@ -566,7 +568,7 @@ func _make_role_label(pos: Vector2) -> Dictionary:
 
 func _make_image_button(path: String, size: Vector2) -> Button:
 	var btn := Button.new()
-	btn.icon = load(path)
+	btn.icon = _make_used_rect_texture(path)
 	btn.expand_icon = true
 	btn.custom_minimum_size = size
 	btn.size = size
@@ -576,6 +578,9 @@ func _make_image_button(path: String, size: Vector2) -> Button:
 	btn.add_theme_stylebox_override("pressed", empty)
 	btn.add_theme_stylebox_override("focus", empty)
 	return btn
+
+func _right_panel_center_pos(size: Vector2, y: float) -> Vector2:
+	return Vector2((RIGHT_W - size.x) * 0.5, y)
 
 func _make_button(text: String, bg_color: Color, min_size: Vector2 = Vector2(180, 56), font_size: int = 24) -> Button:
 	var btn := Button.new()
