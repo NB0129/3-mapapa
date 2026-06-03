@@ -86,7 +86,9 @@ var _bgm_slider: HSlider
 var _bgm_title_label: Label
 var _se_slider: HSlider
 var _assist_mode_option: OptionButton
-var _reach_cutin_check: CheckBox
+var _reach_cutin_btn: Button
+var _reach_cutin_knob: Panel
+var _reach_cutin_knob_label: Label
 var _debug_panel: Panel
 var _debug_hand_tiles: Array = []   # 13要素、{} = 空スロット（id/is_red/is_gold/is_haku_pochi）
 var _debug_draw_tile: Dictionary = {}
@@ -385,7 +387,7 @@ func _build_ui() -> void:
 	player_panel.add_child(_hand_box)
 
 	_tenpai_assist_box = Control.new()
-	_tenpai_assist_box.position = Vector2(1250, -16)
+	_tenpai_assist_box.position = Vector2(1280, -16)
 	_tenpai_assist_box.size = Vector2(620, 112)
 	player_panel.add_child(_tenpai_assist_box)
 
@@ -1799,14 +1801,17 @@ func _refresh_tenpai_assist() -> void:
 	const ASSIST_TILE_H := 104
 	const ASSIST_GAP := 12
 
+	var content_w: float = ASSIST_TILE_W * waiting_ids.size() + ASSIST_GAP * max(waiting_ids.size() - 1, 0) + 100
+	var content_x: float = maxf(0.0, _tenpai_assist_box.size.x - content_w)
+
 	var bg := ColorRect.new()
-	bg.position = Vector2.ZERO
-	bg.size = Vector2(ASSIST_TILE_W * waiting_ids.size() + ASSIST_GAP * max(waiting_ids.size() - 1, 0) + 100, 112)
+	bg.position = Vector2(content_x, 0)
+	bg.size = Vector2(content_w, 112)
 	bg.color = Color(0.0, 0.0, 0.0, 0.45)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tenpai_assist_box.add_child(bg)
 
-	var x := 8
+	var x := content_x + 8
 	for tid: int in waiting_ids:
 		var rect := TextureRect.new()
 		rect.position = Vector2(x, 4)
@@ -1817,6 +1822,10 @@ func _refresh_tenpai_assist() -> void:
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_tenpai_assist_box.add_child(rect)
 		x += ASSIST_TILE_W + ASSIST_GAP
+
+	var wait_count := 0
+	for tid: int in waiting_ids:
+		wait_count += _remaining_wait_tile_count(tid)
 
 	var wait_label := Label.new()
 	wait_label.text = "待ち"
@@ -1829,7 +1838,7 @@ func _refresh_tenpai_assist() -> void:
 	_tenpai_assist_box.add_child(wait_label)
 
 	var wall_cnt_lbl := Label.new()
-	wall_cnt_lbl.text = "残%d枚" % GameState.get_wall_count()
+	wall_cnt_lbl.text = "残%d枚" % wait_count
 	wall_cnt_lbl.position = Vector2(x + 2, 62)
 	wall_cnt_lbl.size = Vector2(90, 28)
 	wall_cnt_lbl.add_theme_font_size_override("font_size", 20)
@@ -1837,6 +1846,27 @@ func _refresh_tenpai_assist() -> void:
 	wall_cnt_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	wall_cnt_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tenpai_assist_box.add_child(wall_cnt_lbl)
+
+func _remaining_wait_tile_count(tile_id: int) -> int:
+	var visible := 0
+	for p in GameState.players:
+		for t: Dictionary in p.discards:
+			if int(t.get("id", -1)) == tile_id:
+				visible += 1
+		for t: Dictionary in p.nukita:
+			if int(t.get("id", -1)) == tile_id:
+				visible += 1
+		for m: Dictionary in p.naki:
+			for mid in m.get("tile_ids", []):
+				if int(mid) == tile_id:
+					visible += 1
+	for t: Dictionary in GameState.players[0].hand:
+		if int(t.get("id", -1)) == tile_id:
+			visible += 1
+	for t: Dictionary in GameState.dora_indicators:
+		if int(t.get("id", -1)) == tile_id:
+			visible += 1
+	return max(0, 4 - visible)
 
 func _refresh_npc_areas() -> void:
 	var upper: Dictionary = GameState.players[UPPER_IDX]
@@ -2388,7 +2418,7 @@ func _show_result_sequence(result: Dictionary, play_call_animation: bool = true)
 	if play_call_animation:
 		await _play_win_call_animation(animation_result)
 	_win_overlay.visible = true
-	await _play_result_chara_animation(result.get("winner_idx", 0))
+	await _play_result_chara_animation(result)
 	var _bust_ids: Array = result.get("bust_player_indices", [])
 	if _bust_ids.is_empty() and result.get("bust_player_idx", -1) >= 0:
 		_bust_ids = [result.get("bust_player_idx")]
@@ -2401,8 +2431,9 @@ func _show_result_sequence(result: Dictionary, play_call_animation: bool = true)
 func _ordered_double_ron_results(main_result: Dictionary) -> Array:
 	var results: Array = main_result.get("double_ron_results", [])
 	var ordered: Array = results.duplicate(true)
+	var loser_idx: int = int(main_result.get("loser_idx", -1))
 	ordered.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return _double_ron_display_priority(int(a.get("winner_idx", -1))) < _double_ron_display_priority(int(b.get("winner_idx", -1)))
+		return _double_ron_display_priority(int(a.get("winner_idx", -1)), loser_idx) < _double_ron_display_priority(int(b.get("winner_idx", -1)), loser_idx)
 	)
 	for r: Dictionary in ordered:
 		r["is_double_ron"] = true
@@ -2411,18 +2442,14 @@ func _ordered_double_ron_results(main_result: Dictionary) -> Array:
 		r["bust_player_idx"] = main_result.get("bust_player_idx", -1)
 		r["bust_player_indices"] = main_result.get("bust_player_indices", [])
 		r["score_after"] = main_result.get("score_after", r.get("score_after", []))
+		r["player_winds"] = main_result.get("player_winds", r.get("player_winds", []))
 	return ordered
 
-func _double_ron_display_priority(player_idx: int) -> int:
-	match player_idx:
-		UPPER_IDX:
-			return 0
-		RIGHT_IDX:
-			return 1
-		0:
-			return 2
-		_:
-			return 99
+func _double_ron_display_priority(player_idx: int, loser_idx: int) -> int:
+	for step in range(1, GameState.players.size()):
+		if (loser_idx + step) % GameState.players.size() == player_idx:
+			return step
+	return 99
 
 func _reveal_draw_tenpai_hands(result: Dictionary) -> void:
 	var ti: Dictionary = result.get("tenpai_info", {})
@@ -2465,17 +2492,10 @@ func _play_win_call_animation(result: Dictionary) -> void:
 		call_sprite.scale = Vector2.ONE * min(target_size.x / texture_size.x, target_size.y / texture_size.y)
 	add_child(call_sprite)
 	_result_dynamic_nodes.append(call_sprite)
-	var end_center := Vector2(SCREEN_SIZE.x * 0.5, 880)
-	var start_center := Vector2(end_center.x, 960)
-	call_sprite.rotation_degrees = 0.0
-	if winner_idx == RIGHT_IDX:
-		end_center = Vector2(1640, 430)
-		start_center = Vector2(1900, end_center.y)
-		call_sprite.rotation_degrees = -90.0
-	elif winner_idx == UPPER_IDX:
-		end_center = Vector2(SCREEN_SIZE.x * 0.5, 190)
-		start_center = Vector2(end_center.x, -130)
-		call_sprite.rotation_degrees = 180.0
+	var pos: Dictionary = _win_call_positions(winner_idx)
+	var start_center: Vector2 = pos.get("start", Vector2.ZERO)
+	var end_center: Vector2 = pos.get("end", Vector2.ZERO)
+	call_sprite.rotation_degrees = float(pos.get("rotation", 0.0))
 	call_sprite.position = start_center
 	var tween := create_tween()
 	tween.tween_property(call_sprite, "position", end_center, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -2526,8 +2546,8 @@ func _win_call_positions(winner_idx: int) -> Dictionary:
 	var start_center := Vector2(end_center.x, 960)
 	var rotation := 0.0
 	if winner_idx == RIGHT_IDX:
-		end_center = Vector2(1640, 430)
-		start_center = Vector2(1900, end_center.y)
+		end_center = Vector2(1440, SCREEN_SIZE.y * 0.5)
+		start_center = Vector2(1760, SCREEN_SIZE.y * 0.5)
 		rotation = -90.0
 	elif winner_idx == UPPER_IDX:
 		end_center = Vector2(SCREEN_SIZE.x * 0.5, 190)
@@ -2566,24 +2586,51 @@ func _find_player_index_by_wind(wind: int) -> int:
 			return i
 	return -1
 
-func _play_result_chara_animation(winner_idx: int) -> void:
-	var chara_rect := TextureRect.new()
-	chara_rect.texture = _make_used_rect_texture(_get_result_chara_path(winner_idx))
-	var chara_y := 415.0 if winner_idx != 0 else 65.0
-	chara_rect.position = Vector2(SCREEN_SIZE.x, chara_y)
-	chara_rect.size = Vector2(500, 970)
-	chara_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	chara_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
-	chara_rect.z_index = 60
-	chara_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(chara_rect)
-	_result_dynamic_nodes.append(chara_rect)
+func _play_result_chara_animation(result: Dictionary) -> void:
+	var winner_idx: int = int(result.get("winner_idx", 0))
+	var chara_sprite := Sprite2D.new()
+	chara_sprite.texture = _make_used_rect_texture(_get_result_chara_path(result))
+	if chara_sprite.texture == null:
+		return
+	var chara_size := _get_result_chara_size(result)
+	var chara_y := _get_result_chara_y(result, chara_size.y)
+	chara_sprite.centered = false
+	chara_sprite.position = Vector2(SCREEN_SIZE.x, chara_y)
+	chara_sprite.scale = _get_result_chara_scale(result, chara_sprite.texture.get_size(), chara_size)
+	chara_sprite.z_index = 60
+	add_child(chara_sprite)
+	_result_dynamic_nodes.append(chara_sprite)
 	var tween := create_tween()
 	var dest_x := 0.0
-	tween.tween_property(chara_rect, "position", Vector2(dest_x, chara_y), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(chara_sprite, "position", Vector2(dest_x, chara_y), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	await tween.finished
 	if winner_idx == 0:
 		_play_chara_voice("seplavo_hora")
+
+func _get_result_chara_size(result: Dictionary) -> Vector2:
+	match _get_result_winner_npc_id(result):
+		"kuma_hiyake":
+			return Vector2(500, 459)
+		"kuma_saibo":
+			return Vector2(500, 896)
+	return Vector2(500, 970)
+
+func _get_result_chara_y(result: Dictionary, chara_h: float) -> float:
+	var winner_idx: int = int(result.get("winner_idx", 0))
+	match _get_result_winner_npc_id(result):
+		"kuma_hiyake":
+			return (SCREEN_SIZE.y - chara_h) * 0.5
+		"kuma_saibo":
+			return 92.0
+	return 65.0 if winner_idx == 0 else 415.0
+
+func _get_result_chara_scale(result: Dictionary, texture_size: Vector2, target_size: Vector2) -> Vector2:
+	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
+		return Vector2.ONE
+	if _get_result_winner_npc_id(result) in ["kuma_hiyake", "kuma_saibo"]:
+		return Vector2(target_size.x / texture_size.x, target_size.y / texture_size.y)
+	var s: float = minf(target_size.x / texture_size.x, target_size.y / texture_size.y)
+	return Vector2.ONE * s
 
 func _prepare_win_result_panel(result: Dictionary) -> void:
 	_msg_panel.position = RESULT_PANEL_RECT.position
@@ -2725,7 +2772,16 @@ func _result_score_transition_text(result: Dictionary, player_idx: int) -> Strin
 	var after_scores: Array = result.get("score_after", [])
 	var before: int = int(before_scores[player_idx]) if player_idx < before_scores.size() else int(p.score)
 	var after: int = int(after_scores[player_idx]) if player_idx < after_scores.size() else int(p.score)
-	return MahjongLogic.get_wind_name(p.wind) + "家 " + p.name + ": " + str(before) + "点→" + str(after) + "点"
+	var wind: int = _get_result_player_wind(result, player_idx)
+	return MahjongLogic.get_wind_name(wind) + "家 " + p.name + ": " + str(before) + "点→" + str(after) + "点"
+
+func _get_result_player_wind(result: Dictionary, player_idx: int) -> int:
+	var player_winds: Array = result.get("player_winds", [])
+	if player_idx >= 0 and player_idx < player_winds.size():
+		return int(player_winds[player_idx])
+	if player_idx >= 0 and player_idx < GameState.players.size():
+		return int(GameState.players[player_idx].wind)
+	return MahjongLogic.EAST
 
 func _add_result_label(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color = Color(1.0, 0.96, 0.85), align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var label := Label.new()
@@ -2834,20 +2890,32 @@ func _add_result_hand(hand: Array) -> float:
 	return last_x + tile_w + 20
 
 func _add_result_nukita(result: Dictionary, start_x: float) -> float:
-	var count: int = int(result.get("nukita_count", 0))
+	var nukita_tiles: Array = result.get("nukita_tiles", [])
+	var count: int = nukita_tiles.size()
+	if count <= 0:
+		count = int(result.get("nukita_count", 0))
 	if count <= 0:
 		return start_x
-	var rect := TextureRect.new()
-	rect.position = Vector2(start_x, 42.0)
-	rect.size = Vector2(60, 80)
-	rect.texture = _get_tile_texture(MahjongLogic.make_tile(MahjongLogic.NORTH))
-	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_msg_panel.add_child(rect)
-	_result_dynamic_nodes.append(rect)
-	_add_result_label("×" + str(count), Vector2(start_x + 62.0, 58.0), Vector2(66, 42), 32, Color(1.0, 0.96, 0.85))
-	return start_x + 132.0
+	var tile_w := 54.0
+	var tile_h := 72.0
+	var gap := 4.0
+	var draw_count: int = mini(count, 4)
+	for i in range(draw_count):
+		var tile: Dictionary = nukita_tiles[i] if i < nukita_tiles.size() and nukita_tiles[i] is Dictionary else MahjongLogic.make_tile(MahjongLogic.NORTH)
+		var rect := TextureRect.new()
+		rect.position = Vector2(start_x + i * (tile_w + gap), 46.0)
+		rect.size = Vector2(tile_w, tile_h)
+		rect.texture = _get_tile_texture(tile)
+		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_msg_panel.add_child(rect)
+		_result_dynamic_nodes.append(rect)
+	var label_x := start_x + draw_count * (tile_w + gap) + 4.0
+	if count > draw_count:
+		_add_result_label("×" + str(count), Vector2(label_x, 58.0), Vector2(66, 42), 32, Color(1.0, 0.96, 0.85))
+		return label_x + 70.0
+	return label_x + 16.0
 
 func _add_result_haku_pochi_conversion(result: Dictionary, start_x: float) -> float:
 	if not result.has("haku_pochi_best_tile"):
@@ -2945,21 +3013,32 @@ func _get_limit_name(han: int, is_yakuman: bool) -> String:
 		return "満貫"
 	return ""
 
-func _get_result_chara_path(winner_idx: int) -> String:
+func _get_result_chara_path(result: Dictionary) -> String:
+	var winner_idx: int = int(result.get("winner_idx", 0))
 	if winner_idx == 0:
 		return "res://chara/hatimi2.webp"
-	if winner_idx >= 0 and winner_idx < GameState.players.size():
-		var npc_id := str(GameState.players[winner_idx].get("npc_id", ""))
-		match npc_id:
-			"kuma_hiyake":
-				return "res://chara/riza_hiyake.webp"
-			"kuma_saibo":
-				return "res://chara/riza_saibo.webp"
-			"kuma_megane":
-				return "res://chara/riza_megane.webp"
-		if npc_id != "":
-			return SaveData.get_npc_path_game(npc_id)
+	var npc_id := _get_result_winner_npc_id(result)
+	match npc_id:
+		"kuma_hiyake":
+			return "res://chara/riza_hiyake.webp"
+		"kuma_saibo":
+			return "res://chara/riza_saibo.webp"
+		"kuma_megane":
+			return "res://chara/riza_megane.webp"
+	if npc_id != "":
+		return SaveData.get_npc_path_game(npc_id)
 	return "res://chara/kuma_def2a.webp"
+
+func _get_winner_npc_id(winner_idx: int) -> String:
+	if winner_idx > 0 and winner_idx < GameState.players.size():
+		return str(GameState.players[winner_idx].get("npc_id", ""))
+	return ""
+
+func _get_result_winner_npc_id(result: Dictionary) -> String:
+	var npc_id := str(result.get("winner_npc_id", ""))
+	if npc_id != "":
+		return npc_id
+	return _get_winner_npc_id(int(result.get("winner_idx", 0)))
 
 func _clear_result_dynamic_nodes() -> void:
 	for node in _result_dynamic_nodes:
@@ -2995,14 +3074,14 @@ func _show_result(result: Dictionary) -> void:
 		var sd: Dictionary = result.score_data
 		var is_yakuman: bool = result.get("is_yakuman", false)
 		msg = ("【ツモ！】" if result.is_tsumo else ("【ダブロン！】" if result.get("is_double_ron", false) else "【ロン！】")) + "\n\n"
-		msg += "和了: " + winner.name + " (" + MahjongLogic.get_wind_name(winner.wind) + "家)\n"
+		msg += "和了: " + winner.name + " (" + MahjongLogic.get_wind_name(_get_result_player_wind(result, int(result.winner_idx))) + "家)\n"
 		if result.get("is_double_ron", false):
 			var subs: Array = result.get("double_ron_results", [])
 			for sub: Dictionary in subs:
 				if int(sub.get("winner_idx", -1)) == int(result.get("winner_idx", -1)):
 					continue
 				var sp: Dictionary = GameState.players[int(sub.get("winner_idx", -1))]
-				msg += "和了: " + sp.name + " (" + MahjongLogic.get_wind_name(sp.wind) + "家)\n"
+				msg += "和了: " + sp.name + " (" + MahjongLogic.get_wind_name(_get_result_player_wind(result, int(sub.get("winner_idx", -1)))) + "家)\n"
 		if result.has("yaku") and not result.yaku.is_empty():
 			if is_yakuman:
 				for y: Dictionary in result.yaku:
@@ -3950,16 +4029,30 @@ func _build_settings_popup() -> Panel:
 	_assist_mode_option.add_item("OFF", 0)
 	_assist_mode_option.add_item("★だけ表示", 1)
 	_assist_mode_option.add_item("★＋左パネル常時表示", 2)
+	_assist_mode_option.get_popup().add_theme_font_size_override("font_size", 36)
 	_assist_mode_option.item_selected.connect(_on_assist_mode_selected)
 	panel.add_child(_assist_mode_option)
 
-	_reach_cutin_check = CheckBox.new()
-	_reach_cutin_check.text = "リーチ演出"
-	_reach_cutin_check.position = Vector2(60, 572)
-	_reach_cutin_check.custom_minimum_size = Vector2(520, 88)
-	_reach_cutin_check.add_theme_font_size_override("font_size", 44)
-	_reach_cutin_check.toggled.connect(_on_reach_cutin_toggled)
-	panel.add_child(_reach_cutin_check)
+	panel.add_child(_make_label("リーチ演出", Vector2(60, 582), 44))
+	_reach_cutin_btn = _make_button("", Color(0.2, 0.3, 0.6))
+	_reach_cutin_btn.position = Vector2(520, 556)
+	_reach_cutin_btn.custom_minimum_size = Vector2(198, 87)
+	_reach_cutin_btn.size = _reach_cutin_btn.custom_minimum_size
+	_reach_cutin_btn.focus_mode = Control.FOCUS_NONE
+	_reach_cutin_btn.pressed.connect(_on_reach_cutin_toggle_pressed)
+	panel.add_child(_reach_cutin_btn)
+	_reach_cutin_knob = Panel.new()
+	_reach_cutin_knob.size = Vector2(81, 81)
+	_reach_cutin_knob.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_reach_cutin_btn.add_child(_reach_cutin_knob)
+	_reach_cutin_knob_label = Label.new()
+	_reach_cutin_knob_label.size = _reach_cutin_knob.size
+	_reach_cutin_knob_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_reach_cutin_knob_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_reach_cutin_knob_label.add_theme_font_size_override("font_size", 24)
+	_reach_cutin_knob_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_reach_cutin_knob.add_child(_reach_cutin_knob_label)
+	_refresh_reach_cutin_toggle_button()
 
 	var btn_close := _make_button("閉じる", Color(0.35, 0.35, 0.35))
 	btn_close.position = Vector2(410, 728)
@@ -4058,7 +4151,7 @@ func _on_settings_icon_pressed() -> void:
 	_bgm_slider.value = AudioManager.bgm_volume
 	_se_slider.value  = AudioManager.se_volume
 	_assist_mode_option.select(SaveData.assist_mode)
-	_reach_cutin_check.button_pressed = SaveData.reach_cutin_enabled
+	_refresh_reach_cutin_toggle_button()
 	_settings_popup.visible = true
 
 func _on_rules_icon_pressed() -> void:
@@ -4079,15 +4172,45 @@ func _on_assist_mode_selected(index: int) -> void:
 	_refresh_assist_toggle_button()
 	call_deferred("_refresh_auto_assist")
 
-func _on_reach_cutin_toggled(enabled: bool) -> void:
-	SaveData.reach_cutin_enabled = enabled
+func _on_reach_cutin_toggle_pressed() -> void:
+	SaveData.reach_cutin_enabled = not SaveData.reach_cutin_enabled
 	SaveData.save_data()
+	_refresh_reach_cutin_toggle_button()
+
+func _refresh_reach_cutin_toggle_button() -> void:
+	if _reach_cutin_btn == null:
+		return
+	var is_on: bool = SaveData.reach_cutin_enabled
+	_reach_cutin_btn.text = ""
+	_reach_cutin_btn.tooltip_text = "リーチ演出 ON" if is_on else "リーチ演出 OFF"
+	var base_color := Color(0.18, 0.72, 0.42) if is_on else Color(0.35, 0.35, 0.35)
+	var style := StyleBoxFlat.new()
+	style.bg_color = base_color
+	style.set_corner_radius_all(44)
+	style.set_content_margin_all(0)
+	var hover := style.duplicate() as StyleBoxFlat
+	hover.bg_color = base_color.lightened(0.12)
+	var pressed := style.duplicate() as StyleBoxFlat
+	pressed.bg_color = base_color.darkened(0.18)
+	_reach_cutin_btn.add_theme_stylebox_override("normal", style)
+	_reach_cutin_btn.add_theme_stylebox_override("hover", hover)
+	_reach_cutin_btn.add_theme_stylebox_override("pressed", pressed)
+	if _reach_cutin_knob != null:
+		_reach_cutin_knob.position = Vector2(114, 3) if is_on else Vector2(3, 3)
+		var knob_style := StyleBoxFlat.new()
+		knob_style.bg_color = Color(0.95, 1.0, 0.94) if is_on else Color(0.88, 0.88, 0.88)
+		knob_style.set_corner_radius_all(41)
+		knob_style.shadow_color = Color(0, 0, 0, 0.28)
+		knob_style.shadow_size = 6
+		_reach_cutin_knob.add_theme_stylebox_override("panel", knob_style)
+	if _reach_cutin_knob_label != null:
+		_reach_cutin_knob_label.text = "ON" if is_on else "OFF"
+		_reach_cutin_knob_label.add_theme_color_override("font_color", Color(0.07, 0.36, 0.18) if is_on else Color(0.24, 0.24, 0.24))
 
 func _on_settings_close_pressed() -> void:
 	SaveData.bgm_volume = AudioManager.bgm_volume
 	SaveData.se_volume  = AudioManager.se_volume
 	SaveData.assist_mode = _assist_mode_option.get_selected_id()
-	SaveData.reach_cutin_enabled = _reach_cutin_check.button_pressed
 	SaveData.save_data()
 	_settings_popup.visible = false
 

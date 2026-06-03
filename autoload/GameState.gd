@@ -89,6 +89,8 @@ var last_discarded_tile: Dictionary = {}
 var last_discard_player: int = -1
 var junme: int = 0
 var kyoku_has_meld: bool = false   # 局開始後に誰かがポン/カンしたか（地和判定用）
+var daburi_allowed: Array = []
+var first_round_win_allowed: Array = []
 var action_winner_idx: int = -1
 var action_ron_candidates: Array = []
 var action_is_ron: bool = false
@@ -198,6 +200,11 @@ func _start_kyoku() -> void:
 	phase = Phase.IDLE
 	junme = 0
 	kyoku_has_meld = false
+	daburi_allowed = []
+	first_round_win_allowed = []
+	for _i in range(players.size()):
+		daburi_allowed.append(true)
+		first_round_win_allowed.append(true)
 	last_discarded_tile = {}
 	last_discard_player = -1
 	action_winner_idx = -1
@@ -267,6 +274,12 @@ func _snapshot_scores() -> Array:
 	for p: Dictionary in players:
 		scores.append(int(p.score))
 	return scores
+
+func _snapshot_player_winds() -> Array:
+	var winds: Array = []
+	for p: Dictionary in players:
+		winds.append(int(p.wind))
+	return winds
 
 func _init_npc_modes() -> void:
 	for i in range(players.size()):
@@ -411,7 +424,7 @@ func _npc_tsumo_yaku(player_idx: int, hand_ids: Array) -> Array:
 
 func _is_renhou_ron(player_idx: int) -> bool:
 	var p: Dictionary = players[player_idx]
-	return player_idx != dealer and junme == 1 and not kyoku_has_meld and p.naki.is_empty() and not p.is_riichi
+	return player_idx != dealer and _can_first_round_win(player_idx) and p.naki.is_empty() and not p.is_riichi
 
 func _is_hokkyoku_npc(player_idx: int) -> bool:
 	return str(players[player_idx].get("npc_id", "")) == "kuma_hokkyoku"
@@ -429,7 +442,21 @@ func _npc_should_kita(player_idx: int) -> bool:
 
 func _npc_should_daburi(player_idx: int) -> bool:
 	var p: Dictionary = players[player_idx]
-	return _is_closed_for_riichi(p) and not p.is_riichi and p.score >= 1000 and junme <= 1 and p.hand.size() == 14
+	return _can_daburi(player_idx) and _is_closed_for_riichi(p) and not p.is_riichi and p.score >= 1000 and p.hand.size() == 14
+
+func _can_daburi(player_idx: int) -> bool:
+	return player_idx >= 0 and player_idx < daburi_allowed.size() and bool(daburi_allowed[player_idx]) and not kyoku_has_meld
+
+func _cancel_all_daburi_rights() -> void:
+	for i in range(daburi_allowed.size()):
+		daburi_allowed[i] = false
+
+func _can_first_round_win(player_idx: int) -> bool:
+	return player_idx >= 0 and player_idx < first_round_win_allowed.size() and bool(first_round_win_allowed[player_idx]) and not kyoku_has_meld
+
+func _cancel_all_first_round_win_rights() -> void:
+	for i in range(first_round_win_allowed.size()):
+		first_round_win_allowed[i] = false
 
 func _npc_must_fold_before_actions(player_idx: int) -> bool:
 	var p: Dictionary = players[player_idx]
@@ -483,7 +510,7 @@ func _score_riichi_discard(player_idx: int, hand_idx: int) -> Array:
 		win_hand.sort()
 		var ctx: Dictionary = _build_context(player_idx, false, tid)
 		ctx["is_riichi"] = true
-		ctx["is_daburi"] = junme <= 1 and p.hand.size() == 14
+		ctx["is_daburi"] = _can_daburi(player_idx) and p.hand.size() == 14
 		var yaku: Array = MahjongLogic.check_yaku(win_hand, ctx)
 		best_han = max(best_han, MahjongLogic.count_han(yaku))
 	var safety: int = _discard_safety_score_for_all_opponents(player_idx, p.hand[hand_idx])
@@ -995,7 +1022,7 @@ func prepare_player_riichi(hand_idx: int, is_open_riichi: bool = false) -> bool:
 		return false
 	p.is_riichi = true
 	p.is_open_riichi = is_open_riichi
-	p.is_daburi = (junme <= 1 and p.hand.size() == 14)
+	p.is_daburi = _can_daburi(0) and p.hand.size() == 14
 	p.riichi_discard_idx = p.discards.size()
 	p.riichi_sticks = 2 if is_open_riichi else 1
 	p.score -= 1000 * int(p.riichi_sticks)
@@ -1097,7 +1124,7 @@ func _do_riichi_discard(player_idx: int, hand_idx: int, is_open_riichi: bool = f
 		return
 	if is_open_riichi and p.score < 2000:
 		return
-	var is_daburi: bool = (junme <= 1 and p.hand.size() == 14)
+	var is_daburi: bool = _can_daburi(player_idx) and p.hand.size() == 14
 	var riichi_hand_ids: Array = MahjongLogic.get_ids(p.hand)
 	riichi_hand_ids.remove_at(hand_idx)
 	p.riichi_waiting_ids = MahjongLogic.find_waiting_tiles(riichi_hand_ids)
@@ -1131,6 +1158,10 @@ func _do_discard_internal(player_idx: int, hand_idx: int, forced_tsumogiri: bool
 	_mark_open_riichi_forced_houjuu(player_idx, tile)
 	players[player_idx].hand.remove_at(hand_idx)
 	players[player_idx].discards.append(tile)
+	if player_idx >= 0 and player_idx < daburi_allowed.size():
+		daburi_allowed[player_idx] = false
+	if player_idx >= 0 and player_idx < first_round_win_allowed.size():
+		first_round_win_allowed[player_idx] = false
 	if players[player_idx].hand.size() != before_hand_size - 1:
 		push_error("Invariant violation [%s]: discard must remove exactly one tile player=%d before=%d after=%d" % ["discard", player_idx, before_hand_size, players[player_idx].hand.size()])
 	players[player_idx].is_ippatsu = false
@@ -1203,6 +1234,8 @@ func _do_ankan(player_idx: int, kan_id_override: int = -1) -> void:
 	if not _can_riichi_ankan(player_idx, kan_id):
 		return
 	kyoku_has_meld = true
+	_cancel_all_daburi_rights()
+	_cancel_all_first_round_win_rights()
 	for pp: Dictionary in players:
 		pp.is_ippatsu = false
 	var kan_tiles: Array = []
@@ -1377,6 +1410,8 @@ func _check_kita_ron_opportunity(kita_player_idx: int, tile: Dictionary) -> bool
 func _do_pon(player_idx: int, from_idx: int, tile: Dictionary, selected_hand_idx: int = -1) -> void:
 	# ポン・カンは全員の一発を消滅させる・地和も無効化
 	kyoku_has_meld = true
+	_cancel_all_daburi_rights()
+	_cancel_all_first_round_win_rights()
 	for pp: Dictionary in players:
 		pp.is_ippatsu = false
 	var p: Dictionary = players[player_idx]
@@ -1745,6 +1780,7 @@ func _finalize_ron_candidates(winner_indices: Array, loser_idx: int) -> void:
 	if winner_indices.is_empty():
 		_next_turn(loser_idx)
 		return
+	winner_indices = _sort_ron_winners_by_loser_order(winner_indices, loser_idx)
 	var results: Array = []
 	var head_winner: int = int(winner_indices[0])
 	var original_kyotaku: int = kyotaku
@@ -1795,6 +1831,19 @@ func _finalize_ron_candidates(winner_indices: Array, loser_idx: int) -> void:
 	main_result["kyotaku_before_collection"] = original_kyotaku
 	main_result["score_after"] = _snapshot_scores()
 	_process_kyoku_end(main_result)
+
+func _sort_ron_winners_by_loser_order(winner_indices: Array, loser_idx: int) -> Array:
+	var ordered: Array = winner_indices.duplicate()
+	ordered.sort_custom(func(a, b) -> bool:
+		return _ron_winner_priority_from_loser(int(a), loser_idx) < _ron_winner_priority_from_loser(int(b), loser_idx)
+	)
+	return ordered
+
+func _ron_winner_priority_from_loser(winner_idx: int, loser_idx: int) -> int:
+	for step in range(1, players.size()):
+		if (loser_idx + step) % players.size() == winner_idx:
+			return step
+	return 99
 
 func _finalize_ron(winner_idx: int, loser_idx: int) -> void:
 	action_ron_candidates = []
@@ -1867,8 +1916,8 @@ func _build_context(player_idx: int, is_tsumo: bool, winning_tile_id: int = -1) 
 		"is_chankan":      false,
 		"is_haitei":       is_tsumo and wall.is_empty(),
 		"is_houtei":       (not is_tsumo) and wall.is_empty(),
-		"is_tenhou":       player_idx == dealer and junme == 1 and is_tsumo and p.naki.is_empty() and not p.is_riichi,
-		"is_chiihou":      player_idx != dealer and junme == 1 and is_tsumo and not kyoku_has_meld,
+		"is_tenhou":       player_idx == dealer and is_tsumo and _can_first_round_win(player_idx) and p.naki.is_empty() and not p.is_riichi,
+		"is_chiihou":      player_idx != dealer and is_tsumo and _can_first_round_win(player_idx),
 		"is_renhou":       (not is_tsumo) and _is_renhou_ron(player_idx),
 		"is_nagashi":      false,
 		"open_melds":      p.naki,
@@ -1947,8 +1996,11 @@ func _build_win_result(winner_idx: int, is_tsumo: bool, loser_idx: int, yaku: Ar
 		yaku.append({"name": "赤ドラ", "han": red_count})
 	if gold_count > 0:
 		yaku.append({"name": "金ドラ", "han": gold_count})
-	if kita_count > 0:
-		yaku.append({"name": "北×" + str(kita_count), "han": kita_count})
+	var kita_normal: int = kita_count - kita_red
+	if kita_normal > 0:
+		yaku.append({"name": "北×" + str(kita_normal), "han": kita_normal})
+	if kita_red > 0:
+		yaku.append({"name": "北（赤）", "han": kita_red})
 
 	var chips_per: int = _calc_chips(winner, is_tsumo, winner.is_ippatsu, has_yakuman_chip_yaku, ura_count)
 	var score_data: Dictionary = MahjongLogic.calc_score(han, is_parent, is_tsumo)
@@ -1957,12 +2009,14 @@ func _build_win_result(winner_idx: int, is_tsumo: bool, loser_idx: int, yaku: Ar
 	var winning_display_melds: Array = _build_winning_display_melds(winner)
 	return {
 		"winner_idx": winner_idx, "winner_name": winner.name,
+		"winner_npc_id": str(winner.get("npc_id", "")),
 		"is_tsumo": is_tsumo, "loser_idx": loser_idx,
 		"han": han, "is_parent": is_parent,
 		"yaku": yaku, "score_data": score_data,
 		"winning_display_tiles": winning_display_tiles,
 		"winning_display_melds": winning_display_melds,
 		"nukita_count": winner.nukita.size(),
+		"nukita_tiles": winner.nukita.duplicate(true),
 		"honba": honba, "honba_bonus": honba * 2000,
 		"kyotaku_before_collection": kyotaku,
 		"draw": false,
@@ -2082,6 +2136,8 @@ func _apply_chips(result: Dictionary) -> void:
 # ============================================================
 func _process_kyoku_end(result: Dictionary) -> void:
 	match_kyoku_count += 1
+	if not result.has("player_winds"):
+		result["player_winds"] = _snapshot_player_winds()
 	_record_player_stats(result)
 
 	# 流局テンパイ精算
@@ -2536,6 +2592,8 @@ func _do_minkan(player_idx: int, from_idx: int, tile: Dictionary, selected_hand_
 		return
 	# 大明槓：他家捨て牌1枚＋手牌3枚で槓子を作り、嶺上ツモ
 	kyoku_has_meld = true
+	_cancel_all_daburi_rights()
+	_cancel_all_first_round_win_rights()
 	for pp: Dictionary in players:
 		pp.is_ippatsu = false
 	var p: Dictionary = players[player_idx]
@@ -2593,6 +2651,8 @@ func _do_kakan(player_idx: int, kan_id_override: int = -1) -> void:
 	# 加槓：既存のポンに手牌から1枚加えて槓子にする
 	# 一発クリアは _finish_kakan() で行う（槍槓成立時は槓不成立なので一発は消えない）
 	kyoku_has_meld = true
+	_cancel_all_daburi_rights()
+	_cancel_all_first_round_win_rights()
 	var p: Dictionary = players[player_idx]
 	# ポンに対応する手牌の牌を探す
 	var kakan_naki_idx: int = -1

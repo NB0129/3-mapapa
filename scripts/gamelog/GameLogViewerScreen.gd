@@ -4,16 +4,16 @@ extends Control
 static var log_path: String = ""
 
 const SCREEN_SIZE  := Vector2(1920, 1080)
-const TILE_W_HAND  := 90.0
-const TILE_H_HAND  := 123.0
+const TILE_W_HAND  := 128.0
+const TILE_H_HAND  := 176.0
 const TILE_W_DISC  := 44.0
 const TILE_H_DISC  := 61.0
 const TILE_W_MELD  := 44.0
 const TILE_H_MELD  := 61.0
 const TILE_GAP     := 3.0
-const EFF_W        := 30.0
-const EFF_H        := 42.0
-const LEFT_W       := 750.0
+const EFF_W        := 33.0
+const EFF_H        := 45.0
+const LEFT_W       := 470.0
 const RIGHT_X      := 1410.0
 const RIGHT_W      := 498.0
 const CONTENT_Y    := 148.0
@@ -140,11 +140,11 @@ func _build_info_bar() -> void:
 func _build_left_panel() -> void:
 	var panel := _make_panel(Color(0.02, 0.08, 0.03, 0.74), Rect2(12, CONTENT_Y, LEFT_W, 560))
 	add_child(panel)
-	panel.add_child(_make_label("打牌候補", Vector2(14, 8), 18))
+	panel.add_child(_make_label("打牌候補", Vector2(14, 8), 24))
 
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(6, 32)
-	scroll.size = Vector2(LEFT_W - 12, 520)
+	scroll.position = Vector2(6, 44)
+	scroll.size = Vector2(LEFT_W - 12, 510)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	panel.add_child(scroll)
 
@@ -161,7 +161,7 @@ func _build_center_area() -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(panel)
 	var upper_discard_panel := Control.new()
-	upper_discard_panel.position = Vector2(820, 220)
+	upper_discard_panel.position = Vector2(820, 163)
 	upper_discard_panel.size = Vector2(400, 170)
 	panel.add_child(upper_discard_panel)
 	_upper_discard_area = Control.new()
@@ -178,24 +178,25 @@ func _build_center_area() -> void:
 	_right_discard_area.size = right_discard_panel.size
 	right_discard_panel.add_child(_right_discard_area)
 
-	var center := _make_panel(Color(0.0, 0.05, 0.15, 0.80), Rect2(830, 370, 260, 260))
+	var center := _make_panel(Color(0.0, 0.05, 0.15, 0.80), Rect2(810, 350, 300, 300))
 	panel.add_child(center)
-	_center_round_lbl = _make_label("", Vector2(20, 82), 38)
-	_center_round_lbl.size = Vector2(220, 54)
+	_center_round_lbl = _make_label("", Vector2(20, 66), 70)
+	_center_round_lbl.size = Vector2(260, 86)
 	_center_round_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_center_round_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_center_round_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
 	center.add_child(_center_round_lbl)
-	_center_wall_lbl = _make_label("", Vector2(20, 140), 22)
-	_center_wall_lbl.size = Vector2(220, 36)
+	_center_wall_lbl = _make_label("", Vector2(20, 156), 40)
+	_center_wall_lbl.size = Vector2(260, 54)
 	_center_wall_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_center_wall_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	center.add_child(_center_wall_lbl)
-	_center_turn_lbl = _make_label("", Vector2(20, 198), 18)
-	_center_turn_lbl.size = Vector2(220, 32)
+	_center_turn_lbl = _make_label("", Vector2(20, 226), 34)
+	_center_turn_lbl.size = Vector2(260, 48)
 	_center_turn_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_center_turn_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_center_turn_lbl.add_theme_color_override("font_color", Color(0.80, 0.95, 1.0))
+	_center_turn_lbl.visible = false
 	center.add_child(_center_turn_lbl)
 
 	var player_discard_panel := Control.new()
@@ -211,17 +212,18 @@ func _build_center_area() -> void:
 func _build_right_panel() -> void:
 	var panel := _make_panel(Color(0.02, 0.08, 0.03, 0.74), Rect2(RIGHT_X, CONTENT_Y, RIGHT_W, 560))
 	add_child(panel)
-	panel.add_child(_make_label("局情報", Vector2(14, 8), 18))
+	panel.add_child(_make_label("局情報", Vector2(14, 8), 36))
 
-	_wall_lbl = _make_label("残り山: —", Vector2(14, 36), 20)
+	_wall_lbl = _make_label("残り山: —", Vector2(14, 54), 20)
 	_wall_lbl.add_theme_color_override("font_color", Color(0.7, 0.95, 1.0))
+	_wall_lbl.add_theme_font_size_override("font_size", 40)
 	panel.add_child(_wall_lbl)
 
-	panel.add_child(_make_label("見えている牌", Vector2(14, 68), 16))
+	panel.add_child(_make_label("見えている牌", Vector2(14, 116), 30))
 
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(6, 90)
-	scroll.size = Vector2(RIGHT_W - 12, 466)
+	scroll.position = Vector2(6, 154)
+	scroll.size = Vector2(RIGHT_W - 12, 400)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	panel.add_child(scroll)
 
@@ -395,11 +397,11 @@ func _rebuild_sim_list(actual_discard_id: int) -> void:
 		var shanten_val: int = int(r.get("shanten", 99))
 		var eff: Dictionary = r.get("effective_tiles", {})
 		var eff_keys: Array = eff.keys()
-		var panel_w := LEFT_W - 20.0
-		var tile_slot := EFF_W + 28.0
+		var panel_w := 444.0
+		var tile_slot := EFF_W + 36.0
 		var eff_cols := maxi(1, int(panel_w / tile_slot))
 		var eff_rows_n := ceili(float(eff_keys.size()) / float(eff_cols)) if eff_keys.size() > 0 else 0
-		var row_h := 90.0 + float(eff_rows_n) * (EFF_H + 6.0) + 8.0
+		var row_h := 118.0 + float(eff_rows_n) * (EFF_H + 8.0) + 8.0
 
 		var row := Panel.new()
 		row.custom_minimum_size = Vector2(panel_w, row_h)
@@ -422,28 +424,28 @@ func _rebuild_sim_list(actual_discard_id: int) -> void:
 		var tile_d := {"id": int(r.get("tile_id", -1)), "is_red": false, "is_gold": false, "is_haku_pochi": false}
 		var img := TextureRect.new()
 		img.position = Vector2(6, 6)
-		img.size = Vector2(34, 48)
+		img.size = Vector2(66, 90)
 		img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		img.texture = _get_tile_texture(tile_d)
 		row.add_child(img)
 
-		var text_x := 46.0
+		var text_x := 82.0
 		if is_best:
 			var star := _make_label("★", Vector2(text_x, 6), 22)
 			star.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
 			row.add_child(star)
-			text_x += 24.0
+			text_x += 34.0
 		elif is_actual:
 			var act := _make_label("→実", Vector2(text_x, 6), 18)
 			act.add_theme_color_override("font_color", Color(1.0, 0.75, 0.1))
 			row.add_child(act)
-			text_x += 32.0
+			text_x += 42.0
 
-		var name_lbl := _make_label(str(r.get("tile_name", "")), Vector2(text_x, 2), 35)
+		var name_lbl := _make_label(str(r.get("tile_name", "")), Vector2(text_x, 6), 32)
 		row.add_child(name_lbl)
 
-		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(text_x + 200, 2), 35)
+		var shan_lbl := _make_label(str(r.get("shanten_text", "")), Vector2(text_x, 44), 26)
 		shan_lbl.add_theme_color_override("font_color",
 			Color(0.4, 1.0, 0.5) if shanten_val == 0 else Color(0.80, 0.80, 0.65))
 		row.add_child(shan_lbl)
@@ -455,19 +457,19 @@ func _rebuild_sim_list(actual_discard_id: int) -> void:
 			_next_turn_label(shanten_val),
 			float(r.get("next_tenpai_rate", 0.0)) * 100.0,
 		]
-		var stat_lbl := _make_label(stat_txt, Vector2(8, 50), 28)
+		var stat_lbl := _make_label(stat_txt, Vector2(8, 92), 22)
 		stat_lbl.add_theme_color_override("font_color", Color(0.65, 0.90, 1.0))
 		row.add_child(stat_lbl)
 
 		# 3行目以降: 有効牌グリッド（画像 + ×枚数、折り返しあり）
 		var ex := 6.0
-		var ey := 90.0
+		var ey := 118.0
 		var col := 0
 		for gid: int in eff_keys:
 			if col >= eff_cols:
 				col = 0
 				ex = 6.0
-				ey += EFF_H + 6.0
+				ey += EFF_H + 8.0
 			var tex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
 			if tex:
 				var ti := TextureRect.new()
@@ -584,14 +586,8 @@ func _rebuild_center_info(turns: Array) -> void:
 	var rd: Dictionary = rounds[_round_idx]
 	var honba: int = int(rd.get("honba", 0))
 	_center_round_lbl.text = _round_label(int(rd.get("wind", 0)), int(rd.get("kyoku", 1)))
-	_center_wall_lbl.text = "%dH  wall %d" % [honba, _calc_remaining_wall(turns, _turn_idx)]
-	if _turn_idx < 0:
-		_center_turn_lbl.text = "START"
-	elif _turn_idx < turns.size():
-		var t: Dictionary = turns[_turn_idx]
-		_center_turn_lbl.text = "%d  %s" % [_turn_idx + 1, _player_name(int(t.get("player", 0)))]
-	else:
-		_center_turn_lbl.text = ""
+	_center_wall_lbl.text = "%d本場\n残り山%d枚" % [honba, _calc_remaining_wall(turns, _turn_idx)]
+	_center_turn_lbl.text = ""
 
 
 func _rebuild_right_info(turns: Array) -> void:
@@ -620,24 +616,26 @@ func _rebuild_right_info(turns: Array) -> void:
 			continue
 		if col == 0 or row_ctrl == null:
 			row_ctrl = Control.new()
-			row_ctrl.custom_minimum_size = Vector2(RIGHT_W - 12, 32)
+			row_ctrl.custom_minimum_size = Vector2(RIGHT_W - 12, 64)
 			_dead_info_vbox.add_child(row_ctrl)
 			ex = 0.0
 		var tex := _get_tile_texture({"id": gid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
 		if tex:
 			var ti := TextureRect.new()
 			ti.position = Vector2(ex, 0)
-			ti.size = Vector2(22, 30)
+			ti.size = Vector2(44, 60)
 			ti.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			ti.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			ti.texture = tex
 			row_ctrl.add_child(ti)
 		var cl := _make_label("×%d" % cnt, Vector2(ex + 23, 6), 13)
 		cl.add_theme_color_override("font_color", Color(0.7, 0.8, 0.7))
+		cl.position = Vector2(ex + 46, 18)
+		cl.add_theme_font_size_override("font_size", 26)
 		row_ctrl.add_child(cl)
-		ex += 46.0
+		ex += 92.0
 		col += 1
-		if col >= 12:
+		if col >= 5:
 			col = 0
 
 

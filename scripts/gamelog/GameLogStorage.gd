@@ -2,6 +2,7 @@ class_name GameLogStorage
 extends RefCounted
 
 const SAVE_DIR := "user://gamelogs/"
+const MAX_LOGS := 50
 
 func save(log_data: Dictionary) -> String:
 	DirAccess.make_dir_recursive_absolute(SAVE_DIR)
@@ -13,6 +14,7 @@ func save(log_data: Dictionary) -> String:
 		return ""
 	file.store_string(JSON.stringify(log_data, "\t"))
 	file.close()
+	_prune_old_logs()
 	return path
 
 func list_logs() -> Array:
@@ -46,6 +48,30 @@ func load_log(path: String) -> Dictionary:
 
 func delete_log(path: String) -> void:
 	DirAccess.remove_absolute(path)
+
+func _prune_old_logs() -> void:
+	var logs: Array = []
+	var dir := DirAccess.open(SAVE_DIR)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and fname.ends_with(".json"):
+			var path := SAVE_DIR + fname
+			logs.append({
+				"path": path,
+				"modified": FileAccess.get_modified_time(path),
+			})
+		fname = dir.get_next()
+	dir.list_dir_end()
+	if logs.size() <= MAX_LOGS:
+		return
+	logs.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a.get("modified", 0)) < int(b.get("modified", 0)))
+	var delete_count := logs.size() - MAX_LOGS
+	for i in range(delete_count):
+		DirAccess.remove_absolute(str(logs[i].get("path", "")))
 
 func _load_summary(path: String) -> Dictionary:
 	var log := load_log(path)
