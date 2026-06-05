@@ -9,6 +9,13 @@
   - 画面サイズ: 1920×1080（横画面固定）
   - レンダラー: Mobile（D3D12）
   - メインシーン: Main.tscn
+  - モバイル向き: Sensor Landscape（Landscape Left / Landscape Rightのみ、Portrait無効）
+  - Stretch: canvas_items / keep（16:9表示を維持し、入力座標はGodotのStretch変換に任せる）
+  - iOSタッチ入力: emulate_mouse_from_touch=true。通常Buttonはpressedで受け、自前gui_inputはmobile時にScreenTouchのみ処理。
+  - iOS Audio: audio/general/ios/session_category=3（Playback）、mix_with_others=false
+  - iOS export preset: Export Project Only有効、Export Pathは ../iOSBuild/mapapa.ipa
+    Targeted Device FamilyはiPhone & iPad（XcodeのTARGETED_DEVICE_FAMILY=1,2）
+    ※ Xcodeで開くのは ../iOSBuild/mapapa.xcodeproj。export_pathのベース名に .xcodeproj を含めない。
 
 【AutoLoad 順番（厳守）】
   1. AudioManager（autoload/AudioManager.gd）

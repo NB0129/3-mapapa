@@ -5,8 +5,9 @@
 ## 現在の方針
 
 - ゲーム本体の基準解像度は `1920x1080` のまま維持する。
-- iPhone縦画面では、GodotのStretch設定で16:9ゲーム画面全体を縦長画面内へ収める。
-- 画面上部のノッチ / Dynamic Islandとは距離ができるため、現状のUIは直接被りにくい。
+- iPhone実機ではLandscape Left / Landscape Rightのみを許可し、Portrait表示を無効化する。
+- GodotのStretch設定で16:9ゲーム画面全体をLandscape画面内へ収める。
+- 画面左右のノッチ / Dynamic Islandとは距離ができるため、現状のUIは直接被りにくい。
 - 縦画面いっぱいを使う専用UIは、将来の別作業として扱う。
 
 ## Project Settings
@@ -17,15 +18,27 @@
 - `display/window/size/viewport_height=1080`
 - `display/window/stretch/mode="canvas_items"`
 - `display/window/stretch/aspect="keep"`
-- `display/window/handheld/orientation=1`
+- `display/window/handheld/orientation=4`
 
-`aspect="keep"` にしているため、縦長iPhoneではゲーム画面が丸ごと縮小表示される。画面外にはみ出しにくく、ノッチやDynamic Islandにも被りにくいが、縦画面専用レイアウトより表示は小さくなる。
+`orientation=4` はGodotの `SCREEN_SENSOR_LANDSCAPE`。iOS export後は `UISupportedInterfaceOrientations` が `UIInterfaceOrientationLandscapeLeft` / `UIInterfaceOrientationLandscapeRight` のみになり、Portraitは含めない。
+
+`aspect="keep"` にしているため、iPhoneの横長比率が16:9より広い場合でもゲーム画面全体を保ったまま表示する。表示スケールと入力座標の対応をGodot側に任せ、タッチ位置のズレを避ける。
 
 ## タッチ入力
 
 - 通常の `Button.pressed` はGodotのControl入力に任せる。
 - 手牌、メンツ選択、デバッグパネルなど、自前で `gui_input` を見ている箇所は `InputEventMouseButton` と `InputEventScreenTouch` の両方を受ける。
-- `input_devices/pointing/emulate_mouse_from_touch=false` として、タッチと擬似マウスの二重発火を避ける。
+- `input_devices/pointing/emulate_mouse_from_touch=true` として、iOS実機タッチでGodot標準 `Button.pressed` が発火するようにする。
+- `input_devices/pointing/emulate_touch_from_mouse=false` として、PC確認時のマウス操作が実機タッチ処理を二重に呼ばないようにする。
+- 自前 `gui_input` 判定では、iOS/Androidなど `OS.has_feature("mobile")` の場合に `InputEventMouseButton` を無視し、`InputEventScreenTouch` のみで処理する。これによりタッチ由来の擬似マウスイベントとの二重発火を避ける。
+- タイトル背景など入力不要の `Control` は `mouse_filter=IGNORE` にし、前面ボタンの入力を奪わないようにする。
+
+## iOS Audio
+
+- `audio/general/ios/session_category=3` として、iOSのAVAudioSession CategoryをPlaybackにする。
+- `audio/general/ios/mix_with_others=false` とし、他アプリ音声との混在はしない。
+- Godot 4.6.3のenumは `Ambient,Multi Route,Play and Record,Playback,Record,Solo Ambient` の順。Playbackは値 `3`。
+- Godot公式ProjectSettingsでは、iOSでSilent mode中も音を出したい場合はPlayback categoryを使うと説明されている。
 
 ## 牌のタップ判定
 
@@ -54,17 +67,30 @@
 
 - Platform: iOS
 - Export Project Only: 有効
+- Export Path: `../iOSBuild/mapapa.ipa`
 - Bundle Identifier: `com.nb0129.mapapa3`
-- Target Device Family: iPhone
-- Team ID / Code Sign Identity / Provisioning Profile: 未設定
+- Target Device Family: iPhone & iPad（iPhone実機確認用にiPhoneを含める）
+- Team ID: `J9PMYUQB9V`
+- Code Sign Identity / Provisioning Profile: 未設定
 
-Apple Developer Program未加入のため、署名情報は空にしている。Xcode側で無料Apple IDまたは加入後のTeamを選ぶ。
+Provisioning Profileは未設定のため、Xcode側で無料Apple IDまたは加入後のTeamを選ぶ。
+
+`Export Project` で書き出す場合、`export_path` のファイル名部分はXcodeプロジェクト名のベースとして使われる。`.xcodeproj` を含めると、Godotがアプリ本体フォルダを `mapapa.xcodeproj`、実際のXcodeプロジェクトを `mapapa.xcodeproj.xcodeproj` として生成してしまい、間違って前者を開くと `project.pbxproj` が無い壊れたプロジェクトに見える。
+
+正常な書き出し結果:
+
+- `../iOSBuild/mapapa/` ... アプリ本体用ファイル
+- `../iOSBuild/mapapa.xcodeproj/project.pbxproj` ... Xcodeで開くプロジェクト
+- `../iOSBuild/mapapa.pck`
+- `../iOSBuild/mapapa.xcframework`
+
+Xcode側の `TARGETED_DEVICE_FAMILY` は `1,2` になり、iPhone実機とiPadの両方を対象にする。
 
 現在の確認結果:
 
-- Godotから `iOS` presetは認識される。
-- このPCには `C:/Users/hskst/AppData/Roaming/Godot/export_templates/4.6.2.stable/ios.zip` が未導入のため、現時点ではiOS export実行はテンプレート不足で止まる。
-- 実機テストへ進む前に、Godot 4.6.2 stable用のExport Templatesをインストールする。
+- Godot 4.6.3 stableから `iOS` presetは認識される。
+- このMacには `~/Library/Application Support/Godot/export_templates/4.6.3.stable/ios.zip` が導入済み。
+- `ios.zip` 内に `godot_apple_embedded.xcodeproj/project.pbxproj` が含まれていることを確認済み。
 
 ## 無料Apple IDで実機実行する流れ
 

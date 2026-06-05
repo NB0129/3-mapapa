@@ -4390,9 +4390,13 @@ func _make_button(text: String, bg_color: Color) -> Button:
 
 func _is_primary_press(event: InputEvent) -> bool:
 	if event is InputEventMouseButton:
+		if OS.has_feature("mobile"):
+			return false
 		return event.pressed and event.button_index == MOUSE_BUTTON_LEFT
 	if event is InputEventScreenTouch:
 		return event.pressed
+	if event is InputEventScreenDrag:
+		return false
 	return false
 
 # ============================================================
