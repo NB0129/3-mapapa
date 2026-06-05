@@ -898,7 +898,7 @@ func _on_riichi_declared(player_idx: int) -> void:
 		if not SaveData.reach_cutin_enabled:
 			_play_npc_voice(player_idx, "riti")
 			_play_npc_riichi_bgm(player_idx)
-			GameState.emit_signal("riichi_cutin_finished")
+			_notify_riichi_cutin_finished()
 			return
 		if npc_id == "kuma_hiyake":
 			await _run_npc_riichi_cutin_hiyake(player_idx)
@@ -909,11 +909,14 @@ func _on_riichi_declared(player_idx: int) -> void:
 		else:
 			_play_npc_voice(player_idx, "riti")
 			_play_npc_riichi_bgm(player_idx)
-			GameState.emit_signal("riichi_cutin_finished")
+			_notify_riichi_cutin_finished()
+
+func _notify_riichi_cutin_finished() -> void:
+	GameState.call_deferred("emit_signal", "riichi_cutin_finished")
 
 func _run_npc_riichi_cutin_hiyake(player_idx: int) -> void:
 	if _npc_riichi_cutin_running:
-		GameState.emit_signal("riichi_cutin_finished")
+		_notify_riichi_cutin_finished()
 		return
 	_npc_riichi_cutin_running = true
 
@@ -949,11 +952,11 @@ func _run_npc_riichi_cutin_hiyake(player_idx: int) -> void:
 	wave_img.queue_free()
 
 	_npc_riichi_cutin_running = false
-	GameState.emit_signal("riichi_cutin_finished")
+	_notify_riichi_cutin_finished()
 
 func _run_npc_riichi_cutin_megane(player_idx: int) -> void:
 	if _npc_riichi_cutin_running:
-		GameState.emit_signal("riichi_cutin_finished")
+		_notify_riichi_cutin_finished()
 		return
 	_npc_riichi_cutin_running = true
 
@@ -1024,11 +1027,11 @@ func _run_npc_riichi_cutin_megane(player_idx: int) -> void:
 	kira_img.queue_free()
 
 	_npc_riichi_cutin_running = false
-	GameState.emit_signal("riichi_cutin_finished")
+	_notify_riichi_cutin_finished()
 
 func _run_npc_riichi_cutin_saibo(player_idx: int) -> void:
 	if _npc_riichi_cutin_running:
-		GameState.emit_signal("riichi_cutin_finished")
+		_notify_riichi_cutin_finished()
 		return
 	_npc_riichi_cutin_running = true
 
@@ -1071,7 +1074,7 @@ func _run_npc_riichi_cutin_saibo(player_idx: int) -> void:
 	blackout.queue_free()
 	taminaru_img.queue_free()
 	_npc_riichi_cutin_running = false
-	GameState.emit_signal("riichi_cutin_finished")
+	_notify_riichi_cutin_finished()
 
 func _play_riichi_bgm() -> void:
 	var bgms: Array = []
