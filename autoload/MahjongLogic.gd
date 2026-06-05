@@ -608,7 +608,7 @@ func check_yaku(hand_ids: Array, context: Dictionary) -> Array:
 		context.get("round_wind", EAST), context.get("player_wind", EAST)))
 
 	# 七対子系
-	if _is_seven_pairs(hand_ids):
+	if _is_seven_pairs(hand_ids) and _prefer_seven_pairs_yaku(hand_ids, open_melds, context, is_open):
 		yaku.append({"name": _get_chiitoi_name(hand_ids), "han": _get_chiitoi_han(hand_ids)})
 		if _check_honitsu(hand_ids, []):
 			yaku.append({"name": "混一色", "han": 3})
@@ -629,6 +629,27 @@ func check_yaku(hand_ids: Array, context: Dictionary) -> Array:
 		yaku.append({"name": "ホンロウトウ", "han": 4})
 
 	return yaku
+
+func _prefer_seven_pairs_yaku(hand_ids: Array, open_melds: Array, context: Dictionary, is_open: bool) -> bool:
+	if not open_melds.is_empty():
+		return true
+	var seven_han: int = _get_chiitoi_han(hand_ids)
+	if _check_chinitsu(hand_ids, []):
+		seven_han += 6
+	elif _check_honitsu(hand_ids, []):
+		seven_han += 3
+	var best_regular_han: int = 0
+	for decomp: Dictionary in decompose_hand(hand_ids):
+		var regular_yaku: Array = _best_decomp_yaku([decomp], open_melds, context, is_open)
+		var regular_han: int = count_han(regular_yaku)
+		if _check_chinitsu(hand_ids, open_melds):
+			regular_han += 6 if not is_open else 5
+		elif _check_honitsu(hand_ids, open_melds):
+			regular_han += 3 if not is_open else 2
+		if _check_honroutou(hand_ids, open_melds):
+			regular_han += 4
+		best_regular_han = maxi(best_regular_han, regular_han)
+	return seven_han >= best_regular_han
 
 func count_han(yaku_list: Array) -> int:
 	var total: int = 0

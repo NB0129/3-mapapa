@@ -215,7 +215,7 @@ const NPC_VOICE_DEFS := {
 const NPC_RIICHI_BGMS := {
 	"kuma_def": {"path": "res://BGM/bgm_ritinpc1_sirokumari-ti.ogg", "title": "白くまリーチ"},
 	"kuma_hokkyoku": {"path": "res://BGM/bgm_ritinpc2_sitteitaka.ogg", "title": "知っていたか？普段ツモ切りしかできない俺でもダブルリーチは打てる～得意な役は天和で和了したら君は死ぬ～"},
-	"kuma_megane": {"path": "res://BGM/bgm_ritinpc3_waruikedo.ogg", "title": "悪いけど、君の負け"},
+	"kuma_megane": {"path": "res://BGM/bgm_ritinpc3_waruikedo.ogg", "title": "先手必勝リーチ"},
 	"kuma_hiyake": {"path": "res://BGM/bgm_ritinpc4_hawairi-ti.ogg", "title": "ハワイリーチ"},
 	"kuma_black": {"path": "res://BGM/bgm_ritinpc5_ri-tinoame.ogg", "title": "リーチの雨"},
 	"kuma_saibo": {"path": "res://BGM/bgm_ritinpc6_mutekinoai.ogg", "title": "無敵のAI"},
@@ -895,14 +895,25 @@ func _on_riichi_declared(player_idx: int) -> void:
 		_play_riichi_bgm()
 	else:
 		var npc_id := _get_npc_id_for_player(player_idx)
+		if not SaveData.reach_cutin_enabled:
+			_play_npc_voice(player_idx, "riti")
+			_play_npc_riichi_bgm(player_idx)
+			GameState.emit_signal("riichi_cutin_finished")
+			return
 		if npc_id == "kuma_hiyake":
 			await _run_npc_riichi_cutin_hiyake(player_idx)
+		elif npc_id == "kuma_megane":
+			await _run_npc_riichi_cutin_megane(player_idx)
+		elif npc_id == "kuma_saibo":
+			await _run_npc_riichi_cutin_saibo(player_idx)
 		else:
 			_play_npc_voice(player_idx, "riti")
 			_play_npc_riichi_bgm(player_idx)
+			GameState.emit_signal("riichi_cutin_finished")
 
 func _run_npc_riichi_cutin_hiyake(player_idx: int) -> void:
 	if _npc_riichi_cutin_running:
+		GameState.emit_signal("riichi_cutin_finished")
 		return
 	_npc_riichi_cutin_running = true
 
@@ -938,6 +949,129 @@ func _run_npc_riichi_cutin_hiyake(player_idx: int) -> void:
 	wave_img.queue_free()
 
 	_npc_riichi_cutin_running = false
+	GameState.emit_signal("riichi_cutin_finished")
+
+func _run_npc_riichi_cutin_megane(player_idx: int) -> void:
+	if _npc_riichi_cutin_running:
+		GameState.emit_signal("riichi_cutin_finished")
+		return
+	_npc_riichi_cutin_running = true
+
+	_set_action_buttons_state(false, false, false, false, false, false, false, false)
+	AudioManager.stop_bgm()
+
+	var blackout := ColorRect.new()
+	blackout.color = Color(0, 0, 0, 0.0)
+	blackout.position = Vector2.ZERO
+	blackout.size = SCREEN_SIZE
+	blackout.z_index = 100
+	add_child(blackout)
+
+	var megane_tex: Texture2D = load("res://chara/megane.webp")
+	var megane_img := TextureRect.new()
+	megane_img.texture = megane_tex
+	megane_img.size = megane_tex.get_size()
+	megane_img.position = (SCREEN_SIZE - megane_img.size) * 0.5
+	megane_img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	megane_img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	megane_img.modulate.a = 0.0
+	megane_img.z_index = 101
+	add_child(megane_img)
+
+	var kira_tex: Texture2D = load("res://chara/kira.webp")
+	var kira_img := TextureRect.new()
+	kira_img.texture = kira_tex
+	kira_img.size = kira_tex.get_size()
+	kira_img.pivot_offset = kira_img.size * 0.5
+	var kira_center := Vector2(megane_img.position.x + megane_img.size.x, megane_img.position.y + megane_img.size.y * 0.42)
+	kira_img.position = kira_center - kira_img.pivot_offset
+	kira_img.scale = Vector2(0.05, 0.05)
+	kira_img.modulate.a = 0.0
+	kira_img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	kira_img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	kira_img.z_index = 102
+	add_child(kira_img)
+
+	var fade_in := create_tween()
+	fade_in.set_parallel(true)
+	fade_in.tween_property(blackout, "color:a", 0.72, 0.3)
+	fade_in.tween_property(megane_img, "modulate:a", 1.0, 0.3)
+	await fade_in.finished
+
+	kira_img.modulate.a = 1.0
+	AudioManager.play_se("se_riti_megane.ogg")
+
+	for scale_value in [0.15, 0.30, 0.45, 0.60, 0.75, 0.90]:
+		var scale_tween := create_tween()
+		scale_tween.tween_property(kira_img, "scale", Vector2(scale_value, scale_value), 0.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		await scale_tween.finished
+
+	var kira_out := create_tween()
+	kira_out.tween_property(kira_img, "modulate:a", 0.0, 0.18)
+	await kira_out.finished
+
+	var fade_out := create_tween()
+	fade_out.set_parallel(true)
+	fade_out.tween_property(blackout, "color:a", 0.0, 0.35)
+	fade_out.tween_property(megane_img, "modulate:a", 0.0, 0.35)
+
+	_play_npc_voice(player_idx, "riti")
+	_play_npc_riichi_bgm(player_idx)
+
+	await fade_out.finished
+	blackout.queue_free()
+	megane_img.queue_free()
+	kira_img.queue_free()
+
+	_npc_riichi_cutin_running = false
+	GameState.emit_signal("riichi_cutin_finished")
+
+func _run_npc_riichi_cutin_saibo(player_idx: int) -> void:
+	if _npc_riichi_cutin_running:
+		GameState.emit_signal("riichi_cutin_finished")
+		return
+	_npc_riichi_cutin_running = true
+
+	_set_action_buttons_state(false, false, false, false, false, false, false, false)
+	AudioManager.stop_bgm()
+
+	var blackout := ColorRect.new()
+	blackout.color = Color(0, 0, 0, 0.0)
+	blackout.position = Vector2.ZERO
+	blackout.size = SCREEN_SIZE
+	blackout.z_index = 100
+	add_child(blackout)
+
+	var taminaru_tex: Texture2D = load("res://chara/taminaru.webp")
+	var taminaru_img := TextureRect.new()
+	taminaru_img.texture = taminaru_tex
+	taminaru_img.size = taminaru_tex.get_size()
+	taminaru_img.scale = Vector2(7.0, 7.0)
+	taminaru_img.position = (SCREEN_SIZE - taminaru_img.size * 7.0) * 0.5 + Vector2(0, 80)
+	taminaru_img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	taminaru_img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	taminaru_img.modulate.a = 0.0
+	taminaru_img.z_index = 101
+	add_child(taminaru_img)
+
+	AudioManager.play_se("se_riti_ai.ogg")
+
+	var cutin := create_tween()
+	cutin.set_parallel(true)
+	cutin.tween_property(blackout, "color:a", 0.72, 0.25)
+	cutin.tween_property(blackout, "color:a", 0.0, 0.70).set_delay(2.30)
+	cutin.tween_property(taminaru_img, "modulate:a", 1.0, 0.35)
+	cutin.tween_property(taminaru_img, "position", taminaru_img.position + Vector2(0, -220), 3.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	cutin.tween_property(taminaru_img, "modulate:a", 0.0, 1.15).set_delay(1.85)
+	await cutin.finished
+
+	_play_npc_voice(player_idx, "riti")
+	_play_npc_riichi_bgm(player_idx)
+
+	blackout.queue_free()
+	taminaru_img.queue_free()
+	_npc_riichi_cutin_running = false
+	GameState.emit_signal("riichi_cutin_finished")
 
 func _play_riichi_bgm() -> void:
 	var bgms: Array = []
@@ -1184,7 +1318,8 @@ func _run_player_riichi_cutin_sequence(hand_idx: int, is_open: bool) -> void:
 	_refresh_hand()
 
 	# 宣言牌がロン可能な場合はカットインをスキップ
-	if not GameState.action_ron_candidates.is_empty():
+	if GameState.player_pending_riichi_discard_has_ron():
+		GameState.finish_player_riichi()
 		_riichi_cutin_running = false
 		return
 
@@ -1939,15 +2074,21 @@ func _fill_npc_hand_box(box: Control, player: Dictionary, seat_key: String, max_
 	tex_rect.texture = tex
 	tex_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tex_rect.rotation_degrees = rotation_degrees
+	var offset := Vector2(
+		maxf(0.0, (float(max_w) - visual_size.x) * 0.5),
+		maxf(0.0, (float(max_h) - visual_size.y) * 0.5)
+	)
 	if rotated and rotation_degrees < 0.0:
-		tex_rect.position.y = tex_rect.size.x
+		tex_rect.position = Vector2(offset.x, tex_rect.size.x + offset.y)
 	elif is_equal_approx(absf(rotation_degrees), 180.0):
-		tex_rect.position.x = max_w
-		tex_rect.position.y = visual_size.y
+		tex_rect.position.x = offset.x + visual_size.x
+		tex_rect.position.y = offset.y + visual_size.y
 	elif rotated:
 		tex_rect.position.x = tex_rect.size.y
 		if rotation_degrees > 0.0:
-			tex_rect.position.y = max(0.0, float(max_h) - visual_size.y)
+			tex_rect.position.y = offset.y
+	else:
+		tex_rect.position = offset
 	box.add_child(tex_rect)
 
 func _fill_npc_debug_hand_box(box: Control, hand: Array, max_w: int, max_h: int, rotation_degrees: float = 0.0) -> void:

@@ -11,6 +11,7 @@ signal tsumo_declared(player_idx: int, result: Dictionary)
 signal ron_opportunity(winner_idx: int, loser_idx: int, tile: Dictionary)
 signal pon_opportunity(player_idx: int, from_idx: int, tile: Dictionary)
 signal riichi_declared(player_idx: int)
+signal riichi_cutin_finished
 signal kita_removed(player_idx: int)
 signal ankan_done(player_idx: int)
 signal minkan_done(player_idx: int)
@@ -1045,6 +1046,19 @@ func finish_player_riichi() -> bool:
 		p.discards[p.riichi_discard_idx]["is_riichi_tile"] = true
 	return true
 
+func player_pending_riichi_discard_has_ron() -> bool:
+	if _pending_player_riichi_hand_idx < 0:
+		return false
+	var p: Dictionary = players[0]
+	var hand_idx: int = _pending_player_riichi_hand_idx
+	if hand_idx < 0 or hand_idx >= p.hand.size():
+		return false
+	var tile: Dictionary = p.hand[hand_idx]
+	for i in range(1, players.size()):
+		if _npc_can_ron(i, 0, tile):
+			return true
+	return false
+
 func player_ron() -> void:
 	if phase != Phase.ACTION_WAIT or not action_is_ron: return
 	if not action_ron_candidates.is_empty():
@@ -1141,6 +1155,8 @@ func _do_riichi_discard(player_idx: int, hand_idx: int, is_open_riichi: bool = f
 	kyotaku += riichi_sticks
 	p.hand[hand_idx]["is_riichi_tile"] = true
 	emit_signal("riichi_declared", player_idx)
+	if player_idx != 0:
+		await riichi_cutin_finished
 	_do_discard_internal(player_idx, hand_idx)
 	# is_ippatsu は _do_discard_internal の後にセットする
 	# （_do_discard_internal 内で is_ippatsu = false されるため、後に上書きが必要）
@@ -1635,6 +1651,8 @@ func _npc_can_ron(npc_idx: int, discarder_idx: int, tile: Dictionary) -> bool:
 
 func _npc_wants_pon(npc_idx: int, tile: Dictionary) -> bool:
 	if _is_hokkyoku_npc(npc_idx):
+		return false
+	if str(players[npc_idx].get("npc_id", "")) == "kuma_megane":
 		return false
 	if _npc_must_fold_before_actions(npc_idx):
 		return false
@@ -2547,6 +2565,8 @@ func _npc_can_ankan(player_idx: int) -> bool:
 	# ツモった牌（末尾）で4枚揃っているか
 	var p: Dictionary = players[player_idx]
 	if p.hand.is_empty() or not _can_start_kan(): return false
+	if str(p.get("npc_id", "")) == "kuma_megane" and not p.is_riichi:
+		return false
 	var drawn_id: int = p.hand[p.hand.size() - 1].id
 	if p.is_riichi:
 		return _can_riichi_ankan(player_idx, drawn_id)
@@ -2558,6 +2578,8 @@ func _npc_can_ankan(player_idx: int) -> bool:
 func _npc_can_kakan(player_idx: int) -> bool:
 	# ツモった牌（末尾）が既存ポンに追加できるか
 	var p: Dictionary = players[player_idx]
+	if str(p.get("npc_id", "")) == "kuma_megane":
+		return false
 	if p.is_riichi or p.hand.is_empty() or not _can_start_kan(): return false
 	var drawn_id: int = p.hand[p.hand.size() - 1].id
 	for m: Dictionary in p.naki:
@@ -2568,6 +2590,8 @@ func _npc_can_kakan(player_idx: int) -> bool:
 func _npc_wants_kan(npc_idx: int, tile: Dictionary) -> bool:
 	# 役牌で3枚持ちなら大明槓する（ポンと同条件）
 	if _is_hokkyoku_npc(npc_idx):
+		return false
+	if str(players[npc_idx].get("npc_id", "")) == "kuma_megane":
 		return false
 	if _npc_must_fold_before_actions(npc_idx):
 		return false

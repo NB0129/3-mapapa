@@ -65,6 +65,7 @@ var _hand: Array = []
 var _results: Array = []
 var _current_tab: int = 1
 var _tile_texture_cache: Dictionary = {}
+var _input_mode: String = "hand"
 
 # 手牌スロット
 var _hand_count_label: Label
@@ -73,6 +74,10 @@ var _hand_slot_btns: Array = []
 # パレット
 var _tab_btns: Array = []
 var _palette_box: Control
+var _mode_hand_btn: Button = null
+var _mode_dead_btn: Button = null
+var _dead_tile_box: Control = null
+var _dead_tile_btns: Array = []
 
 # 結果パネル
 var _result_scroll: ScrollContainer
@@ -148,7 +153,6 @@ func _build_ui() -> void:
 
 	_build_header()
 	_build_result_panel()
-	_build_settings_panel()
 	_build_hand_area()
 
 func _build_header() -> void:
@@ -231,16 +235,16 @@ func _build_settings_panel() -> void:
 	panel.add_child(_dead_panel)
 
 func _build_dead_panel() -> Control:
-	var panel := _make_panel(Color(0.05, 0.10, 0.05, 0.90), Rect2(0, 0, RIGHT_W - 32, 430))
+	var panel := _make_panel(Color(0.05, 0.10, 0.05, 0.90), Rect2(0, 0, 880, 430))
 
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(4, 4)
-	scroll.size = Vector2(RIGHT_W - 40, 422)
+	scroll.size = Vector2(872, 422)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	panel.add_child(scroll)
 
 	var content := Control.new()
-	content.size = Vector2(RIGHT_W - 44, 560)
+	content.size = Vector2(868, 560)
 	scroll.add_child(content)
 
 	var sp_lbl := _make_label("特殊牌（赤・金）", Vector2(4, 4), 17)
@@ -337,38 +341,81 @@ func _build_dead_panel() -> Control:
 	return panel
 
 func _build_hand_area() -> void:
-	var area := _make_panel(Color(0.04, 0.14, 0.05, 0.88), Rect2(LEFT_W, 66, RIGHT_X - LEFT_W, 1014))
+	var area := _make_panel(Color(0.04, 0.14, 0.05, 0.88), Rect2(LEFT_W, 66, SCREEN_SIZE.x - LEFT_W, 1014))
 	add_child(area)
 
-	# パレットタブ
-	var tab_x := 10.0
-	for i in range(PALETTE_TABS.size()):
-		var tbtn := _make_button(PALETTE_TABS[i], Color(0.12, 0.22, 0.14))
-		tbtn.position = Vector2(tab_x, 12)
-		tbtn.custom_minimum_size = Vector2(138, 48)
-		tbtn.pressed.connect(func(idx := i): _select_tab(idx))
-		area.add_child(tbtn)
-		_tab_btns.append(tbtn)
-		tab_x += 146.0
+	if log_context_label != "":
+		var ctx := _make_label(log_context_label, Vector2(20, 10), 20)
+		ctx.add_theme_color_override("font_color", Color(0.75, 0.92, 1.0))
+		ctx.size = Vector2(460, 32)
+		area.add_child(ctx)
+
+	var wall_lbl := _make_label("残り山:", Vector2(470, 8), 36)
+	area.add_child(wall_lbl)
+	_wall_spinbox = SpinBox.new()
+	_wall_spinbox.position = Vector2(610, 4)
+	_wall_spinbox.size = Vector2(170, 56)
+	_wall_spinbox.min_value = 1
+	_wall_spinbox.max_value = 61
+	_wall_spinbox.step = 1
+	_wall_spinbox.value = _total_wall
+	_wall_spinbox.add_theme_font_size_override("font_size", 36)
+	_wall_spinbox.value_changed.connect(func(v: float): _total_wall = int(v))
+	area.add_child(_wall_spinbox)
+	_wall_spinbox.get_line_edit().add_theme_font_size_override("font_size", 36)
+
+	var wall_minus_btn := _make_button("-", Color(0.16, 0.20, 0.14))
+	wall_minus_btn.position = Vector2(795, 4)
+	wall_minus_btn.custom_minimum_size = Vector2(68, 56)
+	wall_minus_btn.add_theme_font_size_override("font_size", 36)
+	wall_minus_btn.pressed.connect(func():
+		_wall_spinbox.value = maxf(_wall_spinbox.min_value, _wall_spinbox.value - 1.0)
+	)
+	area.add_child(wall_minus_btn)
+
+	var wall_plus_btn := _make_button("+", Color(0.16, 0.20, 0.14))
+	wall_plus_btn.position = Vector2(872, 4)
+	wall_plus_btn.custom_minimum_size = Vector2(68, 56)
+	wall_plus_btn.add_theme_font_size_override("font_size", 36)
+	wall_plus_btn.pressed.connect(func():
+		_wall_spinbox.value = minf(_wall_spinbox.max_value, _wall_spinbox.value + 1.0)
+	)
+	area.add_child(wall_plus_btn)
+
+	_mode_hand_btn = _make_button("手牌選択", Color(0.12, 0.28, 0.14))
+	_mode_hand_btn.position = Vector2(20, 56)
+	_mode_hand_btn.custom_minimum_size = Vector2(170, 44)
+	_mode_hand_btn.add_theme_font_size_override("font_size", 22)
+	_mode_hand_btn.pressed.connect(func(): _set_input_mode("hand"))
+	area.add_child(_mode_hand_btn)
+
+	_mode_dead_btn = _make_button("捨て牌選択", Color(0.22, 0.18, 0.10))
+	_mode_dead_btn.position = Vector2(204, 56)
+	_mode_dead_btn.custom_minimum_size = Vector2(190, 44)
+	_mode_dead_btn.add_theme_font_size_override("font_size", 22)
+	_mode_dead_btn.pressed.connect(func(): _set_input_mode("dead"))
+	area.add_child(_mode_dead_btn)
 
 	# パレットグリッド
 	_palette_box = Control.new()
-	_palette_box.position = Vector2(10, 70)
-	_palette_box.size = Vector2(570, 210)
+	_palette_box.position = Vector2(20, 112)
+	_palette_box.size = Vector2(1160, 214)
 	area.add_child(_palette_box)
 
 	# 手牌セクション
-	var hand_lbl := _make_label("手 牌", Vector2(10, 298), 24)
+	var hand_mask := _make_panel(Color(0.02, 0.08, 0.02, 0.64), Rect2(16, 430, 900, 126))
+	area.add_child(hand_mask)
+
+	var hand_lbl := _make_label("手牌", Vector2(24, 438), 24)
 	hand_lbl.add_theme_color_override("font_color", Color(0.7, 1.0, 0.7))
 	area.add_child(hand_lbl)
-	_hand_count_label = _make_label("0 / 14枚", Vector2(120, 304), 20)
+	_hand_count_label = _make_label("0 / 14枚", Vector2(120, 444), 20)
 	_hand_count_label.add_theme_color_override("font_color", Color(0.5, 0.8, 0.5))
 	area.add_child(_hand_count_label)
 
-	var slot_x := 10.0
 	for i in range(14):
 		var btn := Button.new()
-		btn.position = Vector2(slot_x + i * (HAND_TILE_W + HAND_GAP), 332)
+		btn.position = Vector2(24 + i * (HAND_TILE_W + HAND_GAP), 480)
 		btn.custom_minimum_size = Vector2(HAND_TILE_W, HAND_TILE_H)
 		btn.size = Vector2(HAND_TILE_W, HAND_TILE_H)
 		btn.flat = true
@@ -379,27 +426,39 @@ func _build_hand_area() -> void:
 
 	# アクションボタン行
 	var analyze_btn := _make_button("▶ 解析", Color(0.15, 0.42, 0.18))
-	analyze_btn.position = Vector2(10, 434)
+	analyze_btn.position = Vector2(930, 430)
 	analyze_btn.custom_minimum_size = Vector2(220, 60)
 	analyze_btn.add_theme_font_size_override("font_size", 28)
 	analyze_btn.pressed.connect(_run_analysis)
 	area.add_child(analyze_btn)
 
 	var clear_btn := _make_button("クリア", Color(0.35, 0.16, 0.10))
-	clear_btn.position = Vector2(240, 434)
+	clear_btn.position = Vector2(930, 500)
 	clear_btn.custom_minimum_size = Vector2(150, 60)
 	clear_btn.add_theme_font_size_override("font_size", 22)
 	clear_btn.pressed.connect(_on_clear_pressed)
 	area.add_child(clear_btn)
 
-	var study_btn := _make_button("🔍 検討", Color(0.28, 0.22, 0.10))
-	study_btn.position = Vector2(400, 434)
-	study_btn.custom_minimum_size = Vector2(170, 60)
+	var study_btn := _make_button("見えている牌リセット", Color(0.28, 0.22, 0.10))
+	study_btn.position = Vector2(930, 570)
+	study_btn.custom_minimum_size = Vector2(230, 60)
 	study_btn.add_theme_font_size_override("font_size", 22)
-	study_btn.pressed.connect(_toggle_dead_panel)
+	study_btn.pressed.connect(_on_dead_reset)
 	area.add_child(study_btn)
 
-	_select_tab(_current_tab)
+	var dead_mask := _make_panel(Color(0.08, 0.05, 0.02, 0.70), Rect2(16, 660, 1164, 210))
+	area.add_child(dead_mask)
+
+	var dead_lbl := _make_label("見えている牌", Vector2(24, 669), 24)
+	dead_lbl.add_theme_color_override("font_color", Color(0.95, 0.86, 0.62))
+	area.add_child(dead_lbl)
+	_dead_tile_box = Control.new()
+	_dead_tile_box.position = Vector2(24, 711)
+	_dead_tile_box.size = Vector2(1148, 150)
+	area.add_child(_dead_tile_box)
+
+	_set_input_mode(_input_mode)
+	_rebuild_palette()
 
 # ============================================================
 # 見えている牌パネル
@@ -418,23 +477,16 @@ func _on_dead_changed(tile_id: int, variant: String, delta: int) -> void:
 		"金":
 			_dead_gold[tile_id] = clampi(_dead_gold.get(tile_id, 0) + delta, 0, _dead_max(tile_id, "金"))
 	_refresh_dead_labels()
+	_refresh_palette()
 
 func _dead_max(tile_id: int, variant: String) -> int:
-	var hand_cnt := 0
-	for t: Dictionary in _hand:
-		if t.id == tile_id:
-			hand_cnt += 1
-	var total_seen: int = _dead_normal.get(tile_id, 0) + _dead_red.get(tile_id, 0) + _dead_gold.get(tile_id, 0)
-	var slot_remaining: int = SanmaAnalyzer.DECK_SIZE - hand_cnt - total_seen
 	match variant:
 		"normal":
-			return maxi(0, slot_remaining)
+			return _dead_final_max(tile_id, "normal")
 		"赤":
-			var red_max: int = _red_total(tile_id)
-			return maxi(0, mini(slot_remaining, red_max - _dead_red.get(tile_id, 0)))
+			return _dead_final_max(tile_id, "red")
 		"金":
-			var gold_max: int = _gold_total(tile_id)
-			return maxi(0, mini(slot_remaining, gold_max - _dead_gold.get(tile_id, 0)))
+			return _dead_final_max(tile_id, "gold")
 	return 0
 
 func _red_total(tile_id: int) -> int:
@@ -448,7 +500,146 @@ func _gold_total(tile_id: int) -> int:
 		28, 38: return 1
 	return 0
 
+func _dead_kind_for_tile(tile: Dictionary) -> String:
+	if bool(tile.get("is_red", false)):
+		return "red"
+	if bool(tile.get("is_gold", false)):
+		return "gold"
+	return "normal"
+
+func _dead_current(tile_id: int, kind: String) -> int:
+	match kind:
+		"red":
+			return int(_dead_red.get(tile_id, 0))
+		"gold":
+			return int(_dead_gold.get(tile_id, 0))
+	return int(_dead_normal.get(tile_id, 0))
+
+func _dead_final_max(tile_id: int, kind: String) -> int:
+	var hand_cnt := 0
+	for t: Dictionary in _hand:
+		if t.id == tile_id:
+			hand_cnt += 1
+	var normal_count: int = int(_dead_normal.get(tile_id, 0))
+	var red_count: int = int(_dead_red.get(tile_id, 0))
+	var gold_count: int = int(_dead_gold.get(tile_id, 0))
+	var current := _dead_current(tile_id, kind)
+	var other_seen := normal_count + red_count + gold_count - current
+	var physical_max := SanmaAnalyzer.DECK_SIZE - _red_total(tile_id) - _gold_total(tile_id)
+	match kind:
+		"red":
+			physical_max = _red_total(tile_id)
+		"gold":
+			physical_max = _gold_total(tile_id)
+	return maxi(0, mini(physical_max, SanmaAnalyzer.DECK_SIZE - hand_cnt - other_seen))
+
+func _add_dead_tile(tile: Dictionary, delta: int) -> void:
+	var tile_id := int(tile.id)
+	var kind := _dead_kind_for_tile(tile)
+	var next_value := clampi(_dead_current(tile_id, kind) + delta, 0, _dead_final_max(tile_id, kind))
+	match kind:
+		"red":
+			if not _dead_red.has(tile_id):
+				return
+			_dead_red[tile_id] = next_value
+		"gold":
+			if not _dead_gold.has(tile_id):
+				return
+			_dead_gold[tile_id] = next_value
+		_:
+			if not _dead_normal.has(tile_id):
+				return
+			_dead_normal[tile_id] = next_value
+	_refresh_dead_labels()
+	_refresh_palette()
+
+func _dead_tile_display_list() -> Array:
+	var tiles: Array = []
+	for tid: int in _dead_normal:
+		for i in range(int(_dead_normal.get(tid, 0))):
+			tiles.append({"id": tid, "is_red": false, "is_gold": false, "is_haku_pochi": false})
+	for tid: int in _dead_red:
+		for i in range(int(_dead_red.get(tid, 0))):
+			tiles.append({"id": tid, "is_red": true, "is_gold": false, "is_haku_pochi": false})
+	for tid: int in _dead_gold:
+		for i in range(int(_dead_gold.get(tid, 0))):
+			tiles.append({"id": tid, "is_red": false, "is_gold": true, "is_haku_pochi": false})
+	tiles.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return _dead_tile_sort_key(a) < _dead_tile_sort_key(b)
+	)
+	return tiles
+
+func _dead_tile_sort_key(tile: Dictionary) -> int:
+	var bonus := 0
+	if bool(tile.get("is_red", false)):
+		bonus = 1
+	elif bool(tile.get("is_gold", false)):
+		bonus = 2
+	return int(tile.id) * 10 + bonus
+
+func _remove_dead_tile(tile: Dictionary) -> void:
+	_add_dead_tile(tile, -1)
+
+func _hand_current(tile_id: int, kind: String) -> int:
+	var count := 0
+	for t: Dictionary in _hand:
+		if int(t.id) != tile_id:
+			continue
+		if _dead_kind_for_tile(t) == kind:
+			count += 1
+	return count
+
+func _hand_final_max(tile_id: int, kind: String) -> int:
+	var hand_normal := _hand_current(tile_id, "normal")
+	var hand_red := _hand_current(tile_id, "red")
+	var hand_gold := _hand_current(tile_id, "gold")
+	var current := _hand_current(tile_id, kind)
+	var dead_seen: int = int(_dead_normal.get(tile_id, 0)) + int(_dead_red.get(tile_id, 0)) + int(_dead_gold.get(tile_id, 0))
+	var other_seen := dead_seen + hand_normal + hand_red + hand_gold - current
+	var physical_max := SanmaAnalyzer.DECK_SIZE - _red_total(tile_id) - _gold_total(tile_id)
+	match kind:
+		"red":
+			physical_max = _red_total(tile_id)
+		"gold":
+			physical_max = _gold_total(tile_id)
+	return maxi(0, mini(physical_max, SanmaAnalyzer.DECK_SIZE - other_seen))
+
+func _refresh_dead_tile_display() -> void:
+	if _dead_tile_box == null:
+		return
+	for child in _dead_tile_box.get_children():
+		child.queue_free()
+	_dead_tile_btns.clear()
+
+	var tiles := _dead_tile_display_list()
+	var col := 0
+	var row := 0
+	var cols_per_row := 18
+	for tile: Dictionary in tiles:
+		var btn := Button.new()
+		btn.flat = true
+		btn.custom_minimum_size = Vector2(HAND_TILE_W, HAND_TILE_H)
+		btn.size = Vector2(HAND_TILE_W, HAND_TILE_H)
+		btn.position = Vector2(col * (HAND_TILE_W + HAND_GAP), row * (HAND_TILE_H + HAND_GAP))
+		var tex := _get_tile_texture(tile)
+		if tex:
+			btn.icon = tex
+			btn.expand_icon = true
+		else:
+			btn.text = MahjongLogic.get_tile_name(tile)
+			btn.add_theme_font_size_override("font_size", 12)
+		_style_slot_filled(btn)
+		var cap: Dictionary = tile.duplicate()
+		btn.pressed.connect(func(): _remove_dead_tile(cap))
+		_dead_tile_box.add_child(btn)
+		_dead_tile_btns.append(btn)
+		col += 1
+		if col >= cols_per_row:
+			col = 0
+			row += 1
+
 func _refresh_dead_labels() -> void:
+	_refresh_dead_tile_display()
 	for key: String in _dead_count_labels:
 		var lbl: Label = _dead_count_labels[key]
 		var parts := key.split("_")
@@ -471,13 +662,14 @@ func _refresh_dead_labels() -> void:
 			"normal": variant = "normal"
 			"red":    variant = "赤"
 			"gold":   variant = "金"
-		btn.disabled = (_dead_max(tid, variant) <= 0)
+		btn.disabled = (_dead_current(tid, vtype) >= _dead_max(tid, variant))
 
 func _on_dead_reset() -> void:
 	for tid in _dead_normal: _dead_normal[tid] = 0
 	for tid in _dead_red:    _dead_red[tid] = 0
 	for tid in _dead_gold:   _dead_gold[tid] = 0
 	_refresh_dead_labels()
+	_refresh_palette()
 
 func _build_dead_tiles() -> Dictionary:
 	var counts: Dictionary = {}
@@ -519,6 +711,14 @@ func _apply_dead_tiles_to_ui(dt: Dictionary) -> void:
 # ============================================================
 # タブ・パレット
 # ============================================================
+func _set_input_mode(mode: String) -> void:
+	_input_mode = mode
+	if _mode_hand_btn != null:
+		_mode_hand_btn.modulate = Color(1.0, 0.95, 0.55) if _input_mode == "hand" else Color(1, 1, 1)
+	if _mode_dead_btn != null:
+		_mode_dead_btn.modulate = Color(1.0, 0.95, 0.55) if _input_mode == "dead" else Color(1, 1, 1)
+	_refresh_palette()
+
 func _select_tab(idx: int) -> void:
 	_current_tab = idx
 	for i in range(_tab_btns.size()):
@@ -528,10 +728,10 @@ func _select_tab(idx: int) -> void:
 func _rebuild_palette() -> void:
 	for child in _palette_box.get_children():
 		child.queue_free()
-	var tiles: Array = _get_palette_tiles(_current_tab)
+	var tiles: Array = _get_all_palette_tiles()
 	var col := 0
 	var row := 0
-	var cols_per_row := 8
+	var cols_per_row := 15
 	for tile_def in tiles:
 		var tile := _make_tile_dict(tile_def)
 		var btn := Button.new()
@@ -566,6 +766,14 @@ func _rebuild_palette() -> void:
 			row += 1
 	_refresh_palette()
 
+func _get_all_palette_tiles() -> Array:
+	var tiles: Array = []
+	tiles.append_array(PALETTE_PIN)
+	tiles.append_array(PALETTE_SOU)
+	tiles.append_array(PALETTE_MAN)
+	tiles.append_array(PALETTE_JI)
+	return tiles
+
 func _get_palette_tiles(tab: int) -> Array:
 	match tab:
 		0: return PALETTE_MAN
@@ -586,7 +794,13 @@ func _make_tile_dict(def: Dictionary) -> Dictionary:
 # 手牌操作
 # ============================================================
 func _on_palette_tile_pressed(tile: Dictionary) -> void:
+	if _input_mode == "dead":
+		_add_dead_tile(tile, 1)
+		return
 	if _hand.size() >= 14:
+		return
+	var kind := _dead_kind_for_tile(tile)
+	if _hand_current(tile.id, kind) >= _hand_final_max(tile.id, kind):
 		return
 	_hand.append(tile.duplicate())
 	_refresh_hand_display()
@@ -636,12 +850,16 @@ func _refresh_palette() -> void:
 	var id_counts: Dictionary = {}
 	for t: Dictionary in _hand:
 		id_counts[t.id] = id_counts.get(t.id, 0) + 1
-	var tiles: Array = _get_palette_tiles(_current_tab)
+	var tiles: Array = _get_all_palette_tiles()
 	var btns: Array = _palette_box.get_children()
 	for i in range(mini(tiles.size(), btns.size())):
 		var tile: Dictionary = _make_tile_dict(tiles[i])
-		var cnt: int = id_counts.get(tile.id, 0)
-		btns[i].disabled = (cnt >= 4 or _hand.size() >= 14)
+		if _input_mode == "dead":
+			var kind := _dead_kind_for_tile(tile)
+			btns[i].disabled = (_dead_current(tile.id, kind) >= _dead_final_max(tile.id, kind))
+		else:
+			var kind := _dead_kind_for_tile(tile)
+			btns[i].disabled = (_hand.size() >= 14 or _hand_current(tile.id, kind) >= _hand_final_max(tile.id, kind))
 
 func _style_slot_filled(btn: Button) -> void:
 	var s := StyleBoxFlat.new()
