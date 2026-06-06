@@ -3424,7 +3424,13 @@ const _DBG_DGAP := 14
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_F1:
+		if event.keycode == KEY_ESCAPE:
+			if _home_confirm_popup != null and _home_confirm_popup.visible:
+				_home_confirm_popup.visible = false
+			else:
+				get_tree().change_scene_to_file("res://Menu.tscn")
+			get_viewport().set_input_as_handled()
+		elif event.keycode == KEY_F1:
 			_open_debug_for(0)
 		elif event.keycode == KEY_F2:
 			_open_debug_for(RIGHT_IDX)
