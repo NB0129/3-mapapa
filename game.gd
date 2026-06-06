@@ -111,6 +111,10 @@ var _assist_btn: Button = null
 var _assist_mode_label: Label = null
 var _assist_toggle_knob: Panel = null
 var _assist_toggle_knob_label: Label = null
+var _naki_btn: Button = null
+var _naki_mode_label: Label = null
+var _naki_toggle_knob: Panel = null
+var _naki_toggle_knob_label: Label = null
 var _assist_panel: Panel = null
 var _assist_star_labels: Array = []
 var _assist_visible: bool = false
@@ -422,6 +426,34 @@ func _build_ui() -> void:
 	_assist_toggle_knob.add_child(_assist_toggle_knob_label)
 	_refresh_assist_toggle_button()
 
+	_naki_mode_label = _make_label("鳴き", Vector2(10, 22), 30)
+	_naki_mode_label.size = Vector2(88, 44)
+	_naki_mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_naki_mode_label.add_theme_color_override("font_color", Color(0.42, 1.0, 0.58))
+	add_child(_naki_mode_label)
+
+	_naki_btn = _make_button("", Color(0.2, 0.3, 0.6))
+	_naki_btn.custom_minimum_size = Vector2(198, 87)
+	_naki_btn.size = _naki_btn.custom_minimum_size
+	_naki_btn.position = Vector2(112, 10)
+	_naki_btn.clip_contents = false
+	_naki_btn.focus_mode = Control.FOCUS_NONE
+	_naki_btn.pressed.connect(_on_naki_toggle_pressed)
+	add_child(_naki_btn)
+	_naki_toggle_knob = Panel.new()
+	_naki_toggle_knob.size = Vector2(81, 81)
+	_naki_toggle_knob.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_naki_btn.add_child(_naki_toggle_knob)
+	_naki_toggle_knob_label = Label.new()
+	_naki_toggle_knob_label.size = _naki_toggle_knob.size
+	_naki_toggle_knob_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_naki_toggle_knob_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_naki_toggle_knob_label.add_theme_font_size_override("font_size", 24)
+	_naki_toggle_knob_label.add_theme_color_override("font_color", Color(0.08, 0.10, 0.10))
+	_naki_toggle_knob_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_naki_toggle_knob.add_child(_naki_toggle_knob_label)
+	_refresh_naki_toggle_button()
+
 	# アシスト結果パネル（左キャラエリアに重ねる形で初期非表示）
 	_assist_panel = _make_panel(Color(0.03, 0.10, 0.05, 0.92), Rect2(10, 10, 460, 828))
 	_assist_panel.visible = false
@@ -448,25 +480,25 @@ func _build_ui() -> void:
 	_action_box.add_child(_btn_discard)
 
 	_btn_tsumo = _make_button("ツモ", Color(0.2, 0.6, 0.2))
-	_apply_button_image(_btn_tsumo, "res://assets/ui/btn_tumo.webp", "ツモ")
+	_apply_button_image(_btn_tsumo, "res://ui/btn_tumo2.webp", "ツモ")
 	_btn_tsumo.custom_minimum_size = ACTION_IMAGE_BUTTON_SIZE
 	_btn_tsumo.pressed.connect(_on_tsumo_pressed)
 	_action_box.add_child(_btn_tsumo)
 
 	_btn_ron = _make_button("ロン", Color(0.7, 0.5, 0.1))
-	_apply_button_image(_btn_ron, "res://assets/ui/btn_ron.webp", "ロン")
+	_apply_button_image(_btn_ron, "res://ui/btn_ron2.webp", "ロン")
 	_btn_ron.custom_minimum_size = ACTION_IMAGE_BUTTON_SIZE
 	_btn_ron.pressed.connect(_on_ron_pressed)
 	_action_box.add_child(_btn_ron)
 
 	_btn_open_riichi = _make_button("", Color(0.5, 0.1, 0.7))
-	_apply_button_image(_btn_open_riichi, "res://assets/ui/btn_ritiop.webp", "オープン立直")
+	_apply_button_image(_btn_open_riichi, "res://ui/btn_ritiop2.webp", "オープン立直")
 	_btn_open_riichi.custom_minimum_size = ACTION_IMAGE_BUTTON_SIZE
 	_btn_open_riichi.pressed.connect(_on_open_riichi_pressed)
 	_action_box.add_child(_btn_open_riichi)
 
 	_btn_riichi = _make_button("リーチ", Color(0.5, 0.1, 0.7))
-	_apply_button_image(_btn_riichi, "res://assets/ui/btn_riti.webp", "リーチ")
+	_apply_button_image(_btn_riichi, "res://ui/btn_riti2.webp", "リーチ")
 	_btn_riichi.custom_minimum_size = ACTION_IMAGE_BUTTON_SIZE
 	_btn_riichi.pressed.connect(_on_riichi_pressed)
 	_action_box.add_child(_btn_riichi)
@@ -652,7 +684,7 @@ func _build_npc_standing_art() -> void:
 	var standing_ids: Dictionary = _get_standing_npc_ids()
 	var left_id: String = standing_ids.left
 	var right_id: String = standing_ids.right
-	_npc_left_chara = _make_standing_texture(SaveData.get_npc_path_game(left_id), Vector2(-70, 95), Vector2(520, 960))
+	_npc_left_chara = _make_standing_texture(SaveData.get_npc_path_game(left_id), Vector2(-70, 45), Vector2(520, 960))
 	_npc_right_chara = _make_standing_texture(SaveData.get_npc_path_game(right_id), Vector2(1470, -120), Vector2(520, 960))
 	add_child(_npc_left_chara)
 	add_child(_npc_right_chara)
@@ -871,11 +903,14 @@ func _on_ron_opportunity(_winner_idx: int, loser_idx: int, tile: Dictionary) -> 
 	var discarder: Dictionary = GameState.players[loser_idx]
 	var discarder_name: String = discarder.name
 	_status_label.text = discarder_name + " が " + tile_name + " を捨てました"
-	var can_pon: bool = GameState.action_pon_from >= 0
-	var can_minkan: bool = GameState.action_minkan_possible
+	var can_pon: bool = SaveData.naki_enabled and GameState.action_pon_from >= 0
+	var can_minkan: bool = SaveData.naki_enabled and GameState.action_minkan_possible
 	_set_action_buttons_state(false, false, true, true, false, can_pon, false, can_minkan)
 
 func _on_pon_opportunity(_player_idx: int, from_idx: int, tile: Dictionary) -> void:
+	if not SaveData.naki_enabled:
+		call_deferred("_skip_naki_opportunity")
+		return
 	var tile_name := MahjongLogic.get_tile_name(tile)
 	var discarder: Dictionary = GameState.players[from_idx]
 	var discarder_name: String = discarder.name
@@ -1432,6 +1467,14 @@ func _on_skip_pressed() -> void:
 	GameState.player_skip()
 	_set_action_buttons_state(false, false, false, false, false, false, false, false)
 
+func _skip_naki_opportunity() -> void:
+	if GameState.phase != GameState.Phase.ACTION_WAIT:
+		return
+	if GameState.action_is_ron:
+		return
+	GameState.player_skip()
+	_set_action_buttons_state(false, false, false, false, false, false, false, false)
+
 func _on_msg_ok_pressed() -> void:
 	if _double_ron_result_index >= 0 and _double_ron_result_index + 1 < _double_ron_result_queue.size():
 		_double_ron_result_index += 1
@@ -1580,6 +1623,7 @@ func _refresh_all() -> void:
 	_refresh_npc_areas()
 	_refresh_discard_area()
 	_refresh_riichi_stick_display()
+	_refresh_naki_toggle_button()
 
 func _refresh_info() -> void:
 	var round_name := MahjongLogic.get_wind_name(GameState.round_wind)
@@ -4453,6 +4497,13 @@ func _on_assist_pressed() -> void:
 	_refresh_assist_toggle_button()
 	_refresh_auto_assist()
 
+func _on_naki_toggle_pressed() -> void:
+	SaveData.naki_enabled = not SaveData.naki_enabled
+	SaveData.save_data()
+	_refresh_naki_toggle_button()
+	if not SaveData.naki_enabled:
+		_skip_naki_opportunity()
+
 func _refresh_auto_assist() -> void:
 	_assist_request_serial += 1
 	_clear_assist_stars()
@@ -4707,6 +4758,39 @@ func _refresh_assist_toggle_button() -> void:
 	if _assist_toggle_knob_label != null:
 		_assist_toggle_knob_label.text = "ON" if is_on else "OFF"
 		_assist_toggle_knob_label.add_theme_color_override("font_color", Color(0.07, 0.36, 0.18) if is_on else Color(0.24, 0.24, 0.24))
+
+func _refresh_naki_toggle_button() -> void:
+	if _naki_btn == null:
+		return
+	var is_on: bool = SaveData.naki_enabled
+	_naki_btn.text = ""
+	_naki_btn.tooltip_text = "鳴き ON" if is_on else "鳴き OFF"
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.62, 0.28) if is_on else Color(0.24, 0.25, 0.27)
+	style.set_corner_radius_all(44)
+	style.set_border_width_all(3)
+	style.border_color = Color(0.7, 1.0, 0.75, 0.55) if is_on else Color(0.60, 0.62, 0.66, 0.45)
+	var hover := style.duplicate()
+	hover.bg_color = Color(0.16, 0.72, 0.34) if is_on else Color(0.30, 0.31, 0.33)
+	var pressed := style.duplicate()
+	pressed.bg_color = Color(0.10, 0.48, 0.22) if is_on else Color(0.18, 0.19, 0.21)
+	_naki_btn.add_theme_stylebox_override("normal", style)
+	_naki_btn.add_theme_stylebox_override("hover", hover)
+	_naki_btn.add_theme_stylebox_override("pressed", pressed)
+	_naki_btn.add_theme_color_override("font_color", Color.WHITE)
+	if _naki_mode_label != null:
+		_naki_mode_label.add_theme_color_override("font_color", Color(0.42, 1.0, 0.58) if is_on else Color(0.78, 0.82, 0.80))
+	if _naki_toggle_knob != null:
+		_naki_toggle_knob.position = Vector2(114, 3) if is_on else Vector2(3, 3)
+		var knob_style := StyleBoxFlat.new()
+		knob_style.bg_color = Color(0.96, 1.0, 0.96) if is_on else Color(0.78, 0.78, 0.78)
+		knob_style.set_corner_radius_all(42)
+		knob_style.set_border_width_all(2)
+		knob_style.border_color = Color(1, 1, 1, 0.85)
+		_naki_toggle_knob.add_theme_stylebox_override("panel", knob_style)
+	if _naki_toggle_knob_label != null:
+		_naki_toggle_knob_label.text = "ON" if is_on else "OFF"
+		_naki_toggle_knob_label.add_theme_color_override("font_color", Color(0.07, 0.36, 0.18) if is_on else Color(0.24, 0.24, 0.24))
 
 func _set_assist_toggle_visible(visible: bool) -> void:
 	if _assist_btn != null:

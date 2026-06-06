@@ -485,12 +485,13 @@ func _rotate_empty_after_fill(filled_seat: String) -> void:
 func _selectable_npc_ids() -> Array:
 	var ids: Array = SaveData.NPC_DEFS.keys()
 	ids.erase("kuma_black")
+	ids.erase("kuma_saibo")
 	ids.sort()
 	return ids
 
 func _remove_unselectable_npcs() -> void:
 	for seat in SEATS:
-		if str(_seat_npcs.get(seat, "")) == "kuma_black":
+		if str(_seat_npcs.get(seat, "")) in ["kuma_black", "kuma_saibo"]:
 			_seat_npcs[seat] = _first_unused_npc(_selectable_npc_ids())
 
 func _find_empty_seat() -> String:

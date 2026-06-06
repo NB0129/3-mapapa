@@ -11,11 +11,15 @@ config_version=5
 [application]
 
 config/name="3-mapapa"
-config/version="1.0.0"
 config/description="三人麻雀シミュレーション"
+config/version="1.0.0"
 run/main_scene="res://Main.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
+
+[audio]
+
+general/ios/session_category=3
 
 [autoload]
 
@@ -36,11 +40,6 @@ window/handheld/orientation=4
 
 pointing/emulate_mouse_from_touch=true
 pointing/emulate_touch_from_mouse=false
-
-[audio]
-
-general/ios/session_category=3
-general/ios/mix_with_others=false
 
 [physics]
 

@@ -46,6 +46,7 @@ var se_volume: float = AudioManager.DEFAULT_SE_VOLUME
 var assist_enabled: bool = true
 var assist_mode: int = 2 # 0=OFF, 1=star only, 2=star + panel
 var reach_cutin_enabled: bool = true
+var naki_enabled: bool = true
 
 func _ready() -> void:
 	load_data()
@@ -64,6 +65,7 @@ func save_data() -> void:
 		"bgm_volume": bgm_volume, "se_volume": se_volume,
 		"assist_enabled": assist_enabled, "assist_mode": assist_mode,
 		"reach_cutin_enabled": reach_cutin_enabled,
+		"naki_enabled": naki_enabled,
 	}
 	var f: FileAccess = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f:
@@ -109,6 +111,7 @@ func load_data() -> void:
 	assist_enabled = d.get("assist_enabled", true)
 	assist_mode    = clampi(int(d.get("assist_mode", 2)), 0, 2)
 	reach_cutin_enabled = d.get("reach_cutin_enabled", true)
+	naki_enabled = d.get("naki_enabled", true)
 	if is_equal_approx(bgm_volume, 0.15) and is_equal_approx(se_volume, 0.5):
 		bgm_volume = AudioManager.DEFAULT_BGM_VOLUME
 		se_volume = AudioManager.DEFAULT_SE_VOLUME
