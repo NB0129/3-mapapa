@@ -391,7 +391,7 @@ func _build_ui() -> void:
 	player_panel.add_child(_hand_box)
 
 	_tenpai_assist_box = Control.new()
-	_tenpai_assist_box.position = Vector2(1280, -16)
+	_tenpai_assist_box.position = Vector2(1120, 34)
 	_tenpai_assist_box.size = Vector2(620, 112)
 	player_panel.add_child(_tenpai_assist_box)
 
@@ -1205,6 +1205,12 @@ func _on_kakan_done(player_idx: int) -> void:
 func _on_naki_done(player_idx: int) -> void:
 	if player_idx == 0:
 		_refresh_hand()
+		_assist_cached_dead_tiles = _build_assist_dead_tiles()
+		_assist_cached_total_wall = GameState.wall.size()
+		_assist_cache_ready = true
+		if _assist_btn != null:
+			_set_assist_toggle_visible(_can_show_assist_toggle())
+		_refresh_auto_assist()
 	else:
 		var naki: Array = GameState.players[player_idx].get("naki", [])
 		if not naki.is_empty() and naki[-1].get("type", "") == "pon":
@@ -1554,8 +1560,8 @@ func _check_tsumo_auto() -> void:
 	if GameState.phase == GameState.Phase.AFTER_PON:
 		_set_action_buttons_state(true, false, false, false, false, false, false, false)
 		if _assist_btn != null:
-			_set_assist_toggle_visible(false)
-		_hide_assist()
+			_set_assist_toggle_visible(_can_show_assist_toggle())
+		_refresh_auto_assist()
 	else:
 		_set_action_buttons_state(false, can_tsumo, false, can_tsumo, can_riichi, false, can_kita, can_kan)
 		if _assist_btn != null:
@@ -2629,6 +2635,7 @@ func _ordered_double_ron_results(main_result: Dictionary) -> Array:
 		r["oorasu_choice_required"] = main_result.get("oorasu_choice_required", false)
 		r["bust_player_idx"] = main_result.get("bust_player_idx", -1)
 		r["bust_player_indices"] = main_result.get("bust_player_indices", [])
+		r["bust_chips"] = main_result.get("bust_chips", [])
 		r["score_after"] = main_result.get("score_after", r.get("score_after", []))
 		r["player_winds"] = main_result.get("player_winds", r.get("player_winds", []))
 	return ordered
@@ -2944,6 +2951,9 @@ func _reveal_win_result(result: Dictionary) -> void:
 	var is_tsumo: bool = result.get("is_tsumo", false)
 	var chip_text: String = ("チップ %d枚×２" % chips_per) if is_tsumo else ("チップ %d枚" % chips_per)
 	_add_result_label(chip_text, Vector2(80, y + 150), Vector2(420, 42), 30, Color(0.86, 1.0, 0.88))
+	var bust_chip_text := _result_bust_chip_text(result)
+	if bust_chip_text != "":
+		_add_result_label(bust_chip_text, Vector2(380, y + 150), Vector2(360, 42), 30, Color(1.0, 0.88, 0.46))
 	await _result_delay()
 	var scores_y := y + 215.0
 	for i in range(GameState.players.size()):
@@ -2962,6 +2972,18 @@ func _result_score_transition_text(result: Dictionary, player_idx: int) -> Strin
 	var after: int = int(after_scores[player_idx]) if player_idx < after_scores.size() else int(p.score)
 	var wind: int = _get_result_player_wind(result, player_idx)
 	return MahjongLogic.get_wind_name(wind) + "家 " + p.name + ": " + str(before) + "点→" + str(after) + "点"
+
+func _result_bust_chip_text(result: Dictionary, player_idx: int = -1) -> String:
+	var target_idx: int = player_idx
+	if target_idx < 0:
+		target_idx = int(result.get("winner_idx", -1))
+	var total := 0
+	for entry: Dictionary in result.get("bust_chips", []):
+		if int(entry.get("to", -1)) == target_idx:
+			total += int(entry.get("chips", 0))
+	if total <= 0:
+		return ""
+	return "飛び賞 %d枚" % total
 
 func _get_result_player_wind(result: Dictionary, player_idx: int) -> int:
 	var player_winds: Array = result.get("player_winds", [])
@@ -3308,6 +3330,11 @@ func _show_result(result: Dictionary) -> void:
 	for bust_idx: int in bust_indices:
 		var bust_p: Dictionary = GameState.players[bust_idx]
 		msg += "\n【飛び！】" + bust_p.name + " が持ち点を失いました"
+	for entry: Dictionary in result.get("bust_chips", []):
+		var to_idx: int = int(entry.get("to", -1))
+		var chip_count: int = int(entry.get("chips", 0))
+		if to_idx >= 0 and to_idx < GameState.players.size() and chip_count > 0:
+			msg += "\n" + GameState.players[to_idx].name + " 飛び賞 " + str(chip_count) + "枚"
 
 	_msg_label.text = msg
 	var will_end: bool = result.get("match_will_end", false)
@@ -4549,7 +4576,7 @@ func _can_show_auto_assist() -> bool:
 func _can_show_assist_toggle() -> bool:
 	if GameState.players.is_empty() or GameState.current_player != 0:
 		return false
-	if GameState.phase != GameState.Phase.PLAYER_TURN:
+	if GameState.phase != GameState.Phase.PLAYER_TURN and GameState.phase != GameState.Phase.AFTER_PON:
 		return false
 	if _riichi_mode or _pon_select_mode or _kan_select_mode or _riichi_cutin_running:
 		return false

@@ -36,6 +36,10 @@ var _rules_popup: Panel
 var _rules_body_label: Label
 var _rules_scroll: ScrollContainer
 var _rules_tab_buttons: Array = []
+var _settings_popup: Panel
+var _exit_confirm_popup: Panel
+var _bgm_slider: HSlider
+var _se_slider: HSlider
 
 func _ready() -> void:
 	_seat_npcs = SaveData.selected_npc_seats.duplicate(true)
@@ -83,6 +87,14 @@ func _build_ui() -> void:
 	_rules_popup.z_index = 50
 	_rules_popup.visible = false
 	add_child(_rules_popup)
+	_settings_popup = _build_settings_popup()
+	_settings_popup.z_index = 55
+	_settings_popup.visible = false
+	add_child(_settings_popup)
+	_exit_confirm_popup = _build_exit_confirm_popup()
+	_exit_confirm_popup.z_index = 60
+	_exit_confirm_popup.visible = false
+	add_child(_exit_confirm_popup)
 
 func _build_character_panel() -> Panel:
 	var panel := _make_panel(Color(0.02, 0.12, 0.28, 0.34), Rect2(0, 0, LEFT_W, 1080))
@@ -153,6 +165,11 @@ func _build_start_panel() -> Panel:
 	icon_modoru.position = Vector2(RIGHT_W - icon_modoru.size.x - 40, 910)
 	icon_modoru.pressed.connect(func(): get_tree().change_scene_to_file("res://Title.tscn"))
 	panel.add_child(icon_modoru)
+
+	var icon_settings := _make_image_button("res://assets/bg/icon_settei.webp", Vector2(112, 112))
+	icon_settings.position = Vector2(icon_modoru.position.x - icon_settings.size.x - 24, 924)
+	icon_settings.pressed.connect(_on_settings_pressed)
+	panel.add_child(icon_settings)
 
 	return panel
 
@@ -554,6 +571,82 @@ func _reset_rules_scroll() -> void:
 	if _rules_scroll != null:
 		_rules_scroll.scroll_vertical = 0
 		_rules_scroll.scroll_horizontal = 0
+
+func _build_settings_popup() -> Panel:
+	var panel := _make_panel(Color(0.06, 0.07, 0.12, 0.96), Rect2(570, 210, 780, 560))
+	var title := _make_label("設定", Vector2(330, 34), 46, Color(1.0, 0.92, 0.45))
+	panel.add_child(title)
+
+	panel.add_child(_make_label("BGM音量", Vector2(70, 130), 34))
+	_bgm_slider = HSlider.new()
+	_bgm_slider.min_value = 0.0
+	_bgm_slider.max_value = 1.0
+	_bgm_slider.step = 0.05
+	_bgm_slider.position = Vector2(280, 138)
+	_bgm_slider.size = Vector2(420, 48)
+	_bgm_slider.value_changed.connect(_on_bgm_slider_changed)
+	panel.add_child(_bgm_slider)
+
+	panel.add_child(_make_label("SE音量", Vector2(70, 220), 34))
+	_se_slider = HSlider.new()
+	_se_slider.min_value = 0.0
+	_se_slider.max_value = 1.0
+	_se_slider.step = 0.05
+	_se_slider.position = Vector2(280, 228)
+	_se_slider.size = Vector2(420, 48)
+	_se_slider.value_changed.connect(_on_se_slider_changed)
+	panel.add_child(_se_slider)
+
+	var exit_btn := _make_button("ゲーム終了", Color(0.55, 0.12, 0.14), Vector2(300, 72), 30)
+	exit_btn.position = Vector2(240, 334)
+	exit_btn.pressed.connect(_on_exit_game_pressed)
+	panel.add_child(exit_btn)
+
+	var close_btn := _make_button("閉じる", Color(0.24, 0.30, 0.40), Vector2(220, 64), 28)
+	close_btn.position = Vector2(290, 456)
+	close_btn.pressed.connect(func(): panel.visible = false)
+	panel.add_child(close_btn)
+	return panel
+
+func _build_exit_confirm_popup() -> Panel:
+	var panel := _make_panel(Color(0.05, 0.04, 0.06, 0.98), Rect2(660, 350, 600, 300))
+	panel.add_child(_make_label("ゲームを終了しますか？", Vector2(74, 54), 34, Color(1.0, 0.92, 0.72)))
+	var yes_btn := _make_button("はい", Color(0.58, 0.14, 0.16), Vector2(180, 66), 28)
+	yes_btn.position = Vector2(105, 178)
+	yes_btn.pressed.connect(_on_exit_confirm_yes_pressed)
+	panel.add_child(yes_btn)
+	var no_btn := _make_button("いいえ", Color(0.20, 0.32, 0.48), Vector2(180, 66), 28)
+	no_btn.position = Vector2(315, 178)
+	no_btn.pressed.connect(_on_exit_confirm_no_pressed)
+	panel.add_child(no_btn)
+	return panel
+
+func _on_settings_pressed() -> void:
+	if _bgm_slider != null:
+		_bgm_slider.value = AudioManager.bgm_volume
+	if _se_slider != null:
+		_se_slider.value = AudioManager.se_volume
+	_settings_popup.visible = true
+
+func _on_bgm_slider_changed(value: float) -> void:
+	SaveData.bgm_volume = value
+	AudioManager.set_bgm_volume(value)
+	SaveData.save_data()
+
+func _on_se_slider_changed(value: float) -> void:
+	SaveData.se_volume = value
+	AudioManager.set_se_volume(value)
+	SaveData.save_data()
+
+func _on_exit_game_pressed() -> void:
+	_exit_confirm_popup.visible = true
+
+func _on_exit_confirm_yes_pressed() -> void:
+	SaveData.save_data()
+	get_tree().quit()
+
+func _on_exit_confirm_no_pressed() -> void:
+	_exit_confirm_popup.visible = false
 
 func _make_panel(color: Color, rect: Rect2) -> Panel:
 	var p := Panel.new()

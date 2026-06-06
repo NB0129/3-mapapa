@@ -1453,10 +1453,12 @@ func _do_pon(player_idx: int, from_idx: int, tile: Dictionary, selected_hand_idx
 	# ポンされた捨て牌にフラグを立てる（河に残るが黒マスクで覆う）
 	_mark_taken_discard(from_idx, tile, "pon")
 	action_minkan_possible = false
+	if player_idx == 0:
+		current_player = player_idx
+		phase = Phase.AFTER_PON
 	emit_signal("naki_done", player_idx)
 	_assert_kyoku_invariants("after_pon")
 	if player_idx == 0:
-		phase = Phase.AFTER_PON
 		emit_signal("turn_started", player_idx)
 	else:
 		get_tree().create_timer(NPC_THINK_SEC * 0.5).timeout.connect(
@@ -2173,6 +2175,7 @@ func _process_kyoku_end(result: Dictionary) -> void:
 		var bust_idx: int = bust_indices[0]
 		result["bust_player_idx"] = bust_idx
 		result["bust_player_indices"] = bust_indices
+		var bust_chips: Array = []
 		# 飛び賞チップ。和了以外で飛んだ場合は上家取り。
 		if not result.get("draw", false):
 			var w_idx: int = result.get("winner_idx", -1)
@@ -2180,11 +2183,14 @@ func _process_kyoku_end(result: Dictionary) -> void:
 				for bi: int in bust_indices:
 					player_chips[w_idx] += 2
 					player_chips[bi] -= 2
+					bust_chips.append({"from": bi, "to": w_idx, "chips": 2})
 		else:
 			for bi: int in bust_indices:
 				var receiver: int = (bi - 1 + players.size()) % players.size()
 				player_chips[receiver] += 2
 				player_chips[bi] -= 2
+				bust_chips.append({"from": bi, "to": receiver, "chips": 2})
+		result["bust_chips"] = bust_chips
 
 	if not _pending_match_end:
 		var winner_idx: int = result.get("winner_idx", -1)

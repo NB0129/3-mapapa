@@ -1,6 +1,15 @@
 ==================================================
   3人麻雀ぱぱ（3-mapapa） 更新履歴
 ==================================================
+【2026/06/06-2】Android安全導線・副露後アシスト・飛び賞表示を修正（GameState.gd / game.gd / menu.gd / 仕様書）
+  - メニュー右下の戻るボタン左に設定アイコンを追加し、BGM音量・SE音量・ゲーム終了ボタンを配置。
+  - ゲーム終了は「はい / いいえ」の確認を挟み、「はい」でアプリを終了するようにした。
+  - テンパイアシスト表示位置をプレイヤーパネル基準 Vector2(1120, 34) へ変更し、下家手牌側へ寄せた。
+  - ポン直後に current_player と phase を先に AFTER_PON へ切り替え、切る前にも打牌アシストが出るように修正。
+  - 鳴きON/OFFトグル、ロン/ツモ/リーチ/オープン立直ボタン画像差し替え、左NPC表示位置上げ、サイボーグくま選択不可を反映。
+  - 飛び賞チップの受け渡しを result["bust_chips"] に記録し、局リザルト画面に「飛び賞 2枚」を表示。
+  - Android export の versionCode を 6 に更新。
+
 【2026/05/26】iOS実機タイトルタッチ・Audio出力修正（project.godot / title.gd / menu.gd / game.gd / README_IOS.md / 仕様書）
   - iOS実機で標準Button.pressedがタッチ発火するよう、emulate_mouse_from_touch=trueへ変更。
   - 自前gui_inputのタッチ判定はmobile時にInputEventMouseButtonを無視し、InputEventScreenTouchのみ処理して二重発火を避けるよう修正。
